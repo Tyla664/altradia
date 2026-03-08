@@ -1,4 +1,4 @@
-// sw.js - Service Worker for Push Notifications in TradeWatch
+// sw.js - Service Worker for TradeWatch Push Notifications
 
 self.addEventListener('push', event => {
   let data = {
@@ -9,16 +9,16 @@ self.addEventListener('push', event => {
   try {
     data = event.data.json();
   } catch (e) {
-    // If no JSON payload, use defaults
+    // fallback to defaults if no JSON payload
   }
 
   const options = {
     body: data.body || 'A price alert has triggered on your watchlist.',
-    icon: '/icon-192.png',           // Optional: replace with your own 192x192 PNG if you add one later
-    badge: '/icon-96.png',           // Optional: 96x96 badge icon
-    vibrate: [200, 100, 200],        // Vibration pattern for mobile
-    tag: 'tradewatch-alert-' + Date.now(), // Unique tag to prevent stacking same alert
-    renotify: true                   // Bring attention even if notification exists
+    icon: '/icon-192.png',          // optional – add your icon later
+    badge: '/icon-96.png',          // optional
+    vibrate: [200, 100, 200],
+    tag: 'tradewatch-alert-' + Date.now(),
+    renotify: true
   };
 
   event.waitUntil(
@@ -31,8 +31,6 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-
-  // Open the app when user clicks the notification
   event.waitUntil(
     clients.openWindow('/')
   );
