@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradeWatch — Personal Alert Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c12;
+    --surface: #0d1520;
+    --surface2: #111c2d;
+    --border: #1a2d45;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --green: #00e676;
+    --red: #ff3d5a;
+    --gold: #ffd600;
+    --text: #e8f4f8;
+    --muted: #4a6a80;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(8,12,18,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px;
+  }
+  .logo {
+    font-family: var(--sans);
+    font-weight: 800;
+    font-size: 1.2rem;
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.4)} }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .status-pill {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--green);
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+  .refresh-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 6px 14px; border-radius: 6px;
+    cursor: pointer; font-family: var(--mono); font-size: 0.7rem;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .app {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: 300px 1fr 320px;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    height: calc(100vh - 60px);
+  }
+
+  .panel {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+  .panel-title {
+    font-size: 0.65rem;
+    font-family: var(--mono);
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title span { color: var(--accent); }
+
+  .watchlist-panel { background: var(--surface); }
+  .market-group { margin-bottom: 20px; }
+  .market-group-label {
+    font-size: 0.58rem;
+    font-family: var(--mono);
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .asset-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative; overflow: hidden;
+  }
+  .asset-card::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .asset-card:hover { border-color: var(--accent); transform: translateX(2px); }
+  .asset-card:hover::before { opacity: 1; }
+  .asset-card:hover .asset-remove { opacity: 1; }
+  .asset-remove {
+    position: absolute; top: 6px; right: 8px;
+    opacity: 0; background: transparent; border: none;
+    color: var(--red); font-size: 0.7rem; cursor: pointer;
+    transition: opacity 0.15s; padding: 2px 4px; border-radius: 3px;
+    z-index: 2;
+  }
+  .asset-remove:hover { background: rgba(255,61,90,0.15); }
+  .asset-card.selected { border-color: var(--accent); background: rgba(0,212,255,0.05); }
+  .asset-card.selected::before { opacity: 1; }
+  .asset-card.has-alert::after {
+    content: '●';
+    position: absolute; top: 6px; right: 8px;
+    font-size: 6px; color: var(--gold);
+  }
+  .asset-left { display: flex; flex-direction: column; gap: 2px; }
+  .asset-symbol { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.5px; }
+  .asset-name { font-size: 0.65rem; color: var(--muted); }
+  .asset-right { text-align: right; }
+  .asset-price { font-family: var(--mono); font-size: 0.8rem; font-weight: 700; }
+  .asset-change {
+    font-family: var(--mono); font-size: 0.65rem;
+    padding: 2px 6px; border-radius: 4px;
+    margin-top: 3px; display: inline-block;
+  }
+  .up { color: var(--green); background: rgba(0,230,118,0.1); }
+  .down { color: var(--red); background: rgba(255,61,90,0.1); }
+
+  .main-panel {
+    background: var(--bg);
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  .asset-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .asset-header-left h2 { font-size: 1.8rem; font-weight: 800; letter-spacing: -1px; }
+  .asset-header-left .full-name { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
+  .asset-header-right { text-align: right; }
+  .big-price { font-family: var(--mono); font-size: 2rem; font-weight: 700; }
+  .big-change { font-size: 0.85rem; margin-top: 4px; }
+
+  .spark-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .spark-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .spark-label { font-size: 0.65rem; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; }
+  .timeframe-tabs { display: flex; gap: 4px; }
+  .tf-tab {
+    padding: 4px 10px; border-radius: 4px; font-family: var(--mono);
+    font-size: 0.65rem; cursor: pointer; border: 1px solid transparent;
+    color: var(--muted); transition: all 0.15s; background: transparent;
+  }
+  .tf-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.08); }
+  .tf-tab:hover:not(.active) { color: var(--text); }
+  canvas#sparkChart { width: 100%; height: 180px; display: block; }
+
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .stat-label { font-size: 0.6rem; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .stat-value { font-family: var(--mono); font-size: 0.9rem; font-weight: 700; }
+
+  .alert-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .form-title {
+    font-size: 0.65rem; font-family: var(--mono); letter-spacing: 2px;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 16px;
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 0.65rem; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; }
+  .form-group input, .form-group select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .form-group select option { background: var(--surface); }
+  .form-note { font-size: 0.65rem; color: var(--muted); margin-bottom: 14px; font-family: var(--mono); }
+  .create-btn {
+    width: 100%; padding: 12px;
+    background: linear-gradient(135deg, var(--accent), #0099cc);
+    border: none; border-radius: 8px;
+    color: #000; font-family: var(--sans); font-weight: 700;
+    font-size: 0.85rem; letter-spacing: 0.5px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .create-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,212,255,0.3); }
+  .create-btn:active { transform: translateY(0); }
+
+  .alerts-panel { background: var(--surface); }
+  .alert-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .alert-item.triggered {
+    border-color: var(--gold);
+    background: rgba(255,214,0,0.04);
+    animation: triggerGlow 1s ease-out;
+  }
+  @keyframes triggerGlow {
+    0% { box-shadow: 0 0 0 0 rgba(255,214,0,0.4); }
+    100% { box-shadow: 0 0 0 12px rgba(255,214,0,0); }
+  }
+  .alert-item.active-alert { border-color: var(--border); }
+  .alert-header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .alert-symbol { font-weight: 700; font-size: 0.85rem; }
+  .alert-badge {
+    font-family: var(--mono); font-size: 0.6rem; padding: 3px 8px;
+    border-radius: 4px; letter-spacing: 0.5px;
+  }
+  .badge-active { background: rgba(0,212,255,0.1); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+  .badge-triggered { background: rgba(255,214,0,0.1); color: var(--gold); border: 1px solid rgba(255,214,0,0.3); }
+  .badge-inactive { background: rgba(74,106,128,0.15); color: var(--muted); border: 1px solid var(--border); }
+  .alert-detail { font-size: 0.72rem; color: var(--muted); line-height: 1.6; font-family: var(--mono); }
+  .alert-detail strong { color: var(--text); }
+  .alert-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .alert-action-btn {
+    flex: 1; padding: 6px; border-radius: 5px; font-size: 0.65rem;
+    font-family: var(--mono); cursor: pointer; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+  .alert-action-btn.delete:hover { border-color: var(--red); color: var(--red); }
+  .alert-action-btn.toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+  .toast-container { position: fixed; top: 70px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--gold);
+    border-radius: 10px;
+    padding: 14px 18px;
+    min-width: 280px;
+    animation: slideIn 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,214,0,0.2);
+  }
+  @keyframes slideIn { from { transform: translateX(120%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+  .toast-title { font-weight: 700; font-size: 0.8rem; color: var(--gold); margin-bottom: 4px; }
+  .toast-body { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+  .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+  .empty-state p { font-size: 0.75rem; font-family: var(--mono); line-height: 1.6; }
+
+  .skeleton { background: linear-gradient(90deg, var(--border) 25%, var(--surface2) 50%, var(--border) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .settings-row { display: flex; align-items: center; gap: 10px; }
+  .icon-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); width: 34px; height: 34px; border-radius: 6px;
+    cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .icon-btn.active { border-color: var(--green); color: var(--green); background: rgba(0,230,118,0.08); }
+  .icon-btn.muted-sound { border-color: var(--red); color: var(--red); background: rgba(255,61,90,0.08); }
+
+  .notif-banner {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--surface2); border: 1px solid var(--accent);
+    border-radius: 12px; padding: 14px 20px;
+    display: flex; align-items: center; gap: 14px;
+    z-index: 999; animation: slideUp 0.4s ease;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    min-width: 380px;
+  }
+  @keyframes slideUp { from { transform: translateX(-50%) translateY(20px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
+  .notif-banner p { font-size: 0.75rem; color: var(--muted); font-family: var(--mono); flex: 1; }
+  .notif-banner strong { color: var(--text); display: block; margin-bottom: 2px; }
+  .notif-allow { padding: 7px 16px; background: var(--accent); border: none; border-radius: 6px; color: #000; font-family: var(--sans); font-weight: 700; font-size: 0.75rem; cursor: pointer; }
+  .notif-dismiss { padding: 7px 12px; background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-family: var(--mono); font-size: 0.7rem; cursor: pointer; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px); z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    width: 860px; max-width: 96vw;
+    height: 82vh; max-height: 700px;
+    display: flex; flex-direction: column;
+    animation: scaleIn 0.2s ease;
+    overflow: hidden;
+  }
+  @keyframes scaleIn { from{transform:scale(0.96);opacity:0} to{transform:scale(1);opacity:1} }
+  .modal-header {
+    padding: 22px 24px 0;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .modal-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .modal-title { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.5px; }
+  .modal-title-sub { font-size: 0.65rem; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+  .modal-close-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  .modal-close-btn:hover { border-color: var(--red); color: var(--red); }
+  .modal-search-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .modal-search {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); padding: 10px 14px;
+    font-family: var(--mono); font-size: 0.8rem; outline: none;
+  }
+  .modal-search:focus { border-color: var(--accent); }
+  .modal-count { font-family: var(--mono); font-size: 0.65rem; color: var(--muted); align-self: center; white-space: nowrap; }
+  .modal-tabs { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 0; }
+  .modal-tab {
+    padding: 8px 14px; font-family: var(--mono); font-size: 0.65rem; letter-spacing: 1px;
+    cursor: pointer; border: none; background: transparent; color: var(--muted);
+    border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap;
+  }
+  .modal-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .modal-tab:hover:not(.active) { color: var(--text); }
+  .modal-body { flex: 1; overflow-y: auto; padding: 16px 24px 20px; }
+
+  .lib-section-title {
+    font-size: 0.58rem; font-family: var(--mono); letter-spacing: 2px;
+    color: var(--muted); text-transform: uppercase;
+    margin: 12px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; margin-bottom: 8px; }
+  .lib-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; transition: all 0.15s; position: relative;
+  }
+  .lib-card:hover:not(.in-watch) { border-color: var(--accent); background: rgba(0,212,255,0.04); }
+  .lib-card.in-watch { border-color: rgba(0,230,118,0.4); opacity: 0.6; cursor: default; }
+  .lib-sym { font-weight: 700; font-size: 0.78rem; letter-spacing: 0.3px; }
+  .lib-name { font-size: 0.6rem; color: var(--muted); margin-top: 2px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-action { font-size: 0.75rem; color: var(--accent); flex-shrink: 0; margin-left: 8px; }
+  .lib-card.in-watch .lib-action { color: var(--green); }
+  .lib-empty { text-align: center; padding: 40px; color: var(--muted); font-family: var(--mono); font-size: 0.75rem; }
+
+  .sound-wave {
+    display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; margin-left: 4px;
+  }
+  .sound-wave span {
+    width: 2px; background: var(--green); border-radius: 1px;
+    animation: wave 0.8s ease-in-out infinite;
+  }
+  .sound-wave span:nth-child(1) { height: 4px; animation-delay: 0s; }
+  .sound-wave span:nth-child(2) { height: 10px; animation-delay: 0.1s; }
+  .sound-wave span:nth-child(3) { height: 7px; animation-delay: 0.2s; }
+  .sound-wave span:nth-child(4) { height: 12px; animation-delay: 0.15s; }
+  @keyframes wave { 0%,100%{transform:scaleY(0.4)} 50%{transform:scaleY(1)} }
+
+  .sound-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .sound-opt {
+    padding: 4px 10px; border-radius: 4px; font-family: var(--mono);
+    font-size: 0.62rem; border: 1px solid var(--border); background: transparent;
+    color: var(--muted); cursor: pointer; transition: all 0.15s;
+  }
+  .sound-opt.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.08); }
+  .sound-opt:hover:not(.active) { color: var(--text); }
+
+  .summary-bar {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex; gap: 24px; align-items: center;
+    font-family: var(--mono); font-size: 0.68rem;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .summary-item { display: flex; gap: 8px; align-items: center; color: var(--muted); flex-shrink: 0; }
+  .summary-item strong { color: var(--text); }
+  .divider { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; }
+
+  .mobile-nav {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 150;
+    background: rgba(8,12,18,0.97);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    padding: 0; height: 60px;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .mobile-nav-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; background: transparent; border: none; color: var(--muted);
+    font-size: 0.55rem; font-family: var(--mono); letter-spacing: 0.5px;
+    cursor: pointer; transition: color 0.15s; padding: 8px 4px;
+    text-transform: uppercase; position: relative;
+  }
+  .mobile-nav-btn .nav-icon { font-size: 1.15rem; line-height: 1; }
+  .mobile-nav-btn.active { color: var(--accent); }
+  .mobile-nav-btn.active::before {
+    content: ''; position: absolute; top: 0; left: 20%; right: 20%;
+    height: 2px; background: var(--accent); border-radius: 0 0 2px 2px;
+  }
+  .mobile-nav-btn .alert-badge-dot {
+    position: absolute; top: 6px; right: calc(50% - 14px);
+    width: 7px; height: 7px; background: var(--gold);
+    border-radius: 50%; border: 1px solid var(--bg);
+    display: none;
+  }
+  .mobile-nav-btn .alert-badge-dot.show { display: block; }
+
+  @media (max-width: 768px) {
+    header {
+      padding: 0 14px;
+      height: 52px;
+    }
+    .logo { font-size: 1rem; gap: 8px; }
+    .logo-dot { width: 7px; height: 7px; }
+    .status-pill { display: none; }
+    .refresh-btn { display: none; }
+    .header-right { gap: 8px; }
+    .icon-btn { width: 32px; height: 32px; font-size: 0.8rem; }
+
+    .app {
+      display: block;
+      height: calc(100vh - 52px - 60px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .summary-bar {
+      padding: 8px 14px;
+      gap: 14px;
+      font-size: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .summary-bar .summary-item:last-child { display: none; }
+
+    .panel, .main-panel {
+      position: absolute;
+      inset: 0;
+      height: 100%;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      display: none;
+      padding: 14px;
+      border: none;
+    }
+    .panel.mobile-active, .main-panel.mobile-active { display: block; }
+
+    .watchlist-panel { background: var(--surface); top: 36px; }
+
+    .main-panel { background: var(--bg); top: 36px; }
+    .asset-header {
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+    }
+    .asset-header-left h2 { font-size: 1.3rem; }
+    .asset-header-left .full-name { font-size: 0.65rem; }
+    .big-price { font-size: 1.4rem; }
+    .big-change { font-size: 0.75rem; }
+    canvas#sparkChart { height: 140px; }
+
+    .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+    .stat-card { padding: 10px 12px; }
+    .stat-value { font-size: 0.8rem; }
+
+    .alert-form { padding: 14px; }
+    .form-row { grid-template-columns: 1fr; gap: 10px; }
+    .form-group input, .form-group select { font-size: 0.85rem; padding: 12px; }
+    .create-btn { padding: 14px; font-size: 0.9rem; }
+
+    .asset-card { padding: 14px; margin-bottom: 10px; }
+    .asset-remove { opacity: 1; top: 50%; transform: translateY(-50%); right: 10px; font-size: 0.85rem; padding: 6px 8px; }
+    .asset-card.has-alert::after { top: 8px; right: 34px; }
+    .asset-right { padding-right: 24px; }
+
+    .alerts-panel { top: 36px; background: var(--surface); }
+    .alert-item { padding: 14px; }
+    .alert-action-btn { padding: 10px; font-size: 0.7rem; }
+
+    .modal {
+      width: 100vw; max-width: 100vw;
+      height: 100dvh; max-height: 100dvh;
+      border-radius: 0; border: none;
+    }
+    .modal-header { padding: 14px 16px 0; }
+    .modal-title { font-size: 1rem; }
+    .modal-search { font-size: 0.9rem; padding: 12px; }
+    .modal-body { padding: 12px 16px 16px; }
+    .lib-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    .lib-card { padding: 12px; }
+    .lib-sym { font-size: 0.82rem; }
+    .lib-name { font-size: 0.62rem; }
+
+    .mobile-nav { display: grid; }
+
+    .toast-container { top: auto; bottom: 70px; right: 10px; left: 10px; }
+    .toast { min-width: unset; width: 100%; }
+
+    .notif-banner { min-width: unset; width: calc(100% - 28px); bottom: 70px; }
+
+    .market-group-label { padding: 10px 0 6px; font-size: 0.62rem; }
+
+    .sound-opt { padding: 8px 12px; font-size: 0.68rem; }
+  }
+
+  @media (max-width: 400px) {
+    .lib-grid { grid-template-columns: 1fr 1fr; }
+    .asset-header-left h2 { font-size: 1.1rem; }
+    .big-price { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    TRADEWATCH
+  </div>
+  <div class="header-right settings-row">
+    <div class="status-pill" id="status-pill">◌ CONNECTING</div>
+    <button class="icon-btn active" id="sound-btn" title="Toggle sound alerts" onclick="toggleSound()">🔊</button>
+    <button class="icon-btn" id="notif-btn" title="Browser push notifications" onclick="requestNotifPermission()">🔔</button>
+    <button class="icon-btn" title="Add asset to watchlist" onclick="openAddModal()">＋</button>
+    <button class="refresh-btn" onclick="refreshAll()">⟳ REFRESH</button>
+  </div>
+</header>
+
+<div class="app">
+  <!-- Summary bar -->
+  <div class="summary-bar">
+    <div class="summary-item">WATCHING <strong id="watchCount">0</strong> ASSETS</div>
+    <div class="divider"></div>
+    <div class="summary-item">ACTIVE ALERTS <strong id="activeCount">0</strong></div>
+    <div class="divider"></div>
+    <div class="summary-item">TRIGGERED TODAY <strong id="triggeredCount">0</strong></div>
+    <div class="divider"></div>
+    <div class="summary-item">LAST UPDATE <strong id="lastUpdate">--:--:--</strong></div>
+    <div class="divider"></div>
+    <div class="summary-item" style="margin-left:auto;">DATA: <strong style="color:var(--accent)">CoinGecko + Twelve Data (Live)</strong></div>
+  </div>
+
+  <!-- LEFT: Watchlist -->
+  <div class="panel watchlist-panel mobile-active" id="panel-watchlist">
+    <div class="panel-title">WATCHLIST <span id="wl-count">0</span></div>
+
+    <div class="market-group">
+      <div class="market-group-label">🪙 CRYPTO</div>
+      <div id="crypto-list"></div>
+    </div>
+    <div class="market-group">
+      <div class="market-group-label">📈 STOCKS</div>
+      <div id="stocks-list"></div>
+    </div>
+    <div class="market-group">
+      <div class="market-group-label">💱 FOREX</div>
+      <div id="forex-list"></div>
+    </div>
+    <div class="market-group">
+      <div class="market-group-label">🥇 COMMODITIES</div>
+      <div id="commodities-list"></div>
+    </div>
+    <div class="market-group">
+      <div class="market-group-label">📊 INDICES</div>
+      <div id="indices-list"></div>
+    </div>
+  </div>
+
+  <!-- CENTER: Main -->
+  <div class="main-panel" id="panel-main">
+    <div class="asset-header">
+      <div class="asset-header-left">
+        <h2 id="sel-symbol">Select Asset</h2>
+        <div class="full-name" id="sel-name">Click any asset from the watchlist</div>
+        <div class="data-source">Source: <span id="sel-source">—</span></div>
+      </div>
+      <div class="asset-header-right">
+        <div class="big-price" id="sel-price">—</div>
+        <div class="big-change" id="sel-change"></div>
+      </div>
+    </div>
+
+    <div class="spark-container">
+      <div class="spark-header">
+        <div class="spark-label">PRICE CHART (SIMULATED)</div>
+        <div class="timeframe-tabs">
+          <button class="tf-tab active" onclick="setTF('1H',this)">1H</button>
+          <button class="tf-tab" onclick="setTF('4H',this)">4H</button>
+          <button class="tf-tab" onclick="setTF('1D',this)">1D</button>
+          <button class="tf-tab" onclick="setTF('1W',this)">1W</button>
+        </div>
+      </div>
+      <canvas id="sparkChart"></canvas>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">24H HIGH</div>
+        <div class="stat-value" id="stat-high">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">24H LOW</div>
+        <div class="stat-value" id="stat-low">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">24H VOLUME</div>
+        <div class="stat-value" id="stat-vol">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">MKT CAP</div>
+        <div class="stat-value" id="stat-mcap">—</div>
+      </div>
+    </div>
+
+    <!-- Alert creation form -->
+    <div class="alert-form">
+      <div class="form-title">⚡ CREATE PRICE ALERT</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ASSET</label>
+          <select id="alert-asset">
+            <option value="">Select asset...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>CONDITION</label>
+          <select id="alert-condition">
+            <option value="above">Price rises ABOVE</option>
+            <option value="below">Price falls BELOW</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>TARGET PRICE</label>
+          <input type="number" id="alert-price" placeholder="e.g. 50000" step="any">
+        </div>
+        <div class="form-group">
+          <label>NOTE (OPTIONAL)</label>
+          <input type="text" id="alert-note" placeholder="e.g. Key resistance level">
+        </div>
+      </div>
+      <div class="form-note" id="current-price-note">Select an asset to see current price</div>
+      <div style="margin-bottom:14px;">
+        <div class="form-group" style="margin-bottom:6px;">
+          <label>ALERT SOUND</label>
+          <div class="sound-selector">
+            <button class="sound-opt active" onclick="selectSound('chime',this)">🔔 Chime</button>
+            <button class="sound-opt" onclick="selectSound('beep',this)">📡 Beep</button>
+            <button class="sound-opt" onclick="selectSound('bell',this)">🔕 Bell</button>
+            <button class="sound-opt" onclick="selectSound('ding',this)">✨ Ding</button>
+            <button class="sound-opt" onclick="previewSound()">▶ Preview</button>
+          </div>
+        </div>
+      </div>
+      <button class="create-btn" onclick="createAlert()">＋ SET ALERT</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Alerts -->
+  <div class="panel alerts-panel" id="panel-alerts">
+    <div class="panel-title">ALERTS <span id="alert-count">0</span></div>
+    <div id="alerts-list">
+      <div class="empty-state">
+        <div class="icon">🔔</div>
+        <p>No alerts yet.<br>Select an asset and set a<br>price target to get started.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile Bottom Nav -->
+<nav class="mobile-nav" id="mobile-nav">
+  <button class="mobile-nav-btn active" id="mnav-watchlist" onclick="mobileTab('watchlist')">
+    <span class="nav-icon">📋</span>
+    Watchlist
+  </button>
+  <button class="mobile-nav-btn" id="mnav-chart" onclick="mobileTab('chart')">
+    <span class="nav-icon">📈</span>
+    Chart
+  </button>
+  <button class="mobile-nav-btn" id="mnav-alerts" onclick="mobileTab('alerts')">
+    <span class="nav-icon">🔔</span>
+    Alerts
+    <span class="alert-badge-dot" id="alert-dot"></span>
+  </button>
+  <button class="mobile-nav-btn" id="mnav-add" onclick="openAddModal()">
+    <span class="nav-icon">＋</span>
+    Add
+  </button>
+</nav>
+
+<!-- Asset Library Modal -->
+<div id="add-modal" class="modal-overlay" style="display:none;" onclick="closeModalIfBg(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title-row">
+        <div>
+          <div class="modal-title">📊 Asset Library</div>
+          <div class="modal-title-sub">SEARCH & MANAGE YOUR WATCHLIST · <span id="lib-total-count">0</span> ASSETS AVAILABLE</div>
+        </div>
+        <button class="modal-close-btn" onclick="closeAddModal()">✕</button>
+      </div>
+      <div class="modal-search-row">
+        <input class="modal-search" id="modal-search" type="text" placeholder="Search symbol, name, or market (e.g. AAPL, Gold, Japan, crypto...)" oninput="filterLibrary()">
+        <div class="modal-count" id="lib-result-count"></div>
+      </div>
+      <div class="modal-tabs" id="lib-tabs">
+        <button class="modal-tab active" onclick="setLibTab('ALL',this)">ALL</button>
+        <button class="modal-tab" onclick="setLibTab('crypto',this)">CRYPTO</button>
+        <button class="modal-tab" onclick="setLibTab('stocks',this)">STOCKS</button>
+        <button class="modal-tab" onclick="setLibTab('forex',this)">FOREX</button>
+        <button class="modal-tab" onclick="setLibTab('commodities',this)">COMMODITIES</button>
+        <button class="modal-tab" onclick="setLibTab('indices',this)">INDICES</button>
+        <button class="modal-tab" onclick="setLibTab('etf',this)">ETFs</button>
+        <button class="modal-tab" onclick="setLibTab('watchlist',this)">MY WATCHLIST</button>
+      </div>
+    </div>
+    <div class="modal-body" id="lib-body"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// API KEYS & VAPID
+// ═══════════════════════════════════════════════
+const TD_KEY = '6d7175c59a1546a28e37b0b23c402ec5'; // Twelve Data
+const PUBLIC_VAPID_KEY = "BJCv8IJPfAGfgB7L7bChtGnida6xIc3CMe7JbJ5e8fOc7An5A7tNItStuIHAM60DEtgDHAS0PADMclZrYh4xq-I";
+
+// ═══════════════════════════════════════════════
+// PUSH NOTIFICATIONS SETUP
+// ═══════════════════════════════════════════════
+let pushSubscription = null;
+let pushEnabled = false;
+
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    console.log('Service Worker registered');
+
+    pushSubscription = await reg.pushManager.getSubscription();
+    if (pushSubscription) {
+      pushEnabled = true;
+      updateNotifBtn();
+    }
+  } catch (err) {
+    console.error('SW registration failed:', err);
+  }
+}
+
+async function subscribeToPush() {
+  if (Notification.permission !== 'granted') {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      showToast("Permission Denied", "Notifications blocked – check browser settings", "error");
+      return;
+    }
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    pushSubscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
+    });
+    pushEnabled = true;
+    updateNotifBtn();
+    showToast("Push Enabled", "You'll get alerts even when the tab is closed.", "success");
+    console.log('Subscribed to push:', pushSubscription);
+  } catch (err) {
+    console.error('Subscription failed:', err);
+    showToast("Push Setup Failed", err.message || "Unknown error", "error");
+    pushEnabled = false;
+    updateNotifBtn();
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function unsubscribeFromPush() {
+  if (pushSubscription) {
+    await pushSubscription.unsubscribe();
+    pushSubscription = null;
+    pushEnabled = false;
+    updateNotifBtn();
+    showToast("Push Disabled", "Push notifications turned off.", "success");
+  }
+}
+
+async function requestNotifPermission() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    showToast("Not Supported", "Push notifications not available in this browser.", "error");
+    return;
+  }
+
+  if (Notification.permission === 'granted' && pushSubscription) {
+    await unsubscribeFromPush();
+  } else {
+    await subscribeToPush();
+  }
+}
+
+function updateNotifBtn() {
+  const btn = document.getElementById('notif-btn');
+  if (pushEnabled) {
+    btn.classList.add('active');
+    btn.title = "Push notifications ENABLED – click to disable";
+  } else {
+    btn.classList.remove('active');
+    btn.title = "Enable push notifications (works even tab closed)";
+  }
+}
+
+async function sendBrowserNotification(title, body) {
+  if (Notification.permission !== 'granted') return;
+
+  if (pushSubscription && pushEnabled) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, {
+        body,
+        vibrate: [200, 100, 200],
+        tag: 'tradewatch-alert'
+      });
+      return;
+    } catch (err) {
+      console.warn('Push failed, falling back to basic notification', err);
+    }
+  }
+
+  try {
+    new Notification(title, { body, tag: 'tradewatch-alert', requireInteraction: false });
+  } catch (e) {}
+}
+
+// Register SW on load
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', registerServiceWorker);
+}
+
+// ═══════════════════════════════════════════════
+// DATA DEFINITIONS
+// ═══════════════════════════════════════════════
+const ASSETS = {
+  crypto: [
+    { id: 'bitcoin',     symbol: 'BTC',     name: 'Bitcoin',            tdSymbol: 'BTC/USD',   source: 'CoinGecko' },
+    { id: 'ethereum',    symbol: 'ETH',     name: 'Ethereum',           tdSymbol: 'ETH/USD',   source: 'CoinGecko' },
+    { id: 'solana',      symbol: 'SOL',     name: 'Solana',             tdSymbol: 'SOL/USD',   source: 'CoinGecko' },
+    { id: 'ripple',      symbol: 'XRP',     name: 'XRP',                tdSymbol: 'XRP/USD',   source: 'CoinGecko' },
+    { id: 'binancecoin', symbol: 'BNB',     name: 'BNB',                tdSymbol: 'BNB/USD',   source: 'CoinGecko' },
+  ],
+  stocks: [
+    { id: 'AAPL', symbol: 'AAPL', name: 'Apple Inc.',      tdSymbol: 'AAPL', source: 'Twelve Data' },
+    { id: 'TSLA', symbol: 'TSLA', name: 'Tesla Inc.',      tdSymbol: 'TSLA', source: 'Twelve Data' },
+    { id: 'NVDA', symbol: 'NVDA', name: 'NVIDIA Corp.',    tdSymbol: 'NVDA', source: 'Twelve Data' },
+    { id: 'MSFT', symbol: 'MSFT', name: 'Microsoft Corp.', tdSymbol: 'MSFT', source: 'Twelve Data' },
+  ],
+  forex: [
+    { id: 'EUR/USD', symbol: 'EUR/USD', name: 'Euro / US Dollar',         tdSymbol: 'EUR/USD', source: 'Twelve Data' },
+    { id: 'GBP/USD', symbol: 'GBP/USD', name: 'Pound / US Dollar',        tdSymbol: 'GBP/USD', source: 'Twelve Data' },
+    { id: 'USD/JPY', symbol: 'USD/JPY', name: 'Dollar / Japanese Yen',    tdSymbol: 'USD/JPY', source: 'Twelve Data' },
+    { id: 'AUD/USD', symbol: 'AUD/USD', name: 'Australian / US Dollar',   tdSymbol: 'AUD/USD', source: 'Twelve Data' },
+  ],
+  commodities: [
+    { id: 'XAU/USD', symbol: 'XAU/USD',  name: 'Gold Spot',      tdSymbol: 'XAU/USD',  source: 'Twelve Data' },
+    { id: 'XAG/USD', symbol: 'XAG/USD',  name: 'Silver Spot',    tdSymbol: 'XAG/USD',  source: 'Twelve Data' },
+    { id: 'WTI/USD', symbol: 'WTI/USD',  name: 'WTI Crude Oil',  tdSymbol: 'WTI/USD',  source: 'Twelve Data' },
+    { id: 'XNG/USD', symbol: 'XNG/USD',  name: 'Natural Gas',    tdSymbol: 'XNG/USD',  source: 'Twelve Data' },
+  ],
+  indices: [
+    { id: 'SPX',  symbol: 'S&P 500', name: 'S&P 500 Index',        tdSymbol: 'SPX',  source: 'Twelve Data' },
+    { id: 'IXIC', symbol: 'NASDAQ',  name: 'NASDAQ Composite',     tdSymbol: 'IXIC', source: 'Twelve Data' },
+    { id: 'DJI',  symbol: 'DOW',     name: 'Dow Jones Industrial', tdSymbol: 'DJI',  source: 'Twelve Data' },
+    { id: 'FTSE', symbol: 'FTSE 100',name: 'FTSE 100 Index',       tdSymbol: 'FTSE', source: 'Twelve Data' },
+  ]
+};
+
+const BASE_PRICES = {
+  bitcoin: 68400, ethereum: 3520, solana: 148, ripple: 0.52, binancecoin: 412,
+  AAPL: 189.4, TSLA: 175.2, NVDA: 875.3, MSFT: 418.7,
+  'EUR/USD': 1.0842, 'GBP/USD': 1.2645, 'USD/JPY': 149.32, 'AUD/USD': 0.6531,
+  'XAU/USD': 2312.5, 'XAG/USD': 27.45, 'WTI/USD': 78.65, 'XNG/USD': 1.98,
+  SPX: 5234.1, IXIC: 16380.2, DJI: 39170.4, FTSE: 7735.6
+};
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let prices = {};
+let priceData = {};  
+let alerts = [];
+let selectedAsset = null;
+let alertIdCounter = 1;
+let currentTF = '1H';
+let chartData = [];
+let chartCtx = null;
+let triggeredToday = 0;
+
+// ═══════════════════════════════════════════════
+// FETCH HELPERS — CORS proxy chain + simulation fallback
+// ═══════════════════════════════════════════════
+const CORS_PROXIES = [
+  url => url,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
+
+async function fetchWithCORSFallback(url) {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const proxiedUrl = proxy(url);
+      const res = await fetch(proxiedUrl, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      return JSON.parse(text);
+    } catch (e) {}
+  }
+  throw new Error('All proxies failed for: ' + url);
+}
+
+// ── TWELVE DATA ──────────────────────────────────
+async function fetchTwelveDataBatch(assets) {
+  if (assets.length === 0) return true;
+  const symbols = assets.map(a => a.tdSymbol).join(',');
+  try {
+    const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbols)}&apikey=${TD_KEY}`;
+    const data = await fetchWithCORSFallback(url);
+
+    assets.forEach(asset => {
+      const q = assets.length === 1 ? data : (data[asset.tdSymbol] || data);
+      if (!q || q.status === 'error' || !q.close) return;
+
+      const price  = parseFloat(q.close);
+      const high   = parseFloat(q.high  || price * 1.01);
+      const low    = parseFloat(q.low   || price * 0.99);
+      const change = parseFloat(q.percent_change || 0);
+      const vol    = parseFloat(q.volume || 0);
+
+      priceData[asset.id] = {
+        price, change: change.toFixed(2), high, low,
+        vol: vol ? formatLarge(vol) : '—', mcap: '—', live: true
+      };
+      prices[asset.id]      = price;
+      BASE_PRICES[asset.id] = price;
+    });
+    return true;
+  } catch(e) {
+    console.warn('Twelve Data batch failed:', e.message);
+    return false;
+  }
+}
+
+async function fetchAllTwelveData() {
+  const nonCrypto = [
+    ...(ASSETS.stocks || []),
+    ...(ASSETS.forex  || []),
+    ...(ASSETS.commodities || []),
+    ...(ASSETS.indices || []),
+  ];
+
+  const batchSize = 8;
+  for (let i = 0; i < nonCrypto.length; i += batchSize) {
+    const batch = nonCrypto.slice(i, i + batchSize);
+    await fetchTwelveDataBatch(batch);
+    if (i + batchSize < nonCrypto.length) {
+      await new Promise(r => setTimeout(r, 900));
+    }
+  }
+
+  renderWatchlist();
+  if (selectedAsset) selectAsset(selectedAsset);
+  checkAlerts();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+}
+
+// ── COINGECKO ────────────────────────────────────
+async function fetchCryptoFromCoinGecko() {
+  const ids = (ASSETS.crypto || []).map(a => a.id).join(',');
+  if (!ids) return false;
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&include_high_24h=true&include_low_24h=true`;
+    const data = await fetchWithCORSFallback(url);
+
+    (ASSETS.crypto || []).forEach(asset => {
+      const d = data[asset.id];
+      if (!d) return;
+      priceData[asset.id] = {
+        price: d.usd,
+        change: (d.usd_24h_change || 0).toFixed(2),
+        high: d.usd_24h_high  || d.usd * 1.02,
+        low:  d.usd_24h_low   || d.usd * 0.98,
+        vol:  d.usd_24h_vol   || 0,
+        mcap: d.usd_market_cap || 0,
+        live: true
+      };
+      prices[asset.id]      = d.usd;
+      BASE_PRICES[asset.id] = d.usd;
+    });
+    return true;
+  } catch(e) {
+    console.log('CoinGecko fallback:', e.message);
+    return false;
+  }
+}
+
+function simulatePrice(id) {
+  const base = BASE_PRICES[id] || 100;
+  const prev = prices[id] || base;
+  const drift = (Math.random() - 0.499) * 0.003;
+  return parseFloat((prev * (1 + drift)).toFixed(base < 0.001 ? 8 : base < 1 ? 6 : base < 10 ? 4 : 2));
+}
+
+function updateSimulatedPrices() {
+  const nonCryptoCategories = ['stocks','forex','commodities','indices'];
+  nonCryptoCategories.forEach(cat => {
+    (ASSETS[cat] || []).forEach(asset => {
+      if (priceData[asset.id]?.live) return;
+      const newPrice = simulatePrice(asset.id);
+      const change = ((newPrice - (BASE_PRICES[asset.id] || newPrice)) / (BASE_PRICES[asset.id] || newPrice) * 100);
+      prices[asset.id] = newPrice;
+      priceData[asset.id] = {
+        price: newPrice, change: change.toFixed(2),
+        high: (newPrice * 1.015).toFixed(asset.id.includes('/') ? 4 : 2),
+        low:  (newPrice * 0.985).toFixed(asset.id.includes('/') ? 4 : 2),
+        vol: formatLarge((BASE_PRICES[asset.id] || 100) * 1e6 * (0.5 + Math.random())),
+        mcap: '—', live: false
+      };
+    });
+  });
+
+  (ASSETS.crypto || []).forEach(asset => {
+    if (priceData[asset.id]?.live) return;
+    const newPrice = simulatePrice(asset.id);
+    const change = ((newPrice - (BASE_PRICES[asset.id] || newPrice)) / (BASE_PRICES[asset.id] || newPrice) * 100);
+    prices[asset.id] = newPrice;
+    priceData[asset.id] = {
+      price: newPrice, change: change.toFixed(2),
+      high: (newPrice * 1.025).toFixed(2), low: (newPrice * 0.975).toFixed(2),
+      vol: formatLarge((BASE_PRICES[asset.id] || 100) * 1e6),
+      mcap: formatLarge((BASE_PRICES[asset.id] || 100) * 19e6),
+      live: false
+    };
+  });
+}
+
+function formatLarge(n) {
+  if (n >= 1e12) return (n/1e12).toFixed(2) + 'T';
+  if (n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(2) + 'K';
+  return n.toFixed(2);
+}
+
+function formatPrice(p, id) {
+  if (!p) return '—';
+  if (p < 0.01) return '$' + p.toFixed(6);
+  if (p < 1) return '$' + p.toFixed(4);
+  if (id && (id.includes('/') && !id.startsWith('XAU') && !id.startsWith('XAG'))) return p.toFixed(4);
+  return '$' + p.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+// ═══════════════════════════════════════════════
+// RENDER WATCHLIST
+// ═══════════════════════════════════════════════
+function renderWatchlist() {
+  let totalCount = 0;
+  Object.entries(ASSETS).forEach(([cat, assets]) => {
+    const container = document.getElementById(cat + '-list');
+    if (!container) return;
+    container.innerHTML = '';
+    assets.forEach(asset => {
+      const d = priceData[asset.id];
+      const price = d ? d.price : (BASE_PRICES[asset.id] || 0);
+      const change = d ? d.change : '0.00';
+      const isUp = parseFloat(change) >= 0;
+      const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
+      const isSelected = selectedAsset && selectedAsset.id === asset.id;
+
+      const card = document.createElement('div');
+      card.className = `asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
+      card.innerHTML = `
+        <button class="asset-remove" title="Remove from watchlist" onclick="removeAssetFromWatchlist('${asset.id}','${cat}',event)">✕</button>
+        <div class="asset-left">
+          <div class="asset-symbol">${asset.symbol}</div>
+          <div class="asset-name">${asset.name}</div>
+        </div>
+        <div class="asset-right">
+          <div class="asset-price">${formatPrice(price, asset.id)}</div>
+          <div class="asset-change ${isUp ? 'up' : 'down'}">${isUp ? '▲' : '▼'} ${Math.abs(change)}%</div>
+        </div>`;
+      card.onclick = (e) => {
+        if (e.target.classList.contains('asset-remove') || e.target.closest('.asset-remove')) return;
+        selectAsset(asset);
+      };
+      container.appendChild(card);
+      totalCount++;
+    });
+  });
+  document.getElementById('wl-count').textContent = totalCount;
+  document.getElementById('watchCount').textContent = totalCount;
+}
+
+// ═══════════════════════════════════════════════
+// SELECT ASSET
+// ═══════════════════════════════════════════════
+function selectAsset(asset) {
+  selectedAsset = asset;
+
+  const d = priceData[asset.id];
+  const price = d ? d.price : (BASE_PRICES[asset.id] || 0);
+  const change = d ? parseFloat(d.change) : 0;
+  const isUp = change >= 0;
+
+  document.getElementById('sel-symbol').textContent = asset.symbol;
+  document.getElementById('sel-name').textContent = asset.name;
+  document.getElementById('sel-source').textContent = d?.live
+    ? asset.source + ' (Live ✓)'
+    : (asset.source || '—') + ' (Simulated)';
+  const priceEl = document.getElementById('sel-price');
+  priceEl.textContent = price ? formatPrice(price, asset.id) : '—';
+  priceEl.style.color = isUp ? 'var(--green)' : 'var(--red)';
+  const changeEl = document.getElementById('sel-change');
+  changeEl.textContent = price ? (isUp ? '▲ +' : '▼ ') + Math.abs(change).toFixed(2) + '% (24h)' : '';
+  changeEl.className = 'big-change ' + (isUp ? 'up' : 'down');
+
+  const high  = d?.high  ? formatPrice(parseFloat(d.high),  asset.id) : '—';
+  const low   = d?.low   ? formatPrice(parseFloat(d.low),   asset.id) : '—';
+  const vol   = d?.vol   ? (typeof d.vol  === 'string' ? d.vol  : formatLarge(d.vol))  : '—';
+  const mcap  = d?.mcap  ? (typeof d.mcap === 'string' ? d.mcap : formatLarge(d.mcap)) : '—';
+  document.getElementById('stat-high').textContent = high;
+  document.getElementById('stat-low').textContent  = low;
+  document.getElementById('stat-vol').textContent  = vol;
+  document.getElementById('stat-mcap').textContent = mcap;
+
+  document.getElementById('current-price-note').textContent = price
+    ? `Current price: ${formatPrice(price, asset.id)} — Your alert will trigger when the condition is met.`
+    : 'Select an asset to see current price';
+  document.getElementById('alert-asset').value = asset.id;
+
+  renderWatchlist();
+
+  if (window.innerWidth <= 768) {
+    mobileTab('chart');
+  } else {
+    generateChartData(price || 100);
+    drawChart();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// MOBILE TAB NAVIGATION
+// ═══════════════════════════════════════════════
+function mobileTab(tab) {
+  if (window.innerWidth > 768) return;
+
+  document.getElementById('panel-watchlist').classList.remove('mobile-active');
+  document.getElementById('panel-main').classList.remove('mobile-active');
+  document.getElementById('panel-alerts').classList.remove('mobile-active');
+
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+
+  if (tab === 'watchlist') {
+    document.getElementById('panel-watchlist').classList.add('mobile-active');
+    document.getElementById('mnav-watchlist').classList.add('active');
+  } else if (tab === 'chart') {
+    document.getElementById('panel-main').classList.add('mobile-active');
+    document.getElementById('mnav-chart').classList.add('active');
+    setTimeout(() => {
+      if (selectedAsset) {
+        const d = priceData[selectedAsset.id];
+        const price = d?.price || BASE_PRICES[selectedAsset.id] || 100;
+        generateChartData(price);
+        drawChart();
+      }
+    }, 60);
+  } else if (tab === 'alerts') {
+    document.getElementById('panel-alerts').classList.add('mobile-active');
+    document.getElementById('mnav-alerts').classList.add('active');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// CHART
+// ═══════════════════════════════════════════════
+function generateChartData(currentPrice) {
+  const points = 60;
+  chartData = [];
+  let p = currentPrice * (0.97 + Math.random() * 0.03);
+  for (let i = 0; i < points; i++) {
+    p = p * (1 + (Math.random() - 0.498) * 0.008);
+    chartData.push(p);
+  }
+  chartData[chartData.length - 1] = currentPrice;
+}
+
+function drawChart() {
+  const canvas = document.getElementById('sparkChart');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 180;
+  const ctx = canvas.getContext('2d');
+  chartCtx = ctx;
+  const w = canvas.width, h = canvas.height;
+  const pad = { top: 10, bottom: 20, left: 10, right: 10 };
+  const dw = w - pad.left - pad.right;
+  const dh = h - pad.top - pad.bottom;
+
+  const min = Math.min(...chartData) * 0.999;
+  const max = Math.max(...chartData) * 1.001;
+  const range = max - min;
+
+  ctx.clearRect(0, 0, w, h);
+
+  const pts = chartData.map((v, i) => ({
+    x: pad.left + (i / (chartData.length - 1)) * dw,
+    y: pad.top + dh - ((v - min) / range) * dh
+  }));
+
+  const isUp = chartData[chartData.length-1] >= chartData[0];
+  const lineColor = isUp ? '#00e676' : '#ff3d5a';
+
+  const grad = ctx.createLinearGradient(0, pad.top, 0, h);
+  grad.addColorStop(0, isUp ? 'rgba(0,230,118,0.2)' : 'rgba(255,61,90,0.2)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length-1].x, pad.top + dh);
+  ctx.lineTo(pts[0].x, pad.top + dh);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const last = pts[pts.length - 1];
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = lineColor;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 7, 0, Math.PI * 2);
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.3;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  if (selectedAsset) {
+    const activeAlerts = alerts.filter(a => a.assetId === selectedAsset.id && a.status === 'active');
+    activeAlerts.forEach(alert => {
+      const pct = (alert.targetPrice - min) / range;
+      if (pct < 0 || pct > 1) return;
+      const y = pad.top + dh - pct * dh;
+      ctx.beginPath();
+      ctx.setLineDash([5, 4]);
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
+      ctx.strokeStyle = 'rgba(255,214,0,0.7)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,214,0,0.9)';
+      ctx.font = '10px Space Mono';
+      ctx.fillText(`⚡ ${formatPrice(alert.targetPrice, selectedAsset.id)}`, w - pad.right - 80, y - 4);
+    });
+  }
+}
+
+function setTF(tf, btn) {
+  document.querySelectorAll('.tf-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTF = tf;
+  if (selectedAsset) {
+    const d = priceData[selectedAsset.id];
+    generateChartData(d ? d.price : BASE_PRICES[selectedAsset.id]);
+    drawChart();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════
+function createAlert() {
+  const assetId = document.getElementById('alert-asset').value;
+  const condition = document.getElementById('alert-condition').value;
+  const targetPrice = parseFloat(document.getElementById('alert-price').value);
+  const note = document.getElementById('alert-note').value.trim();
+
+  if (!assetId) return showToast('No Asset', 'Please select an asset first.', 'error');
+  if (isNaN(targetPrice) || targetPrice <= 0) return showToast('Invalid Price', 'Enter a valid target price.', 'error');
+
+  let assetInfo = null;
+  Object.values(ASSETS).forEach(list => {
+    const found = list.find(a => a.id === assetId);
+    if (found) assetInfo = found;
+  });
+  if (!assetInfo) return;
+
+  const currentPrice = priceData[assetId]?.price || BASE_PRICES[assetId];
+
+  alerts.push({
+    id: alertIdCounter++,
+    assetId,
+    symbol: assetInfo.symbol,
+    name: assetInfo.name,
+    condition,
+    targetPrice,
+    note,
+    sound: selectedAlertSound,
+    status: 'active',
+    createdAt: new Date().toLocaleTimeString(),
+    currentPriceWhenCreated: currentPrice
+  });
+
+  document.getElementById('alert-price').value = '';
+  document.getElementById('alert-note').value = '';
+
+  showToast('Alert Created ⚡', `${assetInfo.symbol} ${condition} ${formatPrice(targetPrice, assetId)} is now active.`, 'success');
+  renderAlerts();
+  renderWatchlist();
+  if (selectedAsset?.id === assetId) drawChart();
+}
+
+function deleteAlert(id) {
+  alerts = alerts.filter(a => a.id !== id);
+  renderAlerts();
+  renderWatchlist();
+  if (selectedAsset) drawChart();
+}
+
+function toggleAlert(id) {
+  const a = alerts.find(a => a.id === id);
+  if (!a) return;
+  if (a.status === 'active') a.status = 'paused';
+  else if (a.status === 'paused') a.status = 'active';
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const container = document.getElementById('alerts-list');
+  const active = alerts.filter(a => a.status === 'active').length;
+  document.getElementById('alert-count').textContent = alerts.length;
+  document.getElementById('activeCount').textContent = active;
+  document.getElementById('triggeredCount').textContent = triggeredToday;
+
+  if (alerts.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">🔔</div><p>No alerts yet.<br>Select an asset and set a<br>price target to get started.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  [...alerts].reverse().forEach(alert => {
+    const div = document.createElement('div');
+    div.className = `alert-item ${alert.status === 'triggered' ? 'triggered' : 'active-alert'}`;
+    const badgeClass = alert.status === 'active' ? 'badge-active' : alert.status === 'triggered' ? 'badge-triggered' : 'badge-inactive';
+    const badgeLabel = alert.status === 'active' ? 'ACTIVE' : alert.status === 'triggered' ? 'TRIGGERED' : 'PAUSED';
+    div.innerHTML = `
+      <div class="alert-header-row">
+        <div class="alert-symbol">${alert.symbol}</div>
+        <div class="alert-badge ${badgeClass}">${badgeLabel}</div>
+      </div>
+      <div class="alert-detail">
+        <strong>${alert.condition === 'above' ? '▲ ABOVE' : '▼ BELOW'}</strong> ${formatPrice(alert.targetPrice, alert.assetId)}<br>
+        ${alert.note ? `<em style="color:var(--muted)">"${alert.note}"</em><br>` : ''}
+        Set at ${alert.createdAt}
+      </div>
+      <div class="alert-actions">
+        <button class="alert-action-btn toggle" onclick="toggleAlert(${alert.id})">${alert.status === 'paused' ? '▶ RESUME' : '⏸ PAUSE'}</button>
+        <button class="alert-action-btn delete" onclick="deleteAlert(${alert.id})">✕ DELETE</button>
+      </div>`;
+    container.appendChild(div);
+  });
+
+  const dot = document.getElementById('alert-dot');
+  if (dot) dot.classList.toggle('show', alerts.filter(a => a.status === 'active').length > 0);
+}
+
+function checkAlerts() {
+  alerts.forEach(alert => {
+    if (alert.status !== 'active') return;
+    const currentPrice = priceData[alert.assetId]?.price || prices[alert.assetId];
+    if (!currentPrice) return;
+
+    const triggered =
+      (alert.condition === 'above' && currentPrice >= alert.targetPrice) ||
+      (alert.condition === 'below' && currentPrice <= alert.targetPrice);
+
+    if (triggered) {
+      alert.status = 'triggered';
+      alert.triggeredAt = new Date().toLocaleTimeString();
+      triggeredToday++;
+
+      const msg = `${alert.condition === 'above' ? 'Rose above' : 'Fell below'} ${formatPrice(alert.targetPrice, alert.assetId)} | Now: ${formatPrice(currentPrice, alert.assetId)}`;
+
+      showToast(`🔔 ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
+      playAlertSound(alert.sound || selectedAlertSound);
+      sendBrowserNotification(`⚡ ${alert.symbol} Alert Triggered`, msg);
+      renderAlerts();
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// SOUND ENGINE
+// ═══════════════════════════════════════════════
+let audioCtx = null;
+let soundEnabled = true;
+let selectedAlertSound = 'chime';
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playAlertSound(type = 'chime') {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudioCtx();
+    const sounds = {
+      chime: () => {
+        [523.25, 659.25, 783.99].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18);
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
+          gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + i * 0.18 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.5);
+          osc.start(ctx.currentTime + i * 0.18);
+          osc.stop(ctx.currentTime + i * 0.18 + 0.55);
+        });
+      },
+      beep: () => {
+        [880, 1100].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.15);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.12);
+          osc.start(ctx.currentTime + i * 0.15);
+          osc.stop(ctx.currentTime + i * 0.15 + 0.15);
+        });
+      },
+      bell: () => {
+        const freqs = [440, 880, 1320];
+        freqs.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.3 / (i + 1), ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 1.6);
+        });
+      },
+      ding: () => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1318.5, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.65);
+      }
+    };
+    (sounds[type] || sounds.chime)();
+  } catch(e) { console.warn('Audio error:', e); }
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('sound-btn');
+  if (soundEnabled) {
+    btn.textContent = '🔊';
+    btn.classList.add('active');
+    btn.classList.remove('muted-sound');
+    btn.title = 'Sound ON — click to mute';
+  } else {
+    btn.textContent = '🔇';
+    btn.classList.remove('active');
+    btn.classList.add('muted-sound');
+    btn.title = 'Sound OFF — click to enable';
+  }
+  if (soundEnabled) playAlertSound(selectedAlertSound);
+}
+
+function selectSound(type, btn) {
+  selectedAlertSound = type;
+  document.querySelectorAll('.sound-opt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function previewSound() {
+  playAlertSound(selectedAlertSound);
+}
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+function showToast(title, body, type = 'success') {
+  const container = document.createElement('div');
+  container.className = 'toast-container';
+  container.id = 'toasts'; // only if not already in DOM
+  if (!document.getElementById('toasts')) document.body.appendChild(container);
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  if (type === 'error') toast.style.borderColor = 'var(--red)';
+  if (type === 'alert') toast.style.borderColor = 'var(--gold)';
+  toast.innerHTML = `<div class="toast-title">${title}</div><div class="toast-body">${body}</div>`;
+  document.getElementById('toasts').appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+// ═══════════════════════════════════════════════
+// REMOVE ASSET FROM WATCHLIST
+// ═══════════════════════════════════════════════
+function removeAssetFromWatchlist(assetId, cat, event) {
+  event.stopPropagation();
+  const catAssets = ASSETS[cat];
+  if (!catAssets) return;
+  const asset = catAssets.find(a => a.id === assetId);
+  if (!asset) return;
+
+  if (selectedAsset && selectedAsset.id === assetId) {
+    selectedAsset = null;
+    document.getElementById('sel-symbol').textContent = 'Select Asset';
+    document.getElementById('sel-name').textContent = 'Click any asset from the watchlist';
+    document.getElementById('sel-price').textContent = '—';
+    document.getElementById('sel-change').textContent = '';
+  }
+
+  ASSETS[cat] = catAssets.filter(a => a.id !== assetId);
+  renderWatchlist();
+  populateDropdown();
+  showToast(`✕ ${asset.symbol} Removed`, `${asset.name} removed from your watchlist.`, 'error');
+}
+
+// ═══════════════════════════════════════════════
+// ASSET LIBRARY (expanded)
+// ═══════════════════════════════════════════════
+const ASSET_LIBRARY = [
+  // (your full asset library here - truncated for brevity in this message)
+  // ... add your complete list as before
+];
+
+// (keep your existing openAddModal, closeAddModal, setLibTab, filterLibrary, renderLibrary, addAssetToWatchlist, populateDropdown functions)
+
+function populateDropdown() {
+  const sel = document.getElementById('alert-asset');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Select asset...</option>';
+  const catLabels = { crypto:'Crypto', stocks:'Stocks', forex:'Forex', commodities:'Commodities', indices:'Indices' };
+  Object.entries(ASSETS).forEach(([cat, assets]) => {
+    if (!assets || assets.length === 0) return;
+    const og = document.createElement('optgroup');
+    og.label = catLabels[cat] || cat;
+    assets.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = `${a.symbol} — ${a.name}`;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  });
+  if (currentVal) sel.value = currentVal;
+}
+
+// ═══════════════════════════════════════════════
+// REFRESH & TICK
+// ═══════════════════════════════════════════════
+async function refreshAll() {
+  document.getElementById('status-pill').textContent = '◌ CONNECTING';
+  document.getElementById('status-pill').style.borderColor = 'var(--muted)';
+  document.getElementById('status-pill').style.color = 'var(--muted)';
+  updateSimulatedPrices();
+  renderWatchlist();
+  const cgOk = await fetchCryptoFromCoinGecko();
+  fetchAllTwelveData().then(() => {
+    const anyLive = Object.values(priceData).some(d => d.live);
+    setStatusPill(cgOk || anyLive);
+  });
+  if (selectedAsset) selectAsset(selectedAsset);
+  checkAlerts();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+}
+
+setInterval(() => {
+  updateSimulatedPrices();
+  renderWatchlist();
+  if (selectedAsset) {
+    const d = priceData[selectedAsset.id];
+    if (d) {
+      const price = d.price;
+      const isUp = parseFloat(d.change) >= 0;
+      document.getElementById('sel-price').textContent = formatPrice(price, selectedAsset.id);
+      document.getElementById('sel-price').style.color = isUp ? 'var(--green)' : 'var(--red)';
+      document.getElementById('sel-change').textContent = (isUp ? '▲ +' : '▼ ') + Math.abs(parseFloat(d.change)).toFixed(2) + '% (24h)';
+      document.getElementById('stat-high').textContent = d.high ? formatPrice(parseFloat(d.high), selectedAsset.id) : '—';
+      document.getElementById('stat-low').textContent  = d.low  ? formatPrice(parseFloat(d.low),  selectedAsset.id) : '—';
+      document.getElementById('stat-vol').textContent  = d.vol  ? (typeof d.vol  === 'string' ? d.vol  : formatLarge(d.vol))  : '—';
+      document.getElementById('stat-mcap').textContent = d.mcap ? (typeof d.mcap === 'string' ? d.mcap : formatLarge(d.mcap)) : '—';
+    }
+  }
+  checkAlerts();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+}, 8000);
+
+setInterval(async () => {
+  await fetchCryptoFromCoinGecko();
+  renderWatchlist();
+  if (selectedAsset) selectAsset(selectedAsset);
+}, 60000);
+
+setInterval(() => {
+  fetchAllTwelveData();
+}, 5 * 60 * 1000);
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+async function init() {
+  populateDropdown();
+  updateSimulatedPrices();
+  renderWatchlist();
+  renderAlerts();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+  selectAsset(ASSETS.crypto[0]);
+
+  const cgOk = await fetchCryptoFromCoinGecko();
+  const tdOk = await fetchTwelveDataBatch([ ...(ASSETS.stocks||[]), ...(ASSETS.forex||[]) ].slice(0,4));
+  setStatusPill(cgOk || tdOk);
+
+  renderWatchlist();
+  if (selectedAsset) selectAsset(selectedAsset);
+
+  fetchAllTwelveData();
+
+  alerts.push({
+    id: alertIdCounter++, assetId: 'bitcoin', symbol: 'BTC', name: 'Bitcoin',
+    condition: 'above', targetPrice: 70000, note: 'ATH breakout target',
+    status: 'active', createdAt: new Date().toLocaleTimeString(), sound: 'chime'
+  });
+  alerts.push({
+    id: alertIdCounter++, assetId: 'XAU/USD', symbol: 'XAU/USD', name: 'Gold Spot',
+    condition: 'below', targetPrice: 2280, note: 'Support level',
+    status: 'active', createdAt: new Date().toLocaleTimeString(), sound: 'chime'
+  });
+  renderAlerts();
+  renderWatchlist();
+}
+
+function setStatusPill(isLive) {
+  const pill = document.getElementById('status-pill');
+  if (isLive) {
+    pill.textContent = '● LIVE';
+    pill.style.borderColor = 'var(--green)';
+    pill.style.color = 'var(--green)';
+  } else {
+    pill.textContent = '◈ SIMULATED';
+    pill.style.borderColor = 'var(--gold)';
+    pill.style.color = 'var(--gold)';
+    pill.title = 'Live APIs unreachable. Deploy to Vercel/Netlify to enable live data.';
+  }
+}
+
+window.addEventListener('resize', () => { if (selectedAsset) drawChart(); });
+init();
+</script>
+</body>
+</html>
