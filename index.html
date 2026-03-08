@@ -29,6 +29,8 @@
     min-height: 100vh;
     overflow-x: hidden;
   }
+
+  /* Grid background */
   body::before {
     content: '';
     position: fixed;
@@ -40,6 +42,8 @@
     pointer-events: none;
     z-index: 0;
   }
+
+  /* ── HEADER ── */
   header {
     position: sticky; top: 0; z-index: 100;
     background: rgba(8,12,18,0.92);
@@ -76,6 +80,8 @@
     letter-spacing: 0.5px;
   }
   .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── LAYOUT ── */
   .app {
     position: relative; z-index: 1;
     display: grid;
@@ -84,6 +90,8 @@
     gap: 0;
     height: calc(100vh - 60px);
   }
+
+  /* ── PANEL BASE ── */
   .panel {
     border-right: 1px solid var(--border);
     overflow-y: auto;
@@ -100,6 +108,8 @@
     display: flex; align-items: center; justify-content: space-between;
   }
   .panel-title span { color: var(--accent); }
+
+  /* ── WATCHLIST ── */
   .watchlist-panel { background: var(--surface); }
   .market-group { margin-bottom: 20px; }
   .market-group-label {
@@ -160,11 +170,15 @@
   }
   .up { color: var(--green); background: rgba(0,230,118,0.1); }
   .down { color: var(--red); background: rgba(255,61,90,0.1); }
+
+  /* ── MAIN CENTER ── */
   .main-panel {
     background: var(--bg);
     overflow-y: auto;
     padding: 24px;
   }
+
+  /* Selected asset header */
   .asset-header {
     display: flex; align-items: flex-start; justify-content: space-between;
     margin-bottom: 24px;
@@ -176,6 +190,8 @@
   .asset-header-right { text-align: right; }
   .big-price { font-family: var(--mono); font-size: 2rem; font-weight: 700; }
   .big-change { font-size: 0.85rem; margin-top: 4px; }
+
+  /* Spark chart */
   .spark-container {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -194,6 +210,8 @@
   .tf-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.08); }
   .tf-tab:hover:not(.active) { color: var(--text); }
   canvas#sparkChart { width: 100%; height: 180px; display: block; }
+
+  /* Stats row */
   .stats-grid {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
     margin-bottom: 20px;
@@ -206,6 +224,8 @@
   }
   .stat-label { font-size: 0.6rem; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
   .stat-value { font-family: var(--mono); font-size: 0.9rem; font-weight: 700; }
+
+  /* Alert creation form */
   .alert-form {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -244,6 +264,8 @@
   }
   .create-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,212,255,0.3); }
   .create-btn:active { transform: translateY(0); }
+
+  /* ── ALERTS PANEL ── */
   .alerts-panel { background: var(--surface); }
   .alert-item {
     background: var(--bg);
@@ -284,6 +306,8 @@
   }
   .alert-action-btn.delete:hover { border-color: var(--red); color: var(--red); }
   .alert-action-btn.toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Toast notification */
   .toast-container { position: fixed; top: 70px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
   .toast {
     background: var(--surface2);
@@ -297,14 +321,22 @@
   @keyframes slideIn { from { transform: translateX(120%); opacity:0; } to { transform: translateX(0); opacity:1; } }
   .toast-title { font-weight: 700; font-size: 0.8rem; color: var(--gold); margin-bottom: 4px; }
   .toast-body { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); }
+
+  /* Empty state */
   .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
   .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
   .empty-state p { font-size: 0.75rem; font-family: var(--mono); line-height: 1.6; }
+
+  /* Loading skeleton */
   .skeleton { background: linear-gradient(90deg, var(--border) 25%, var(--surface2) 50%, var(--border) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
   @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* Scrollbar */
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Settings row in header */
   .settings-row { display: flex; align-items: center; gap: 10px; }
   .icon-btn {
     background: transparent; border: 1px solid var(--border);
@@ -315,6 +347,8 @@
   .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
   .icon-btn.active { border-color: var(--green); color: var(--green); background: rgba(0,230,118,0.08); }
   .icon-btn.muted-sound { border-color: var(--red); color: var(--red); background: rgba(255,61,90,0.08); }
+
+  /* Notification permission banner */
   .notif-banner {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: var(--surface2); border: 1px solid var(--accent);
@@ -329,6 +363,8 @@
   .notif-banner strong { color: var(--text); display: block; margin-bottom: 2px; }
   .notif-allow { padding: 7px 16px; background: var(--accent); border: none; border-radius: 6px; color: #000; font-family: var(--sans); font-weight: 700; font-size: 0.75rem; cursor: pointer; }
   .notif-dismiss { padding: 7px 12px; background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-family: var(--mono); font-size: 0.7rem; cursor: pointer; }
+
+  /* Add asset modal */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.75);
     backdrop-filter: blur(6px); z-index: 200;
@@ -378,6 +414,8 @@
   .modal-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
   .modal-tab:hover:not(.active) { color: var(--text); }
   .modal-body { flex: 1; overflow-y: auto; padding: 16px 24px 20px; }
+
+  /* Library grid */
   .lib-section-title {
     font-size: 0.58rem; font-family: var(--mono); letter-spacing: 2px;
     color: var(--muted); text-transform: uppercase;
@@ -396,6 +434,8 @@
   .lib-action { font-size: 0.75rem; color: var(--accent); flex-shrink: 0; margin-left: 8px; }
   .lib-card.in-watch .lib-action { color: var(--green); }
   .lib-empty { text-align: center; padding: 40px; color: var(--muted); font-family: var(--mono); font-size: 0.75rem; }
+
+  /* Sound wave indicator */
   .sound-wave {
     display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; margin-left: 4px;
   }
@@ -408,6 +448,8 @@
   .sound-wave span:nth-child(3) { height: 7px; animation-delay: 0.2s; }
   .sound-wave span:nth-child(4) { height: 12px; animation-delay: 0.15s; }
   @keyframes wave { 0%,100%{transform:scaleY(0.4)} 50%{transform:scaleY(1)} }
+
+  /* Alert sound selector */
   .sound-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .sound-opt {
     padding: 4px 10px; border-radius: 4px; font-family: var(--mono);
@@ -416,6 +458,14 @@
   }
   .sound-opt.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.08); }
   .sound-opt:hover:not(.active) { color: var(--text); }
+
+
+  /* panels-wrap: invisible passthrough on desktop, flex fill on mobile */
+  .panels-wrap {
+    display: contents; /* on desktop, act as if it doesn't exist */
+  }
+
+  /* Summary bar */
   .summary-bar {
     grid-column: 1 / -1;
     background: var(--surface);
@@ -428,6 +478,8 @@
   .summary-item { display: flex; gap: 8px; align-items: center; color: var(--muted); flex-shrink: 0; }
   .summary-item strong { color: var(--text); }
   .divider { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; }
+
+  /* ── MOBILE BOTTOM NAV ── */
   .mobile-nav {
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 150;
@@ -457,6 +509,8 @@
     display: none;
   }
   .mobile-nav-btn .alert-badge-dot.show { display: block; }
+
+  /* ── MOBILE PANEL VISIBILITY ── */
   @media (max-width: 768px) {
     header {
       padding: 0 14px;
@@ -468,6 +522,9 @@
     .refresh-btn { display: none; }
     .header-right { gap: 8px; }
     .icon-btn { width: 32px; height: 32px; font-size: 0.8rem; }
+
+    /* App becomes a flex column so summary bar takes natural height,
+       panels fill remaining space — single rule, no conflict */
     .app {
       display: flex;
       flex-direction: column;
@@ -475,6 +532,8 @@
       overflow: hidden;
       position: relative;
     }
+
+    /* Summary bar compact on mobile */
     .summary-bar {
       padding: 8px 14px;
       gap: 14px;
@@ -484,6 +543,8 @@
       flex-shrink: 0;
     }
     .summary-bar .summary-item:last-child { display: none; }
+
+    /* All panels stack inside a relative flex container — no top offsets needed */
     .panel, .main-panel {
       position: absolute;
       left: 0; right: 0;
@@ -495,11 +556,14 @@
       border: none;
     }
     .panel.mobile-active, .main-panel.mobile-active { display: block; }
+
+    /* panels-wrap fills the space below the summary bar */
     .panels-wrap {
       position: relative;
       flex: 1;
       overflow: hidden;
     }
+    /* Override stray top values from desktop rules */
     .watchlist-panel { background: var(--surface); top: 0 !important; }
     .main-panel { background: var(--bg); top: 0 !important; }
     .asset-header {
@@ -513,21 +577,31 @@
     .asset-header-left .full-name { font-size: 0.65rem; }
     .big-price { font-size: 1.4rem; }
     .big-change { font-size: 0.75rem; }
+    .data-source { font-size: 0.6rem; }
+
     canvas#sparkChart { height: 140px; }
+
     .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
     .stat-card { padding: 10px 12px; }
     .stat-value { font-size: 0.8rem; }
+
     .alert-form { padding: 14px; }
     .form-row { grid-template-columns: 1fr; gap: 10px; }
     .form-group input, .form-group select { font-size: 0.85rem; padding: 12px; }
     .create-btn { padding: 14px; font-size: 0.9rem; }
+
+    /* Asset cards touch-friendly */
     .asset-card { padding: 14px; margin-bottom: 10px; }
     .asset-remove { opacity: 1; top: 50%; transform: translateY(-50%); right: 10px; font-size: 0.85rem; padding: 6px 8px; }
     .asset-card.has-alert::after { top: 8px; right: 34px; }
     .asset-right { padding-right: 24px; }
+
+    /* Alerts panel */
     .alerts-panel { top: 36px; background: var(--surface); }
     .alert-item { padding: 14px; }
     .alert-action-btn { padding: 10px; font-size: 0.7rem; }
+
+    /* Modal full-screen on mobile */
     .modal {
       width: 100vw; max-width: 100vw;
       height: 100dvh; max-height: 100dvh;
@@ -541,13 +615,24 @@
     .lib-card { padding: 12px; }
     .lib-sym { font-size: 0.82rem; }
     .lib-name { font-size: 0.62rem; }
+
+    /* Bottom nav visible on mobile */
     .mobile-nav { display: grid; }
+
+    /* Toast position on mobile */
     .toast-container { top: auto; bottom: 70px; right: 10px; left: 10px; }
     .toast { min-width: unset; width: 100%; }
+
+    /* Notif banner mobile */
     .notif-banner { min-width: unset; width: calc(100% - 28px); bottom: 70px; }
+
+    /* Market group label bigger tap area */
     .market-group-label { padding: 10px 0 6px; font-size: 0.62rem; }
+
+    /* Sound selector touch */
     .sound-opt { padding: 8px 12px; font-size: 0.68rem; }
   }
+
   @media (max-width: 400px) {
     .lib-grid { grid-template-columns: 1fr 1fr; }
     .asset-header-left h2 { font-size: 1.1rem; }
@@ -565,13 +650,14 @@
   <div class="header-right settings-row">
     <div class="status-pill" id="status-pill">◌ CONNECTING</div>
     <button class="icon-btn active" id="sound-btn" title="Toggle sound alerts" onclick="toggleSound()">🔊</button>
-    <button class="icon-btn" id="notif-btn" title="Browser push notifications" onclick="requestNotifPermission()">🔔</button>
+    <button class="icon-btn" id="notif-btn" title="Browser notifications" onclick="requestNotifPermission()">🔔</button>
     <button class="icon-btn" title="Add asset to watchlist" onclick="openAddModal()">＋</button>
     <button class="refresh-btn" onclick="refreshAll()">⟳ REFRESH</button>
   </div>
 </header>
 
 <div class="app">
+  <!-- Summary bar -->
   <div class="summary-bar">
     <div class="summary-item">WATCHING <strong id="watchCount">0</strong> ASSETS</div>
     <div class="divider"></div>
@@ -584,132 +670,138 @@
     <div class="summary-item" style="margin-left:auto;">DATA: <strong style="color:var(--accent)">CoinGecko + Twelve Data (Live)</strong></div>
   </div>
 
+  <!-- LEFT: Watchlist -->
   <div class="panels-wrap">
-    <div class="panel watchlist-panel mobile-active" id="panel-watchlist">
-      <div class="panel-title">WATCHLIST <span id="wl-count">0</span></div>
-      <div class="market-group">
-        <div class="market-group-label">🪙 CRYPTO</div>
-        <div id="crypto-list"></div>
+  <div class="panel watchlist-panel mobile-active" id="panel-watchlist">
+    <div class="panel-title">WATCHLIST <span id="wl-count">0</span></div>
+
+    <div class="market-group">
+      <div class="market-group-label">🪙 CRYPTO</div>
+      <div id="crypto-list"></div>
+    </div>
+    <div class="market-group">
+      <div class="market-group-label">📈 STOCKS</div>
+      <div id="stocks-list"></div>
+    </div>
+    <div class="market-group">
+      <div class="market-group-label">💱 FOREX</div>
+      <div id="forex-list"></div>
+    </div>
+    <div class="market-group">
+      <div class="market-group-label">🥇 COMMODITIES</div>
+      <div id="commodities-list"></div>
+    </div>
+    <div class="market-group">
+      <div class="market-group-label">📊 INDICES</div>
+      <div id="indices-list"></div>
+    </div>
+  </div>
+
+  <!-- CENTER: Main -->
+  <div class="main-panel" id="panel-main">
+    <div class="asset-header">
+      <div class="asset-header-left">
+        <h2 id="sel-symbol">Select Asset</h2>
+        <div class="full-name" id="sel-name">Click any asset from the watchlist</div>
+        <div class="data-source">Source: <span id="sel-source">—</span></div>
       </div>
-      <div class="market-group">
-        <div class="market-group-label">📈 STOCKS</div>
-        <div id="stocks-list"></div>
-      </div>
-      <div class="market-group">
-        <div class="market-group-label">💱 FOREX</div>
-        <div id="forex-list"></div>
-      </div>
-      <div class="market-group">
-        <div class="market-group-label">🥇 COMMODITIES</div>
-        <div id="commodities-list"></div>
-      </div>
-      <div class="market-group">
-        <div class="market-group-label">📊 INDICES</div>
-        <div id="indices-list"></div>
+      <div class="asset-header-right">
+        <div class="big-price" id="sel-price">—</div>
+        <div class="big-change" id="sel-change"></div>
       </div>
     </div>
 
-    <div class="main-panel" id="panel-main">
-      <div class="asset-header">
-        <div class="asset-header-left">
-          <h2 id="sel-symbol">Select Asset</h2>
-          <div class="full-name" id="sel-name">Click any asset from the watchlist</div>
-          <div class="data-source">Source: <span id="sel-source">—</span></div>
-        </div>
-        <div class="asset-header-right">
-          <div class="big-price" id="sel-price">—</div>
-          <div class="big-change" id="sel-change"></div>
+    <div class="spark-container">
+      <div class="spark-header">
+        <div class="spark-label">PRICE CHART (SIMULATED)</div>
+        <div class="timeframe-tabs">
+          <button class="tf-tab active" onclick="setTF('1H',this)">1H</button>
+          <button class="tf-tab" onclick="setTF('4H',this)">4H</button>
+          <button class="tf-tab" onclick="setTF('1D',this)">1D</button>
+          <button class="tf-tab" onclick="setTF('1W',this)">1W</button>
         </div>
       </div>
+      <canvas id="sparkChart"></canvas>
+    </div>
 
-      <div class="spark-container">
-        <div class="spark-header">
-          <div class="spark-label">PRICE CHART (SIMULATED)</div>
-          <div class="timeframe-tabs">
-            <button class="tf-tab active" onclick="setTF('1H',this)">1H</button>
-            <button class="tf-tab" onclick="setTF('4H',this)">4H</button>
-            <button class="tf-tab" onclick="setTF('1D',this)">1D</button>
-            <button class="tf-tab" onclick="setTF('1W',this)">1W</button>
-          </div>
-        </div>
-        <canvas id="sparkChart"></canvas>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">24H HIGH</div>
+        <div class="stat-value" id="stat-high">—</div>
       </div>
-
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">24H HIGH</div>
-          <div class="stat-value" id="stat-high">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">24H LOW</div>
-          <div class="stat-value" id="stat-low">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">24H VOLUME</div>
-          <div class="stat-value" id="stat-vol">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">MKT CAP</div>
-          <div class="stat-value" id="stat-mcap">—</div>
-        </div>
+      <div class="stat-card">
+        <div class="stat-label">24H LOW</div>
+        <div class="stat-value" id="stat-low">—</div>
       </div>
-
-      <div class="alert-form">
-        <div class="form-title">⚡ CREATE PRICE ALERT</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>ASSET</label>
-            <select id="alert-asset">
-              <option value="">Select asset...</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>CONDITION</label>
-            <select id="alert-condition">
-              <option value="above">Price rises ABOVE</option>
-              <option value="below">Price falls BELOW</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>TARGET PRICE</label>
-            <input type="number" id="alert-price" placeholder="e.g. 50000" step="any">
-          </div>
-          <div class="form-group">
-            <label>NOTE (OPTIONAL)</label>
-            <input type="text" id="alert-note" placeholder="e.g. Key resistance level">
-          </div>
-        </div>
-        <div class="form-note" id="current-price-note">Select an asset to see current price</div>
-        <div style="margin-bottom:14px;">
-          <div class="form-group" style="margin-bottom:6px;">
-            <label>ALERT SOUND</label>
-            <div class="sound-selector">
-              <button class="sound-opt active" onclick="selectSound('chime',this)">🔔 Chime</button>
-              <button class="sound-opt" onclick="selectSound('beep',this)">📡 Beep</button>
-              <button class="sound-opt" onclick="selectSound('bell',this)">🔕 Bell</button>
-              <button class="sound-opt" onclick="selectSound('ding',this)">✨ Ding</button>
-              <button class="sound-opt" onclick="previewSound()">▶ Preview</button>
-            </div>
-          </div>
-        </div>
-        <button class="create-btn" onclick="createAlert()">＋ SET ALERT</button>
+      <div class="stat-card">
+        <div class="stat-label">24H VOLUME</div>
+        <div class="stat-value" id="stat-vol">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">MKT CAP</div>
+        <div class="stat-value" id="stat-mcap">—</div>
       </div>
     </div>
 
-    <div class="panel alerts-panel" id="panel-alerts">
-      <div class="panel-title">ALERTS <span id="alert-count">0</span></div>
-      <div id="alerts-list">
-        <div class="empty-state">
-          <div class="icon">🔔</div>
-          <p>No alerts yet.<br>Select an asset and set a<br>price target to get started.</p>
+    <!-- Alert Form -->
+    <div class="alert-form">
+      <div class="form-title">⚡ CREATE PRICE ALERT</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ASSET</label>
+          <select id="alert-asset">
+            <option value="">Select asset...</option>
+          </select>
         </div>
+        <div class="form-group">
+          <label>CONDITION</label>
+          <select id="alert-condition">
+            <option value="above">Price rises ABOVE</option>
+            <option value="below">Price falls BELOW</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>TARGET PRICE</label>
+          <input type="number" id="alert-price" placeholder="e.g. 50000" step="any">
+        </div>
+        <div class="form-group">
+          <label>NOTE (OPTIONAL)</label>
+          <input type="text" id="alert-note" placeholder="e.g. Key resistance level">
+        </div>
+      </div>
+      <div class="form-note" id="current-price-note">Select an asset to see current price</div>
+      <div style="margin-bottom:14px;">
+        <div class="form-group" style="margin-bottom:6px;">
+          <label>ALERT SOUND</label>
+          <div class="sound-selector">
+            <button class="sound-opt active" onclick="selectSound('chime',this)">🔔 Chime</button>
+            <button class="sound-opt" onclick="selectSound('beep',this)">📡 Beep</button>
+            <button class="sound-opt" onclick="selectSound('bell',this)">🔕 Bell</button>
+            <button class="sound-opt" onclick="selectSound('ding',this)">✨ Ding</button>
+            <button class="sound-opt" onclick="previewSound()">▶ Preview</button>
+          </div>
+        </div>
+      </div>
+      <button class="create-btn" onclick="createAlert()">＋ SET ALERT</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Alerts -->
+  <div class="panel alerts-panel" id="panel-alerts">
+    <div class="panel-title">ALERTS <span id="alert-count">0</span></div>
+    <div id="alerts-list">
+      <div class="empty-state">
+        <div class="icon">🔔</div>
+        <p>No alerts yet.<br>Select an asset and set a<br>price target to get started.</p>
       </div>
     </div>
   </div>
+  </div><!-- /panels-wrap -->
 </div>
 
+<!-- Mobile Bottom Nav -->
 <nav class="mobile-nav" id="mobile-nav">
   <button class="mobile-nav-btn active" id="mnav-watchlist" onclick="mobileTab('watchlist')">
     <span class="nav-icon">📋</span>
@@ -730,6 +822,7 @@
   </button>
 </nav>
 
+<!-- Asset Library Modal -->
 <div id="add-modal" class="modal-overlay" style="display:none;" onclick="closeModalIfBg(event)">
   <div class="modal">
     <div class="modal-header">
@@ -761,146 +854,12 @@
 
 <script>
 // ═══════════════════════════════════════════════
-// API KEYS & VAPID
+// API KEYS
 // ═══════════════════════════════════════════════
 const TD_KEY = '6d7175c59a1546a28e37b0b23c402ec5'; // Twelve Data
-const PUBLIC_VAPID_KEY = "BJCv8IJPfAGfgB7L7bChtGnida6xIc3CMe7JbJ5e8fOc7An5A7tNItStuIHAM60DEtgDHAS0PADMclZrYh4xq-I";
 
 // ═══════════════════════════════════════════════
-// PUSH NOTIFICATIONS SETUP
-// ═══════════════════════════════════════════════
-let pushSubscription = null;
-let pushEnabled = false;
-
-async function registerServiceWorker() {
-  if (!('serviceWorker' in navigator)) return;
-  try {
-    const reg = await navigator.serviceWorker.register('/sw.js');
-    console.log('Service Worker registered');
-
-    pushSubscription = await reg.pushManager.getSubscription();
-    if (pushSubscription) {
-      pushEnabled = true;
-      updateNotifBtn();
-    }
-  } catch (err) {
-    console.error('SW registration failed:', err);
-  }
-}
-
-async function subscribeToPush() {
-  if (Notification.permission !== 'granted') {
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') {
-      showToast("Permission Denied", "Notifications blocked – check browser settings", "error");
-      return;
-    }
-  }
-
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    pushSubscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
-    });
-    pushEnabled = true;
-    updateNotifBtn();
-    showToast("Push Enabled", "You'll get alerts even when the tab is closed.", "success");
-    console.log('Subscribed to push:', pushSubscription);
-  } catch (err) {
-    console.error('Subscription failed:', err);
-    showToast("Push Setup Failed", err.message || "Unknown error", "error");
-    pushEnabled = false;
-    updateNotifBtn();
-  }
-}
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
-
-async function unsubscribeFromPush() {
-  if (pushSubscription) {
-    await pushSubscription.unsubscribe();
-    pushSubscription = null;
-    pushEnabled = false;
-    updateNotifBtn();
-    showToast("Push Disabled", "Push notifications turned off.", "success");
-  }
-}
-
-async function requestNotifPermission() {
-  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-    showToast("Not Supported", "Push notifications not available in this browser.", "error");
-    return;
-  }
-
-  if (Notification.permission === 'granted' && pushSubscription) {
-    await unsubscribeFromPush();
-  } else {
-    await subscribeToPush();
-  }
-}
-
-function updateNotifBtn() {
-  const btn = document.getElementById('notif-btn');
-  if (pushEnabled) {
-    btn.classList.add('active');
-    btn.title = "Push notifications ENABLED – click to disable";
-  } else {
-    btn.classList.remove('active');
-    btn.title = "Enable push notifications (works even tab closed)";
-  }
-}
-
-// FIXED & PREFERRED: Use service worker for push (background/closed tab support)
-async function sendBrowserNotification(title, body) {
-  if (Notification.permission !== 'granted') return;
-
-  // Try real Push Notification via service worker (works when tab is closed/background)
-  if ('serviceWorker' in navigator && 'PushManager' in window) {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification(title, {
-        body: body,
-        vibrate: [200, 100, 200],
-        tag: 'tradewatch-alert',
-        renotify: true
-      });
-      console.log('Push notification sent via service worker');
-      return; // Success — no fallback needed
-    } catch (err) {
-      console.warn('Service worker notification failed:', err);
-    }
-  }
-
-  // Fallback: basic Notification (only works when tab is open/visible)
-  try {
-    new Notification(title, {
-      body: body,
-      tag: 'tradewatch-alert',
-      requireInteraction: false
-    });
-    console.log('Fallback basic notification sent');
-  } catch (e) {
-    console.warn('Basic notification failed:', e);
-  }
-}
-
-// Register SW on load
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', registerServiceWorker);
-}
-
-// ═══════════════════════════════════════════════
-// DATA DEFINITIONS & STATE
+// DATA DEFINITIONS
 // ═══════════════════════════════════════════════
 const ASSETS = {
   crypto: [
@@ -936,6 +895,7 @@ const ASSETS = {
   ]
 };
 
+// Base prices for simulation fallback — updated March 2026
 const BASE_PRICES = {
   bitcoin: 85000, ethereum: 2200, solana: 135, ripple: 2.30, binancecoin: 590,
   AAPL: 225.0, TSLA: 280.0, NVDA: 115.0, MSFT: 410.0,
@@ -944,8 +904,11 @@ const BASE_PRICES = {
   SPX: 5620.0, IXIC: 17600.0, DJI: 41800.0, FTSE: 8600.0
 };
 
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
 let prices = {};
-let priceData = {};
+let priceData = {};  // { id: { price, change, high, low, vol, mcap } }
 let alerts = [];
 let selectedAsset = null;
 let alertIdCounter = 1;
@@ -955,14 +918,1375 @@ let chartCtx = null;
 let triggeredToday = 0;
 let currentLibTab = 'ALL';
 let libSearchQuery = '';
+// When true, selectAsset will switch to the chart tab on mobile.
+// Set to true only on explicit user taps — never during background refreshes.
 let navigateToChartOnSelect = false;
 
-// ... (keep all your existing functions below: fetchWithCORSFallback, fetchTwelveDataBatch, fetchAllTwelveData, fetchCryptoFromCoinGecko,
-// simulatePrice, updateSimulatedPrices, formatLarge, formatPrice, refreshSelectedAssetPanel, updateWatchlistSelection,
-// renderWatchlist, selectAsset, mobileTab, generateChartData, drawChart, setTF, createAlert, deleteAlert, toggleAlert,
-// renderAlerts, checkAlerts, getAudioCtx, playAlertSound, toggleSound, selectSound, previewSound, showToast,
-// removeAssetFromWatchlist, openAddModal, closeAddModal, setLibTab, filterLibrary, renderLibrary, addAssetToWatchlist,
-// populateDropdown, refreshAll, init, setStatusPill, and the swipe gesture handler)
+// ═══════════════════════════════════════════════
+// FETCH HELPERS — CORS proxy chain + simulation fallback
+// Tries direct → allorigins proxy → corsproxy.io → simulation
+// ═══════════════════════════════════════════════
+
+// CORS proxy wrappers
+const CORS_PROXIES = [
+  url => url, // try direct first (works when hosted)
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
+
+async function fetchWithCORSFallback(url) {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const proxiedUrl = proxy(url);
+      const res = await fetch(proxiedUrl, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      return JSON.parse(text);
+    } catch (e) {
+      // try next proxy
+    }
+  }
+  throw new Error('All proxies failed for: ' + url);
+}
+
+// ── TWELVE DATA ──────────────────────────────────
+async function fetchTwelveDataBatch(assets) {
+  const symbols = assets.map(a => a.tdSymbol).join(',');
+  try {
+    const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbols)}&apikey=${TD_KEY}`;
+    const data = await fetchWithCORSFallback(url);
+
+    assets.forEach(asset => {
+      const q = assets.length === 1 ? data : (data[asset.tdSymbol] || data);
+      if (!q || q.status === 'error' || !q.close) return;
+
+      const price  = parseFloat(q.close);
+      const high   = parseFloat(q.high  || price * 1.01);
+      const low    = parseFloat(q.low   || price * 0.99);
+      const change = parseFloat(q.percent_change || 0);
+      const vol    = parseFloat(q.volume || 0);
+
+      priceData[asset.id] = {
+        price, change: change.toFixed(2), high, low,
+        vol: vol ? formatLarge(vol) : '—', mcap: '—', live: true
+      };
+      prices[asset.id]      = price;
+      BASE_PRICES[asset.id] = price;
+    });
+    return true;
+  } catch(e) {
+    console.warn('Twelve Data batch failed:', e.message);
+    return false;
+  }
+}
+
+async function fetchAllTwelveData() {
+  const nonCrypto = [
+    ...(ASSETS.stocks || []),
+    ...(ASSETS.forex  || []),
+    ...(ASSETS.commodities || []),
+    ...(ASSETS.indices || []),
+    ...(ASSETS.etf    || []),
+  ];
+
+  const batchSize = 8;
+  for (let i = 0; i < nonCrypto.length; i += batchSize) {
+    const batch = nonCrypto.slice(i, i + batchSize);
+    await fetchTwelveDataBatch(batch);
+    if (i + batchSize < nonCrypto.length) {
+      await new Promise(r => setTimeout(r, 900));
+    }
+  }
+
+  renderWatchlist();
+  refreshSelectedAssetPanel();
+  checkAlerts();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+}
+
+// ── COINGECKO ────────────────────────────────────
+async function fetchCryptoFromCoinGecko() {
+  const ids = (ASSETS.crypto || []).map(a => a.id).join(',');
+  if (!ids) return false;
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&include_high_24h=true&include_low_24h=true`;
+    const data = await fetchWithCORSFallback(url);
+
+    (ASSETS.crypto || []).forEach(asset => {
+      const d = data[asset.id];
+      if (!d) return;
+      priceData[asset.id] = {
+        price: d.usd,
+        change: (d.usd_24h_change || 0).toFixed(2),
+        high: d.usd_24h_high  || d.usd * 1.02,
+        low:  d.usd_24h_low   || d.usd * 0.98,
+        vol:  d.usd_24h_vol   || 0,
+        mcap: d.usd_market_cap || 0,
+        live: true
+      };
+      prices[asset.id]      = d.usd;
+      BASE_PRICES[asset.id] = d.usd;
+    });
+    return true;
+  } catch(e) {
+    console.log('CoinGecko fallback:', e.message);
+    return false;
+  }
+}
+
+
+
+function simulatePrice(id) {
+  const base = BASE_PRICES[id] || 100;
+  const prev = prices[id] || base;
+  const drift = (Math.random() - 0.499) * 0.003;
+  return parseFloat((prev * (1 + drift)).toFixed(base < 0.001 ? 8 : base < 1 ? 6 : base < 10 ? 4 : 2));
+}
+
+function updateSimulatedPrices() {
+  // Simulate ALL non-crypto assets that don't have a live price yet
+  const nonCryptoCategories = ['stocks','forex','commodities','indices','etf'];
+  nonCryptoCategories.forEach(cat => {
+    (ASSETS[cat] || []).forEach(asset => {
+      if (priceData[asset.id]?.live) return; // skip if we have real data
+      const newPrice = simulatePrice(asset.id);
+      const change = ((newPrice - (BASE_PRICES[asset.id] || newPrice)) / (BASE_PRICES[asset.id] || newPrice) * 100);
+      prices[asset.id] = newPrice;
+      priceData[asset.id] = {
+        price: newPrice, change: change.toFixed(2),
+        high: (newPrice * 1.015).toFixed(asset.id.includes('/') ? 4 : 2),
+        low:  (newPrice * 0.985).toFixed(asset.id.includes('/') ? 4 : 2),
+        vol: formatLarge((BASE_PRICES[asset.id] || 100) * 1e6 * (0.5 + Math.random())),
+        mcap: '—', live: false
+      };
+    });
+  });
+
+  // Simulate crypto only if CoinGecko hasn't responded yet
+  (ASSETS.crypto || []).forEach(asset => {
+    if (priceData[asset.id]?.live) return;
+    const newPrice = simulatePrice(asset.id);
+    const change = ((newPrice - (BASE_PRICES[asset.id] || newPrice)) / (BASE_PRICES[asset.id] || newPrice) * 100);
+    prices[asset.id] = newPrice;
+    priceData[asset.id] = {
+      price: newPrice, change: change.toFixed(2),
+      high: (newPrice * 1.025).toFixed(2), low: (newPrice * 0.975).toFixed(2),
+      vol: formatLarge((BASE_PRICES[asset.id] || 100) * 1e6),
+      mcap: formatLarge((BASE_PRICES[asset.id] || 100) * 19e6),
+      live: false
+    };
+  });
+}
+
+function formatLarge(n) {
+  if (n >= 1e12) return (n/1e12).toFixed(2) + 'T';
+  if (n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(2) + 'K';
+  return n.toFixed(2);
+}
+
+function formatPrice(p, id) {
+  if (!p) return '—';
+  if (p < 0.01) return '$' + p.toFixed(6);
+  if (p < 1) return '$' + p.toFixed(4);
+  if (id && (id.includes('/') && !id.startsWith('XAU') && !id.startsWith('XAG'))) return p.toFixed(4);
+  return '$' + p.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+// ═══════════════════════════════════════════════
+// REFRESH SELECTED ASSET PANEL (single source of truth)
+// Called by selectAsset, 8s tick, and live data callbacks.
+// Never redraws chart — callers handle that separately.
+// ═══════════════════════════════════════════════
+function refreshSelectedAssetPanel() {
+  if (!selectedAsset) return;
+  const asset = selectedAsset;
+  const d = priceData[asset.id];
+  const price = d ? d.price : (BASE_PRICES[asset.id] || 0);
+  const change = d ? parseFloat(d.change) : 0;
+  const isUp = change >= 0;
+
+  // Header
+  document.getElementById('sel-symbol').textContent = asset.symbol;
+  document.getElementById('sel-name').textContent = asset.name;
+  document.getElementById('sel-source').textContent = d?.live
+    ? asset.source + ' (Live ✓)'
+    : (asset.source || '—') + ' (Simulated)';
+  const priceEl = document.getElementById('sel-price');
+  priceEl.textContent = price ? formatPrice(price, asset.id) : '—';
+  priceEl.style.color = isUp ? 'var(--green)' : 'var(--red)';
+  const changeEl = document.getElementById('sel-change');
+  changeEl.textContent = price ? (isUp ? '▲ +' : '▼ ') + Math.abs(change).toFixed(2) + '% (24h)' : '';
+  changeEl.className = 'big-change ' + (isUp ? 'up' : 'down');
+
+  // Stats — smart label for MKT CAP based on asset type
+  const high = d?.high ? formatPrice(parseFloat(d.high), asset.id) : '—';
+  const low  = d?.low  ? formatPrice(parseFloat(d.low),  asset.id) : '—';
+  const vol  = d?.vol  ? (typeof d.vol  === 'string' ? d.vol  : formatLarge(d.vol))  : '—';
+
+  // MKT CAP: only meaningful for crypto. Stocks/forex get a contextual label.
+  let mcapLabel, mcapVal;
+  if (asset.source === 'CoinGecko') {
+    mcapLabel = 'MKT CAP';
+    mcapVal = d?.mcap ? (typeof d.mcap === 'string' ? d.mcap : formatLarge(d.mcap)) : '—';
+  } else if (asset.cat === 'stocks' || (asset.source === 'Twelve Data' && !asset.id.includes('/'))) {
+    mcapLabel = 'MKT CAP';
+    mcapVal = 'N/A';
+  } else if (asset.id.includes('/') && !asset.id.startsWith('X')) {
+    mcapLabel = 'SPREAD';
+    mcapVal = '—';
+  } else {
+    mcapLabel = 'MKT CAP';
+    mcapVal = '—';
+  }
+
+  document.getElementById('stat-high').textContent = high;
+  document.getElementById('stat-low').textContent  = low;
+  document.getElementById('stat-vol').textContent  = vol;
+  document.getElementById('stat-mcap').textContent = mcapVal;
+  // Update label dynamically
+  const mcapLabelEl = document.querySelector('#stat-mcap')?.previousElementSibling;
+  if (mcapLabelEl) mcapLabelEl.textContent = mcapLabel;
+
+  // Alert form note
+  document.getElementById('current-price-note').textContent = price
+    ? `Current price: ${formatPrice(price, asset.id)} — Your alert will trigger when the condition is met.`
+    : 'Select an asset to see current price';
+  // NOTE: alert-asset dropdown is kept in sync by populateDropdown() and createAlert().
+  // Do NOT set it here — doing so causes mobile browsers to scroll the panel to the select every tick.
+}
+
+// ═══════════════════════════════════════════════
+// UPDATE WATCHLIST SELECTION HIGHLIGHT ONLY
+// Lightweight — just flips CSS classes, no full re-render.
+// ═══════════════════════════════════════════════
+function updateWatchlistSelection() {
+  document.querySelectorAll('.asset-card').forEach(card => {
+    const assetId = card.dataset.assetId;
+    const isSelected = selectedAsset && assetId === selectedAsset.id;
+    card.classList.toggle('selected', isSelected);
+    if (isSelected) {
+      card.classList.add('selected');
+      card.style.setProperty('--before-opacity', '1');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// RENDER WATCHLIST
+// ═══════════════════════════════════════════════
+function renderWatchlist() {
+  let totalCount = 0;
+  Object.entries(ASSETS).forEach(([cat, assets]) => {
+    const container = document.getElementById(cat + '-list');
+    if (!container) return;
+    container.innerHTML = '';
+    assets.forEach(asset => {
+      const d = priceData[asset.id];
+      const price = d ? d.price : (BASE_PRICES[asset.id] || 0);
+      const change = d ? d.change : '0.00';
+      const isUp = parseFloat(change) >= 0;
+      const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
+      const isSelected = selectedAsset && selectedAsset.id === asset.id;
+
+      const card = document.createElement('div');
+      card.className = `asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
+      card.dataset.assetId = asset.id;
+      card.innerHTML = `
+        <button class="asset-remove" title="Remove from watchlist" onclick="removeAssetFromWatchlist('${asset.id}','${cat}',event)">✕</button>
+        <div class="asset-left">
+          <div class="asset-symbol">${asset.symbol}</div>
+          <div class="asset-name">${asset.name}</div>
+        </div>
+        <div class="asset-right">
+          <div class="asset-price">${formatPrice(price, asset.id)}</div>
+          <div class="asset-change ${isUp ? 'up' : 'down'}">${isUp ? '▲' : '▼'} ${Math.abs(change)}%</div>
+        </div>`;
+      card.onclick = (e) => {
+        // Don't trigger selectAsset if the remove button was clicked
+        if (e.target.classList.contains('asset-remove') || e.target.closest('.asset-remove')) return;
+        navigateToChartOnSelect = true; // user explicitly tapped — allow tab switch
+        selectAsset(asset);
+      };
+      container.appendChild(card);
+      totalCount++;
+    });
+  });
+  document.getElementById('wl-count').textContent = totalCount;
+  document.getElementById('watchCount').textContent = totalCount;
+}
+
+// ═══════════════════════════════════════════════
+// SELECT ASSET
+// ═══════════════════════════════════════════════
+function selectAsset(asset) {
+  selectedAsset = asset;
+
+  // Update panel content via shared function
+  refreshSelectedAssetPanel();
+
+  // Update selection highlight — lightweight on mobile (no full re-render),
+  // full re-render on desktop to also refresh prices on all cards
+  if (window.innerWidth <= 768) {
+    updateWatchlistSelection();
+    // Only switch to chart tab when user explicitly tapped an asset —
+    // NOT during background data refreshes (init, intervals, fetchAllTwelveData)
+    if (navigateToChartOnSelect) {
+      navigateToChartOnSelect = false;
+      mobileTab('chart');
+    }
+  } else {
+    renderWatchlist();
+    const d = priceData[asset.id];
+    generateChartData(d?.price || BASE_PRICES[asset.id] || 100);
+    drawChart();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// MOBILE TAB NAVIGATION
+// ═══════════════════════════════════════════════
+function mobileTab(tab) {
+  if (window.innerWidth > 768) return;
+
+  // Hide all panels
+  document.getElementById('panel-watchlist').classList.remove('mobile-active');
+  document.getElementById('panel-main').classList.remove('mobile-active');
+  document.getElementById('panel-alerts').classList.remove('mobile-active');
+
+  // Deactivate all nav buttons
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+
+  if (tab === 'watchlist') {
+    document.getElementById('panel-watchlist').classList.add('mobile-active');
+    document.getElementById('mnav-watchlist').classList.add('active');
+  } else if (tab === 'chart') {
+    document.getElementById('panel-main').classList.add('mobile-active');
+    document.getElementById('mnav-chart').classList.add('active');
+    // Draw chart after panel is visible and has dimensions
+    setTimeout(() => {
+      if (selectedAsset) {
+        const d = priceData[selectedAsset.id];
+        const price = d?.price || BASE_PRICES[selectedAsset.id] || 100;
+        generateChartData(price);
+        drawChart();
+      }
+    }, 60);
+  } else if (tab === 'alerts') {
+    document.getElementById('panel-alerts').classList.add('mobile-active');
+    document.getElementById('mnav-alerts').classList.add('active');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// CHART
+// ═══════════════════════════════════════════════
+function generateChartData(currentPrice) {
+  const points = 60;
+  chartData = [];
+  let p = currentPrice * (0.97 + Math.random() * 0.03);
+  for (let i = 0; i < points; i++) {
+    p = p * (1 + (Math.random() - 0.498) * 0.008);
+    chartData.push(p);
+  }
+  chartData[chartData.length - 1] = currentPrice;
+}
+
+function drawChart() {
+  const canvas = document.getElementById('sparkChart');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 180;
+  const ctx = canvas.getContext('2d');
+  chartCtx = ctx;
+  const w = canvas.width, h = canvas.height;
+  const pad = { top: 10, bottom: 20, left: 10, right: 10 };
+  const dw = w - pad.left - pad.right;
+  const dh = h - pad.top - pad.bottom;
+
+  const min = Math.min(...chartData) * 0.999;
+  const max = Math.max(...chartData) * 1.001;
+  const range = max - min;
+
+  ctx.clearRect(0, 0, w, h);
+
+  const pts = chartData.map((v, i) => ({
+    x: pad.left + (i / (chartData.length - 1)) * dw,
+    y: pad.top + dh - ((v - min) / range) * dh
+  }));
+
+  const isUp = chartData[chartData.length-1] >= chartData[0];
+  const lineColor = isUp ? '#00e676' : '#ff3d5a';
+
+  // Fill gradient
+  const grad = ctx.createLinearGradient(0, pad.top, 0, h);
+  grad.addColorStop(0, isUp ? 'rgba(0,230,118,0.2)' : 'rgba(255,61,90,0.2)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length-1].x, pad.top + dh);
+  ctx.lineTo(pts[0].x, pad.top + dh);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Dot at end
+  const last = pts[pts.length - 1];
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = lineColor;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 7, 0, Math.PI * 2);
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.3;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Alert lines
+  if (selectedAsset) {
+    const activeAlerts = alerts.filter(a => a.assetId === selectedAsset.id && a.status === 'active');
+    activeAlerts.forEach(alert => {
+      const pct = (alert.targetPrice - min) / range;
+      if (pct < 0 || pct > 1) return;
+      const y = pad.top + dh - pct * dh;
+      ctx.beginPath();
+      ctx.setLineDash([5, 4]);
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
+      ctx.strokeStyle = 'rgba(255,214,0,0.7)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,214,0,0.9)';
+      ctx.font = '10px Space Mono';
+      ctx.fillText(`⚡ ${formatPrice(alert.targetPrice, selectedAsset.id)}`, w - pad.right - 80, y - 4);
+    });
+  }
+}
+
+function setTF(tf, btn) {
+  document.querySelectorAll('.tf-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTF = tf;
+  if (selectedAsset) {
+    const d = priceData[selectedAsset.id];
+    generateChartData(d ? d.price : BASE_PRICES[selectedAsset.id]);
+    drawChart();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════
+function createAlert() {
+  const assetId = document.getElementById('alert-asset').value;
+  const condition = document.getElementById('alert-condition').value;
+  const targetPrice = parseFloat(document.getElementById('alert-price').value);
+  const note = document.getElementById('alert-note').value.trim();
+
+  if (!assetId) return showToast('No Asset', 'Please select an asset first.', 'error');
+  if (isNaN(targetPrice) || targetPrice <= 0) return showToast('Invalid Price', 'Enter a valid target price.', 'error');
+
+  // Find asset info
+  let assetInfo = null;
+  Object.values(ASSETS).forEach(list => {
+    const found = list.find(a => a.id === assetId);
+    if (found) assetInfo = found;
+  });
+  if (!assetInfo) return;
+
+  const currentPrice = priceData[assetId]?.price || BASE_PRICES[assetId];
+
+  alerts.push({
+    id: alertIdCounter++,
+    assetId,
+    symbol: assetInfo.symbol,
+    name: assetInfo.name,
+    condition,
+    targetPrice,
+    note,
+    sound: selectedAlertSound,
+    status: 'active',
+    createdAt: new Date().toLocaleTimeString(),
+    currentPriceWhenCreated: currentPrice
+  });
+
+  document.getElementById('alert-price').value = '';
+  document.getElementById('alert-note').value = '';
+
+  showToast('Alert Created ⚡', `${assetInfo.symbol} ${condition} ${formatPrice(targetPrice, assetId)} is now active.`, 'success');
+  renderAlerts();
+  renderWatchlist();
+  if (selectedAsset?.id === assetId) drawChart();
+}
+
+function deleteAlert(id) {
+  alerts = alerts.filter(a => a.id !== id);
+  renderAlerts();
+  renderWatchlist();
+  if (selectedAsset) drawChart();
+}
+
+function toggleAlert(id) {
+  const a = alerts.find(a => a.id === id);
+  if (!a) return;
+  if (a.status === 'active') a.status = 'paused';
+  else if (a.status === 'paused') a.status = 'active';
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const container = document.getElementById('alerts-list');
+  const active = alerts.filter(a => a.status === 'active').length;
+  document.getElementById('alert-count').textContent = alerts.length;
+  document.getElementById('activeCount').textContent = active;
+  document.getElementById('triggeredCount').textContent = triggeredToday;
+
+  if (alerts.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">🔔</div><p>No alerts yet.<br>Select an asset and set a<br>price target to get started.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  [...alerts].reverse().forEach(alert => {
+    const div = document.createElement('div');
+    div.className = `alert-item ${alert.status === 'triggered' ? 'triggered' : 'active-alert'}`;
+    const badgeClass = alert.status === 'active' ? 'badge-active' : alert.status === 'triggered' ? 'badge-triggered' : 'badge-inactive';
+    const badgeLabel = alert.status === 'active' ? 'ACTIVE' : alert.status === 'triggered' ? 'TRIGGERED' : 'PAUSED';
+    div.innerHTML = `
+      <div class="alert-header-row">
+        <div class="alert-symbol">${alert.symbol}</div>
+        <div class="alert-badge ${badgeClass}">${badgeLabel}</div>
+      </div>
+      <div class="alert-detail">
+        <strong>${alert.condition === 'above' ? '▲ ABOVE' : '▼ BELOW'}</strong> ${formatPrice(alert.targetPrice, alert.assetId)}<br>
+        ${alert.note ? `<em style="color:var(--muted)">"${alert.note}"</em><br>` : ''}
+        Set at ${alert.createdAt}
+      </div>
+      <div class="alert-actions">
+        <button class="alert-action-btn toggle" onclick="toggleAlert(${alert.id})">${alert.status === 'paused' ? '▶ RESUME' : '⏸ PAUSE'}</button>
+        <button class="alert-action-btn delete" onclick="deleteAlert(${alert.id})">✕ DELETE</button>
+      </div>`;
+    container.appendChild(div);
+  });
+
+  // Update mobile alert badge dot
+  const dot = document.getElementById('alert-dot');
+  if (dot) dot.classList.toggle('show', alerts.filter(a => a.status === 'active').length > 0);
+}
+
+// ═══════════════════════════════════════════════
+// CHECK ALERTS — with sound + browser notifications
+// ═══════════════════════════════════════════════
+function checkAlerts() {
+  alerts.forEach(alert => {
+    if (alert.status !== 'active') return;
+    const currentPrice = priceData[alert.assetId]?.price || prices[alert.assetId];
+    if (!currentPrice) return;
+
+    const triggered =
+      (alert.condition === 'above' && currentPrice >= alert.targetPrice) ||
+      (alert.condition === 'below' && currentPrice <= alert.targetPrice);
+
+    if (triggered) {
+      alert.status = 'triggered';
+      alert.triggeredAt = new Date().toLocaleTimeString();
+      triggeredToday++;
+
+      const msg = `${alert.condition === 'above' ? 'Rose above' : 'Fell below'} ${formatPrice(alert.targetPrice, alert.assetId)} | Now: ${formatPrice(currentPrice, alert.assetId)}`;
+
+      showToast(`🔔 ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
+      playAlertSound(alert.sound || selectedAlertSound);
+      sendBrowserNotification(`⚡ ${alert.symbol} Alert Triggered`, msg);
+      renderAlerts();
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// SOUND ENGINE (Web Audio API — no external files)
+// ═══════════════════════════════════════════════
+let audioCtx = null;
+let soundEnabled = true;
+let selectedAlertSound = 'chime';
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playAlertSound(type = 'chime') {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudioCtx();
+    const sounds = {
+      chime: () => {
+        // Ascending chime — three notes
+        [523.25, 659.25, 783.99].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18);
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
+          gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + i * 0.18 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.5);
+          osc.start(ctx.currentTime + i * 0.18);
+          osc.stop(ctx.currentTime + i * 0.18 + 0.55);
+        });
+      },
+      beep: () => {
+        // Two-tone alert beep
+        [880, 1100].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.15);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.12);
+          osc.start(ctx.currentTime + i * 0.15);
+          osc.stop(ctx.currentTime + i * 0.15 + 0.15);
+        });
+      },
+      bell: () => {
+        // Rich bell with harmonics
+        const freqs = [440, 880, 1320];
+        freqs.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.3 / (i + 1), ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 1.6);
+        });
+      },
+      ding: () => {
+        // Short bright ding
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1318.5, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.65);
+      }
+    };
+    (sounds[type] || sounds.chime)();
+  } catch(e) { console.warn('Audio error:', e); }
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('sound-btn');
+  if (soundEnabled) {
+    btn.textContent = '🔊';
+    btn.classList.add('active');
+    btn.classList.remove('muted-sound');
+    btn.title = 'Sound ON — click to mute';
+  } else {
+    btn.textContent = '🔇';
+    btn.classList.remove('active');
+    btn.classList.add('muted-sound');
+    btn.title = 'Sound OFF — click to enable';
+  }
+  if (soundEnabled) playAlertSound(selectedAlertSound);
+}
+
+function selectSound(type, btn) {
+  selectedAlertSound = type;
+  document.querySelectorAll('.sound-opt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function previewSound() {
+  playAlertSound(selectedAlertSound);
+}
+
+// ═══════════════════════════════════════════════
+// BROWSER NOTIFICATIONS
+// ═══════════════════════════════════════════════
+let notifEnabled = false;
+
+async function requestNotifPermission() {
+  if (!('Notification' in window)) {
+    showToast('Not Supported', 'Browser notifications are not supported here.', 'error');
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    notifEnabled = !notifEnabled;
+    updateNotifBtn();
+    showToast(notifEnabled ? '🔔 Notifications ON' : '🔕 Notifications OFF',
+      notifEnabled ? 'You will receive browser alerts when prices trigger.' : 'Browser notifications disabled.', 'success');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    notifEnabled = true;
+    updateNotifBtn();
+    showToast('🔔 Notifications Enabled', 'Browser alerts will fire when your price targets are hit.', 'success');
+    new Notification('TradeWatch Active ⚡', { body: 'You will now receive price alert notifications.', icon: '' });
+  } else {
+    showToast('Permission Denied', 'Enable notifications in your browser settings to use this feature.', 'error');
+  }
+}
+
+function updateNotifBtn() {
+  const btn = document.getElementById('notif-btn');
+  if (notifEnabled) {
+    btn.classList.add('active');
+    btn.title = 'Notifications ON — click to toggle';
+  } else {
+    btn.classList.remove('active');
+    btn.title = 'Enable browser notifications';
+  }
+}
+
+function sendBrowserNotification(title, body) {
+  if (!notifEnabled || Notification.permission !== 'granted') return;
+  try {
+    new Notification(title, { body, icon: '', tag: 'tradewatch-alert', requireInteraction: false });
+  } catch(e) {}
+}
+
+// Check on load if already granted
+if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+  notifEnabled = true;
+  setTimeout(updateNotifBtn, 100);
+}
+
+// ═══════════════════════════════════════════════
+// REMOVE ASSET FROM WATCHLIST
+// ═══════════════════════════════════════════════
+function removeAssetFromWatchlist(assetId, cat, event) {
+  event.stopPropagation();
+  const catAssets = ASSETS[cat];
+  if (!catAssets) return;
+  const asset = catAssets.find(a => a.id === assetId);
+  if (!asset) return;
+
+  // Deselect if currently selected
+  if (selectedAsset && selectedAsset.id === assetId) {
+    selectedAsset = null;
+    document.getElementById('sel-symbol').textContent = 'Select Asset';
+    document.getElementById('sel-name').textContent = 'Click any asset from the watchlist';
+    document.getElementById('sel-price').textContent = '—';
+    document.getElementById('sel-change').textContent = '';
+  }
+
+  ASSETS[cat] = catAssets.filter(a => a.id !== assetId);
+  renderWatchlist();
+  populateDropdown();
+  showToast(`✕ ${asset.symbol} Removed`, `${asset.name} removed from your watchlist.`, 'error');
+}
+
+// ═══════════════════════════════════════════════
+// COMPREHENSIVE ASSET LIBRARY (500+ assets)
+// Includes ALL default watchlist assets so removed
+// assets always reappear here for re-adding.
+// ═══════════════════════════════════════════════
+const ASSET_LIBRARY = [
+
+  // ── CRYPTO (50+) ──────────────────────────────
+  { id:'bitcoin',      symbol:'BTC',    name:'Bitcoin',            cat:'crypto', tdSymbol:'BTC/USD',    source:'CoinGecko', base:68400 },
+  { id:'ethereum',     symbol:'ETH',    name:'Ethereum',           cat:'crypto', tdSymbol:'ETH/USD',    source:'CoinGecko', base:3520 },
+  { id:'solana',       symbol:'SOL',    name:'Solana',             cat:'crypto', tdSymbol:'SOL/USD',    source:'CoinGecko', base:148 },
+  { id:'ripple',       symbol:'XRP',    name:'XRP',                cat:'crypto', tdSymbol:'XRP/USD',    source:'CoinGecko', base:0.52 },
+  { id:'binancecoin',  symbol:'BNB',    name:'BNB',                cat:'crypto', tdSymbol:'BNB/USD',    source:'CoinGecko', base:412 },
+  { id:'dogecoin',     symbol:'DOGE',   name:'Dogecoin',           cat:'crypto', tdSymbol:'DOGE/USD',   source:'CoinGecko', base:0.16 },
+  { id:'cardano',      symbol:'ADA',    name:'Cardano',            cat:'crypto', tdSymbol:'ADA/USD',    source:'CoinGecko', base:0.47 },
+  { id:'polkadot',     symbol:'DOT',    name:'Polkadot',           cat:'crypto', tdSymbol:'DOT/USD',    source:'CoinGecko', base:7.8 },
+  { id:'avalanche-2',  symbol:'AVAX',   name:'Avalanche',          cat:'crypto', tdSymbol:'AVAX/USD',   source:'CoinGecko', base:35.4 },
+  { id:'chainlink',    symbol:'LINK',   name:'Chainlink',          cat:'crypto', tdSymbol:'LINK/USD',   source:'CoinGecko', base:14.2 },
+  { id:'shiba-inu',    symbol:'SHIB',   name:'Shiba Inu',          cat:'crypto', tdSymbol:'SHIB/USD',   source:'CoinGecko', base:0.0000095 },
+  { id:'litecoin',     symbol:'LTC',    name:'Litecoin',           cat:'crypto', tdSymbol:'LTC/USD',    source:'CoinGecko', base:82.5 },
+  { id:'uniswap',      symbol:'UNI',    name:'Uniswap',            cat:'crypto', tdSymbol:'UNI/USD',    source:'CoinGecko', base:9.8 },
+  { id:'cosmos',       symbol:'ATOM',   name:'Cosmos',             cat:'crypto', tdSymbol:'ATOM/USD',   source:'CoinGecko', base:8.2 },
+  { id:'stellar',      symbol:'XLM',    name:'Stellar',            cat:'crypto', tdSymbol:'XLM/USD',    source:'CoinGecko', base:0.11 },
+  { id:'monero',       symbol:'XMR',    name:'Monero',             cat:'crypto', tdSymbol:'XMR/USD',    source:'CoinGecko', base:162 },
+  { id:'tron',         symbol:'TRX',    name:'TRON',               cat:'crypto', tdSymbol:'TRX/USD',    source:'CoinGecko', base:0.12 },
+  { id:'aave',         symbol:'AAVE',   name:'Aave',               cat:'crypto', tdSymbol:'AAVE/USD',   source:'CoinGecko', base:92 },
+  { id:'near',         symbol:'NEAR',   name:'NEAR Protocol',      cat:'crypto', tdSymbol:'NEAR/USD',   source:'CoinGecko', base:6.5 },
+  { id:'aptos',        symbol:'APT',    name:'Aptos',              cat:'crypto', tdSymbol:'APT/USD',    source:'CoinGecko', base:8.9 },
+  { id:'arbitrum',     symbol:'ARB',    name:'Arbitrum',           cat:'crypto', tdSymbol:'ARB/USD',    source:'CoinGecko', base:0.92 },
+  { id:'optimism',     symbol:'OP',     name:'Optimism',           cat:'crypto', tdSymbol:'OP/USD',     source:'CoinGecko', base:1.8 },
+  { id:'sui',          symbol:'SUI',    name:'Sui',                cat:'crypto', tdSymbol:'SUI/USD',    source:'CoinGecko', base:1.35 },
+  { id:'toncoin',      symbol:'TON',    name:'Toncoin',            cat:'crypto', tdSymbol:'TON/USD',    source:'CoinGecko', base:5.6 },
+  { id:'pepe',         symbol:'PEPE',   name:'Pepe',               cat:'crypto', tdSymbol:'PEPE/USD',   source:'CoinGecko', base:0.0000115 },
+  { id:'bonk',         symbol:'BONK',   name:'Bonk',               cat:'crypto', tdSymbol:'BONK/USD',   source:'CoinGecko', base:0.000022 },
+  { id:'maker',        symbol:'MKR',    name:'MakerDAO',           cat:'crypto', tdSymbol:'MKR/USD',    source:'CoinGecko', base:1850 },
+  { id:'injective-protocol',symbol:'INJ',name:'Injective',        cat:'crypto', tdSymbol:'INJ/USD',    source:'CoinGecko', base:25 },
+  { id:'kaspa',        symbol:'KAS',    name:'Kaspa',              cat:'crypto', tdSymbol:'KAS/USD',    source:'CoinGecko', base:0.115 },
+  { id:'render-token', symbol:'RENDER', name:'Render',             cat:'crypto', tdSymbol:'RENDER/USD', source:'CoinGecko', base:6.8 },
+  { id:'fetch-ai',     symbol:'FET',    name:'Fetch.AI',           cat:'crypto', tdSymbol:'FET/USD',    source:'CoinGecko', base:1.5 },
+  { id:'worldcoin-wld',symbol:'WLD',    name:'Worldcoin',          cat:'crypto', tdSymbol:'WLD/USD',    source:'CoinGecko', base:2.4 },
+  { id:'celestia',     symbol:'TIA',    name:'Celestia',           cat:'crypto', tdSymbol:'TIA/USD',    source:'CoinGecko', base:6.2 },
+  { id:'starknet',     symbol:'STRK',   name:'Starknet',           cat:'crypto', tdSymbol:'STRK/USD',   source:'CoinGecko', base:0.88 },
+  { id:'immutable-x',  symbol:'IMX',   name:'Immutable X',        cat:'crypto', tdSymbol:'IMX/USD',    source:'CoinGecko', base:1.6 },
+  { id:'hedera',       symbol:'HBAR',   name:'Hedera',             cat:'crypto', tdSymbol:'HBAR/USD',   source:'CoinGecko', base:0.09 },
+  { id:'vechain',      symbol:'VET',    name:'VeChain',            cat:'crypto', tdSymbol:'VET/USD',    source:'CoinGecko', base:0.035 },
+  { id:'algorand',     symbol:'ALGO',   name:'Algorand',           cat:'crypto', tdSymbol:'ALGO/USD',   source:'CoinGecko', base:0.18 },
+  { id:'filecoin',     symbol:'FIL',    name:'Filecoin',           cat:'crypto', tdSymbol:'FIL/USD',    source:'CoinGecko', base:5.8 },
+  { id:'the-graph',    symbol:'GRT',    name:'The Graph',          cat:'crypto', tdSymbol:'GRT/USD',    source:'CoinGecko', base:0.18 },
+  { id:'curve-dao-token',symbol:'CRV',  name:'Curve DAO',          cat:'crypto', tdSymbol:'CRV/USD',    source:'CoinGecko', base:0.42 },
+  { id:'floki',        symbol:'FLOKI',  name:'Floki',              cat:'crypto', tdSymbol:'FLOKI/USD',  source:'CoinGecko', base:0.000175 },
+
+  // ── STOCKS — US Tech ──────────────────────────
+  { id:'AAPL', symbol:'AAPL', name:'Apple Inc.',         cat:'stocks', tdSymbol:'AAPL', source:'Twelve Data', base:189.4 },
+  { id:'TSLA', symbol:'TSLA', name:'Tesla Inc.',         cat:'stocks', tdSymbol:'TSLA', source:'Twelve Data', base:175.2 },
+  { id:'NVDA', symbol:'NVDA', name:'NVIDIA Corp.',       cat:'stocks', tdSymbol:'NVDA', source:'Twelve Data', base:875.3 },
+  { id:'MSFT', symbol:'MSFT', name:'Microsoft Corp.',    cat:'stocks', tdSymbol:'MSFT', source:'Twelve Data', base:418.7 },
+  { id:'AMZN', symbol:'AMZN', name:'Amazon',             cat:'stocks', tdSymbol:'AMZN', source:'Twelve Data', base:185.2 },
+  { id:'GOOGL',symbol:'GOOGL',name:'Alphabet (Google)',  cat:'stocks', tdSymbol:'GOOGL',source:'Twelve Data', base:175.8 },
+  { id:'META', symbol:'META', name:'Meta Platforms',     cat:'stocks', tdSymbol:'META', source:'Twelve Data', base:510.3 },
+  { id:'NFLX', symbol:'NFLX', name:'Netflix',            cat:'stocks', tdSymbol:'NFLX', source:'Twelve Data', base:625.7 },
+  { id:'AMD',  symbol:'AMD',  name:'AMD',                cat:'stocks', tdSymbol:'AMD',  source:'Twelve Data', base:172.4 },
+  { id:'INTC', symbol:'INTC', name:'Intel',              cat:'stocks', tdSymbol:'INTC', source:'Twelve Data', base:31.2 },
+  { id:'QCOM', symbol:'QCOM', name:'Qualcomm',           cat:'stocks', tdSymbol:'QCOM', source:'Twelve Data', base:168.5 },
+  { id:'CRM',  symbol:'CRM',  name:'Salesforce',         cat:'stocks', tdSymbol:'CRM',  source:'Twelve Data', base:285 },
+  { id:'ORCL', symbol:'ORCL', name:'Oracle',             cat:'stocks', tdSymbol:'ORCL', source:'Twelve Data', base:122 },
+  { id:'ADBE', symbol:'ADBE', name:'Adobe',              cat:'stocks', tdSymbol:'ADBE', source:'Twelve Data', base:460 },
+  { id:'NOW',  symbol:'NOW',  name:'ServiceNow',         cat:'stocks', tdSymbol:'NOW',  source:'Twelve Data', base:780 },
+  { id:'SNOW', symbol:'SNOW', name:'Snowflake',          cat:'stocks', tdSymbol:'SNOW', source:'Twelve Data', base:148 },
+  { id:'PLTR', symbol:'PLTR', name:'Palantir',           cat:'stocks', tdSymbol:'PLTR', source:'Twelve Data', base:22.5 },
+  { id:'COIN', symbol:'COIN', name:'Coinbase',           cat:'stocks', tdSymbol:'COIN', source:'Twelve Data', base:195 },
+  { id:'UBER', symbol:'UBER', name:'Uber',               cat:'stocks', tdSymbol:'UBER', source:'Twelve Data', base:72 },
+  { id:'ABNB', symbol:'ABNB', name:'Airbnb',             cat:'stocks', tdSymbol:'ABNB', source:'Twelve Data', base:142 },
+  { id:'SPOT', symbol:'SPOT', name:'Spotify',            cat:'stocks', tdSymbol:'SPOT', source:'Twelve Data', base:320 },
+  { id:'SQ',   symbol:'SQ',   name:'Block (Square)',     cat:'stocks', tdSymbol:'SQ',   source:'Twelve Data', base:68 },
+  { id:'PYPL', symbol:'PYPL', name:'PayPal',             cat:'stocks', tdSymbol:'PYPL', source:'Twelve Data', base:62 },
+  // Finance
+  { id:'JPM',  symbol:'JPM',  name:'JPMorgan Chase',     cat:'stocks', tdSymbol:'JPM',  source:'Twelve Data', base:198.5 },
+  { id:'GS',   symbol:'GS',   name:'Goldman Sachs',      cat:'stocks', tdSymbol:'GS',   source:'Twelve Data', base:463.2 },
+  { id:'BAC',  symbol:'BAC',  name:'Bank of America',    cat:'stocks', tdSymbol:'BAC',  source:'Twelve Data', base:38.7 },
+  { id:'MS',   symbol:'MS',   name:'Morgan Stanley',     cat:'stocks', tdSymbol:'MS',   source:'Twelve Data', base:92 },
+  { id:'WFC',  symbol:'WFC',  name:'Wells Fargo',        cat:'stocks', tdSymbol:'WFC',  source:'Twelve Data', base:55.8 },
+  { id:'V',    symbol:'V',    name:'Visa',               cat:'stocks', tdSymbol:'V',    source:'Twelve Data', base:275 },
+  { id:'MA',   symbol:'MA',   name:'Mastercard',         cat:'stocks', tdSymbol:'MA',   source:'Twelve Data', base:465 },
+  // Healthcare
+  { id:'JNJ',  symbol:'JNJ',  name:'Johnson & Johnson',  cat:'stocks', tdSymbol:'JNJ',  source:'Twelve Data', base:156 },
+  { id:'PFE',  symbol:'PFE',  name:'Pfizer',             cat:'stocks', tdSymbol:'PFE',  source:'Twelve Data', base:27.5 },
+  { id:'MRNA', symbol:'MRNA', name:'Moderna',            cat:'stocks', tdSymbol:'MRNA', source:'Twelve Data', base:82 },
+  { id:'LLY',  symbol:'LLY',  name:'Eli Lilly',          cat:'stocks', tdSymbol:'LLY',  source:'Twelve Data', base:758 },
+  { id:'UNH',  symbol:'UNH',  name:'UnitedHealth',       cat:'stocks', tdSymbol:'UNH',  source:'Twelve Data', base:492 },
+  // Consumer / Energy
+  { id:'WMT',  symbol:'WMT',  name:'Walmart',            cat:'stocks', tdSymbol:'WMT',  source:'Twelve Data', base:172 },
+  { id:'COST', symbol:'COST', name:'Costco',             cat:'stocks', tdSymbol:'COST', source:'Twelve Data', base:730 },
+  { id:'NKE',  symbol:'NKE',  name:'Nike',               cat:'stocks', tdSymbol:'NKE',  source:'Twelve Data', base:92 },
+  { id:'DIS',  symbol:'DIS',  name:'Walt Disney',        cat:'stocks', tdSymbol:'DIS',  source:'Twelve Data', base:95 },
+  { id:'XOM',  symbol:'XOM',  name:'ExxonMobil',         cat:'stocks', tdSymbol:'XOM',  source:'Twelve Data', base:112 },
+  { id:'CVX',  symbol:'CVX',  name:'Chevron',            cat:'stocks', tdSymbol:'CVX',  source:'Twelve Data', base:155 },
+
+  // ── FOREX — Majors ────────────────────────────
+  { id:'EUR/USD', symbol:'EUR/USD', name:'Euro / US Dollar',              cat:'forex', tdSymbol:'EUR/USD', source:'Twelve Data', base:1.0842 },
+  { id:'GBP/USD', symbol:'GBP/USD', name:'British Pound / US Dollar',    cat:'forex', tdSymbol:'GBP/USD', source:'Twelve Data', base:1.2645 },
+  { id:'USD/JPY', symbol:'USD/JPY', name:'US Dollar / Japanese Yen',     cat:'forex', tdSymbol:'USD/JPY', source:'Twelve Data', base:149.32 },
+  { id:'AUD/USD', symbol:'AUD/USD', name:'Australian Dollar / USD',      cat:'forex', tdSymbol:'AUD/USD', source:'Twelve Data', base:0.6531 },
+  { id:'USD/CHF', symbol:'USD/CHF', name:'US Dollar / Swiss Franc',      cat:'forex', tdSymbol:'USD/CHF', source:'Twelve Data', base:0.8932 },
+  { id:'USD/CAD', symbol:'USD/CAD', name:'US Dollar / Canadian Dollar',  cat:'forex', tdSymbol:'USD/CAD', source:'Twelve Data', base:1.3612 },
+  { id:'NZD/USD', symbol:'NZD/USD', name:'New Zealand Dollar / USD',     cat:'forex', tdSymbol:'NZD/USD', source:'Twelve Data', base:0.6082 },
+  // Crosses — EUR
+  { id:'EUR/GBP', symbol:'EUR/GBP', name:'Euro / British Pound',         cat:'forex', tdSymbol:'EUR/GBP', source:'Twelve Data', base:0.8542 },
+  { id:'EUR/JPY', symbol:'EUR/JPY', name:'Euro / Japanese Yen',          cat:'forex', tdSymbol:'EUR/JPY', source:'Twelve Data', base:162.5 },
+  { id:'EUR/CHF', symbol:'EUR/CHF', name:'Euro / Swiss Franc',           cat:'forex', tdSymbol:'EUR/CHF', source:'Twelve Data', base:0.967 },
+  { id:'EUR/CAD', symbol:'EUR/CAD', name:'Euro / Canadian Dollar',       cat:'forex', tdSymbol:'EUR/CAD', source:'Twelve Data', base:1.475 },
+  { id:'EUR/AUD', symbol:'EUR/AUD', name:'Euro / Australian Dollar',     cat:'forex', tdSymbol:'EUR/AUD', source:'Twelve Data', base:1.659 },
+  { id:'EUR/NZD', symbol:'EUR/NZD', name:'Euro / New Zealand Dollar',    cat:'forex', tdSymbol:'EUR/NZD', source:'Twelve Data', base:1.782 },
+  { id:'EUR/SEK', symbol:'EUR/SEK', name:'Euro / Swedish Krona',         cat:'forex', tdSymbol:'EUR/SEK', source:'Twelve Data', base:11.32 },
+  { id:'EUR/NOK', symbol:'EUR/NOK', name:'Euro / Norwegian Krone',       cat:'forex', tdSymbol:'EUR/NOK', source:'Twelve Data', base:11.65 },
+  { id:'EUR/DKK', symbol:'EUR/DKK', name:'Euro / Danish Krone',          cat:'forex', tdSymbol:'EUR/DKK', source:'Twelve Data', base:7.462 },
+  { id:'EUR/PLN', symbol:'EUR/PLN', name:'Euro / Polish Zloty',          cat:'forex', tdSymbol:'EUR/PLN', source:'Twelve Data', base:4.26 },
+  { id:'EUR/HUF', symbol:'EUR/HUF', name:'Euro / Hungarian Forint',      cat:'forex', tdSymbol:'EUR/HUF', source:'Twelve Data', base:392 },
+  { id:'EUR/CZK', symbol:'EUR/CZK', name:'Euro / Czech Koruna',          cat:'forex', tdSymbol:'EUR/CZK', source:'Twelve Data', base:25.1 },
+  { id:'EUR/RON', symbol:'EUR/RON', name:'Euro / Romanian Leu',          cat:'forex', tdSymbol:'EUR/RON', source:'Twelve Data', base:4.97 },
+  { id:'EUR/TRY', symbol:'EUR/TRY', name:'Euro / Turkish Lira',          cat:'forex', tdSymbol:'EUR/TRY', source:'Twelve Data', base:35.1 },
+  { id:'EUR/ZAR', symbol:'EUR/ZAR', name:'Euro / South African Rand',    cat:'forex', tdSymbol:'EUR/ZAR', source:'Twelve Data', base:20.3 },
+  // Crosses — GBP
+  { id:'GBP/JPY', symbol:'GBP/JPY', name:'British Pound / Japanese Yen',cat:'forex', tdSymbol:'GBP/JPY', source:'Twelve Data', base:188.9 },
+  { id:'GBP/CHF', symbol:'GBP/CHF', name:'British Pound / Swiss Franc',  cat:'forex', tdSymbol:'GBP/CHF', source:'Twelve Data', base:1.128 },
+  { id:'GBP/CAD', symbol:'GBP/CAD', name:'British Pound / Canadian Dollar',cat:'forex',tdSymbol:'GBP/CAD',source:'Twelve Data',base:1.712 },
+  { id:'GBP/AUD', symbol:'GBP/AUD', name:'British Pound / Australian Dollar',cat:'forex',tdSymbol:'GBP/AUD',source:'Twelve Data',base:1.939 },
+  { id:'GBP/NZD', symbol:'GBP/NZD', name:'British Pound / New Zealand Dollar',cat:'forex',tdSymbol:'GBP/NZD',source:'Twelve Data',base:2.074 },
+  // Crosses — AUD
+  { id:'AUD/JPY', symbol:'AUD/JPY', name:'Australian Dollar / Japanese Yen',cat:'forex',tdSymbol:'AUD/JPY',source:'Twelve Data',base:97.5 },
+  { id:'AUD/CAD', symbol:'AUD/CAD', name:'Australian Dollar / Canadian Dollar',cat:'forex',tdSymbol:'AUD/CAD',source:'Twelve Data',base:0.897 },
+  { id:'AUD/CHF', symbol:'AUD/CHF', name:'Australian Dollar / Swiss Franc',cat:'forex',tdSymbol:'AUD/CHF',source:'Twelve Data',base:0.584 },
+  { id:'AUD/NZD', symbol:'AUD/NZD', name:'Australian Dollar / New Zealand Dollar',cat:'forex',tdSymbol:'AUD/NZD',source:'Twelve Data',base:1.074 },
+  // Crosses — NZD
+  { id:'NZD/JPY', symbol:'NZD/JPY', name:'New Zealand Dollar / Japanese Yen',cat:'forex',tdSymbol:'NZD/JPY',source:'Twelve Data',base:90.8 },
+  { id:'NZD/CAD', symbol:'NZD/CAD', name:'New Zealand Dollar / Canadian Dollar',cat:'forex',tdSymbol:'NZD/CAD',source:'Twelve Data',base:0.835 },
+  { id:'NZD/CHF', symbol:'NZD/CHF', name:'New Zealand Dollar / Swiss Franc',cat:'forex',tdSymbol:'NZD/CHF',source:'Twelve Data',base:0.544 },
+  // Crosses — CAD
+  { id:'CAD/JPY', symbol:'CAD/JPY', name:'Canadian Dollar / Japanese Yen',cat:'forex',tdSymbol:'CAD/JPY',source:'Twelve Data',base:109.7 },
+  { id:'CAD/CHF', symbol:'CAD/CHF', name:'Canadian Dollar / Swiss Franc',cat:'forex',tdSymbol:'CAD/CHF',source:'Twelve Data',base:0.656 },
+  // Crosses — CHF
+  { id:'CHF/JPY', symbol:'CHF/JPY', name:'Swiss Franc / Japanese Yen',  cat:'forex', tdSymbol:'CHF/JPY', source:'Twelve Data', base:167.2 },
+  // USD EM & Exotics
+  { id:'USD/SGD', symbol:'USD/SGD', name:'US Dollar / Singapore Dollar', cat:'forex', tdSymbol:'USD/SGD', source:'Twelve Data', base:1.342 },
+  { id:'USD/HKD', symbol:'USD/HKD', name:'US Dollar / Hong Kong Dollar', cat:'forex', tdSymbol:'USD/HKD', source:'Twelve Data', base:7.824 },
+  { id:'USD/MXN', symbol:'USD/MXN', name:'US Dollar / Mexican Peso',    cat:'forex', tdSymbol:'USD/MXN', source:'Twelve Data', base:17.15 },
+  { id:'USD/ZAR', symbol:'USD/ZAR', name:'US Dollar / South African Rand',cat:'forex',tdSymbol:'USD/ZAR',source:'Twelve Data',base:18.72 },
+  { id:'USD/TRY', symbol:'USD/TRY', name:'US Dollar / Turkish Lira',    cat:'forex', tdSymbol:'USD/TRY', source:'Twelve Data', base:32.45 },
+  { id:'USD/SEK', symbol:'USD/SEK', name:'US Dollar / Swedish Krona',   cat:'forex', tdSymbol:'USD/SEK', source:'Twelve Data', base:10.42 },
+  { id:'USD/NOK', symbol:'USD/NOK', name:'US Dollar / Norwegian Krone', cat:'forex', tdSymbol:'USD/NOK', source:'Twelve Data', base:10.58 },
+  { id:'USD/DKK', symbol:'USD/DKK', name:'US Dollar / Danish Krone',    cat:'forex', tdSymbol:'USD/DKK', source:'Twelve Data', base:6.88 },
+  { id:'USD/INR', symbol:'USD/INR', name:'US Dollar / Indian Rupee',    cat:'forex', tdSymbol:'USD/INR', source:'Twelve Data', base:83.2 },
+  { id:'USD/CNY', symbol:'USD/CNY', name:'US Dollar / Chinese Yuan',    cat:'forex', tdSymbol:'USD/CNY', source:'Twelve Data', base:7.24 },
+  { id:'USD/CNH', symbol:'USD/CNH', name:'US Dollar / Offshore CNY',    cat:'forex', tdSymbol:'USD/CNH', source:'Twelve Data', base:7.26 },
+  { id:'USD/KRW', symbol:'USD/KRW', name:'US Dollar / South Korean Won',cat:'forex', tdSymbol:'USD/KRW', source:'Twelve Data', base:1322 },
+  { id:'USD/BRL', symbol:'USD/BRL', name:'US Dollar / Brazilian Real',  cat:'forex', tdSymbol:'USD/BRL', source:'Twelve Data', base:4.97 },
+  { id:'USD/IDR', symbol:'USD/IDR', name:'US Dollar / Indonesian Rupiah',cat:'forex',tdSymbol:'USD/IDR', source:'Twelve Data', base:15850 },
+  { id:'USD/MYR', symbol:'USD/MYR', name:'US Dollar / Malaysian Ringgit',cat:'forex',tdSymbol:'USD/MYR', source:'Twelve Data', base:4.72 },
+  { id:'USD/PHP', symbol:'USD/PHP', name:'US Dollar / Philippine Peso', cat:'forex', tdSymbol:'USD/PHP', source:'Twelve Data', base:56.4 },
+  { id:'USD/THB', symbol:'USD/THB', name:'US Dollar / Thai Baht',       cat:'forex', tdSymbol:'USD/THB', source:'Twelve Data', base:35.8 },
+  { id:'USD/TWD', symbol:'USD/TWD', name:'US Dollar / Taiwan Dollar',   cat:'forex', tdSymbol:'USD/TWD', source:'Twelve Data', base:31.9 },
+  { id:'USD/PLN', symbol:'USD/PLN', name:'US Dollar / Polish Zloty',    cat:'forex', tdSymbol:'USD/PLN', source:'Twelve Data', base:3.94 },
+  { id:'USD/HUF', symbol:'USD/HUF', name:'US Dollar / Hungarian Forint',cat:'forex', tdSymbol:'USD/HUF', source:'Twelve Data', base:362 },
+  { id:'USD/CZK', symbol:'USD/CZK', name:'US Dollar / Czech Koruna',    cat:'forex', tdSymbol:'USD/CZK', source:'Twelve Data', base:23.2 },
+  { id:'USD/ILS', symbol:'USD/ILS', name:'US Dollar / Israeli Shekel',  cat:'forex', tdSymbol:'USD/ILS', source:'Twelve Data', base:3.73 },
+  { id:'USD/AED', symbol:'USD/AED', name:'US Dollar / UAE Dirham',      cat:'forex', tdSymbol:'USD/AED', source:'Twelve Data', base:3.673 },
+  { id:'USD/SAR', symbol:'USD/SAR', name:'US Dollar / Saudi Riyal',     cat:'forex', tdSymbol:'USD/SAR', source:'Twelve Data', base:3.751 },
+  { id:'USD/EGP', symbol:'USD/EGP', name:'US Dollar / Egyptian Pound',  cat:'forex', tdSymbol:'USD/EGP', source:'Twelve Data', base:30.9 },
+  { id:'USD/NGN', symbol:'USD/NGN', name:'US Dollar / Nigerian Naira',  cat:'forex', tdSymbol:'USD/NGN', source:'Twelve Data', base:1520 },
+  { id:'USD/KES', symbol:'USD/KES', name:'US Dollar / Kenyan Shilling', cat:'forex', tdSymbol:'USD/KES', source:'Twelve Data', base:129 },
+  { id:'USD/GHS', symbol:'USD/GHS', name:'US Dollar / Ghanaian Cedi',   cat:'forex', tdSymbol:'USD/GHS', source:'Twelve Data', base:12.4 },
+  { id:'USD/PKR', symbol:'USD/PKR', name:'US Dollar / Pakistani Rupee', cat:'forex', tdSymbol:'USD/PKR', source:'Twelve Data', base:278 },
+  { id:'USD/BDT', symbol:'USD/BDT', name:'US Dollar / Bangladeshi Taka',cat:'forex', tdSymbol:'USD/BDT', source:'Twelve Data', base:110 },
+  { id:'USD/VND', symbol:'USD/VND', name:'US Dollar / Vietnamese Dong', cat:'forex', tdSymbol:'USD/VND', source:'Twelve Data', base:24850 },
+  { id:'USD/CLP', symbol:'USD/CLP', name:'US Dollar / Chilean Peso',    cat:'forex', tdSymbol:'USD/CLP', source:'Twelve Data', base:948 },
+  { id:'USD/COP', symbol:'USD/COP', name:'US Dollar / Colombian Peso',  cat:'forex', tdSymbol:'USD/COP', source:'Twelve Data', base:3920 },
+  { id:'USD/PEN', symbol:'USD/PEN', name:'US Dollar / Peruvian Sol',    cat:'forex', tdSymbol:'USD/PEN', source:'Twelve Data', base:3.72 },
+  { id:'USD/ARS', symbol:'USD/ARS', name:'US Dollar / Argentine Peso',  cat:'forex', tdSymbol:'USD/ARS', source:'Twelve Data', base:920 },
+  { id:'USD/UAH', symbol:'USD/UAH', name:'US Dollar / Ukrainian Hryvnia',cat:'forex',tdSymbol:'USD/UAH', source:'Twelve Data', base:39.4 },
+  { id:'USD/RUB', symbol:'USD/RUB', name:'US Dollar / Russian Ruble',   cat:'forex', tdSymbol:'USD/RUB', source:'Twelve Data', base:91.5 },
+
+  // ── COMMODITIES ───────────────────────────────
+  { id:'XAU/USD', symbol:'XAU/USD', name:'Gold Spot',         cat:'commodities', tdSymbol:'XAU/USD', source:'Twelve Data', base:2312.5 },
+  { id:'XAG/USD', symbol:'XAG/USD', name:'Silver Spot',       cat:'commodities', tdSymbol:'XAG/USD', source:'Twelve Data', base:27.45 },
+  { id:'WTI/USD', symbol:'WTI/USD', name:'WTI Crude Oil',     cat:'commodities', tdSymbol:'WTI/USD', source:'Twelve Data', base:78.65 },
+  { id:'XNG/USD', symbol:'XNG/USD', name:'Natural Gas',       cat:'commodities', tdSymbol:'XNG/USD', source:'Twelve Data', base:1.98 },
+  { id:'XPT/USD', symbol:'XPT/USD', name:'Platinum Spot',     cat:'commodities', tdSymbol:'XPT/USD', source:'Twelve Data', base:915.4 },
+  { id:'XPD/USD', symbol:'XPD/USD', name:'Palladium Spot',    cat:'commodities', tdSymbol:'XPD/USD', source:'Twelve Data', base:965 },
+  { id:'XCU/USD', symbol:'XCU/USD', name:'Copper Spot',       cat:'commodities', tdSymbol:'XCU/USD', source:'Twelve Data', base:4.12 },
+  { id:'BRENT',   symbol:'BRENT',   name:'Brent Crude Oil',   cat:'commodities', tdSymbol:'BRENT',   source:'Twelve Data', base:82.45 },
+  { id:'WHEAT',   symbol:'WHEAT',   name:'Wheat Futures',     cat:'commodities', tdSymbol:'WHEAT',   source:'Twelve Data', base:548 },
+  { id:'CORN',    symbol:'CORN',    name:'Corn Futures',      cat:'commodities', tdSymbol:'CORN',    source:'Twelve Data', base:432 },
+  { id:'SOYBEAN', symbol:'SOYBEAN', name:'Soybean Futures',   cat:'commodities', tdSymbol:'SOYBEAN', source:'Twelve Data', base:1178 },
+  { id:'COFFEE',  symbol:'COFFEE',  name:'Coffee Futures',    cat:'commodities', tdSymbol:'COFFEE',  source:'Twelve Data', base:178.5 },
+  { id:'SUGAR',   symbol:'SUGAR',   name:'Sugar Futures',     cat:'commodities', tdSymbol:'SUGAR',   source:'Twelve Data', base:19.8 },
+  { id:'COCOA',   symbol:'COCOA',   name:'Cocoa Futures',     cat:'commodities', tdSymbol:'COCOA',   source:'Twelve Data', base:3850 },
+  { id:'COTTON',  symbol:'COTTON',  name:'Cotton Futures',    cat:'commodities', tdSymbol:'COTTON',  source:'Twelve Data', base:78.2 },
+  { id:'LUMBER',  symbol:'LUMBER',  name:'Lumber Futures',    cat:'commodities', tdSymbol:'LUMBER',  source:'Twelve Data', base:448 },
+
+  // ── INDICES — Americas ────────────────────────
+  { id:'SPX',    symbol:'S&P 500',  name:'S&P 500 Index',           cat:'indices', tdSymbol:'SPX',    source:'Twelve Data', base:5234.1 },
+  { id:'IXIC',   symbol:'NASDAQ',   name:'NASDAQ Composite',        cat:'indices', tdSymbol:'IXIC',   source:'Twelve Data', base:16380.2 },
+  { id:'DJI',    symbol:'DOW',      name:'Dow Jones Industrial',    cat:'indices', tdSymbol:'DJI',    source:'Twelve Data', base:39170.4 },
+  { id:'RUT',    symbol:'Russell',  name:'Russell 2000',            cat:'indices', tdSymbol:'RUT',    source:'Twelve Data', base:2048 },
+  { id:'VIX',    symbol:'VIX',      name:'CBOE Volatility Index',   cat:'indices', tdSymbol:'VIX',    source:'Twelve Data', base:14.8 },
+  { id:'DXY',    symbol:'DXY',      name:'US Dollar Index',         cat:'indices', tdSymbol:'DXY',    source:'Twelve Data', base:104.2 },
+  { id:'TNX',    symbol:'US10Y',    name:'US 10-Year Treasury',     cat:'indices', tdSymbol:'TNX',    source:'Twelve Data', base:4.32 },
+  { id:'TYX',    symbol:'US30Y',    name:'US 30-Year Treasury',     cat:'indices', tdSymbol:'TYX',    source:'Twelve Data', base:4.55 },
+  { id:'NDX',    symbol:'NDX 100',  name:'NASDAQ 100',              cat:'indices', tdSymbol:'NDX',    source:'Twelve Data', base:18250 },
+  { id:'BVSP',   symbol:'BOVESPA',  name:'Bovespa (Brazil)',        cat:'indices', tdSymbol:'BVSP',   source:'Twelve Data', base:125800 },
+  { id:'MXX',    symbol:'IPC',      name:'IPC (Mexico)',            cat:'indices', tdSymbol:'MXX',    source:'Twelve Data', base:56400 },
+  { id:'MERVAL', symbol:'MERVAL',   name:'Merval (Argentina)',      cat:'indices', tdSymbol:'MERVAL', source:'Twelve Data', base:1125000 },
+  { id:'IPSA',   symbol:'IPSA',     name:'IPSA (Chile)',            cat:'indices', tdSymbol:'IPSA',   source:'Twelve Data', base:6420 },
+  { id:'COLCAP', symbol:'COLCAP',   name:'COLCAP (Colombia)',       cat:'indices', tdSymbol:'COLCAP', source:'Twelve Data', base:1380 },
+  // Indices — Europe
+  { id:'FTSE',   symbol:'FTSE 100', name:'FTSE 100 (UK)',           cat:'indices', tdSymbol:'FTSE',   source:'Twelve Data', base:7735.6 },
+  { id:'DAX',    symbol:'DAX 40',   name:'DAX 40 (Germany)',        cat:'indices', tdSymbol:'DAX',    source:'Twelve Data', base:18420 },
+  { id:'CAC',    symbol:'CAC 40',   name:'CAC 40 (France)',         cat:'indices', tdSymbol:'CAC',    source:'Twelve Data', base:8080 },
+  { id:'IBEX',   symbol:'IBEX 35',  name:'IBEX 35 (Spain)',         cat:'indices', tdSymbol:'IBEX',   source:'Twelve Data', base:10842 },
+  { id:'FTSEMIB',symbol:'FTSE MIB', name:'FTSE MIB (Italy)',        cat:'indices', tdSymbol:'FTSEMIB',source:'Twelve Data', base:33420 },
+  { id:'SMI',    symbol:'SMI',      name:'Swiss Market Index',      cat:'indices', tdSymbol:'SMI',    source:'Twelve Data', base:11245 },
+  { id:'AEX',    symbol:'AEX',      name:'AEX (Netherlands)',       cat:'indices', tdSymbol:'AEX',    source:'Twelve Data', base:872 },
+  { id:'BEL20',  symbol:'BEL 20',   name:'BEL 20 (Belgium)',        cat:'indices', tdSymbol:'BEL20',  source:'Twelve Data', base:3842 },
+  { id:'OMX',    symbol:'OMXS30',   name:'OMX Stockholm 30',        cat:'indices', tdSymbol:'OMX',    source:'Twelve Data', base:2315 },
+  { id:'OMXH25', symbol:'OMXH25',   name:'OMX Helsinki 25',         cat:'indices', tdSymbol:'OMXH25', source:'Twelve Data', base:4820 },
+  { id:'OMXC25', symbol:'OMXC25',   name:'OMX Copenhagen 25',       cat:'indices', tdSymbol:'OMXC25', source:'Twelve Data', base:2450 },
+  { id:'OBX',    symbol:'OBX',      name:'OBX (Norway)',            cat:'indices', tdSymbol:'OBX',    source:'Twelve Data', base:1142 },
+  { id:'WIG20',  symbol:'WIG20',    name:'WIG 20 (Poland)',         cat:'indices', tdSymbol:'WIG20',  source:'Twelve Data', base:2380 },
+  { id:'BUX',    symbol:'BUX',      name:'Budapest Stock Exchange',  cat:'indices', tdSymbol:'BUX',    source:'Twelve Data', base:67500 },
+  { id:'PX',     symbol:'PX',       name:'Prague Stock Exchange',   cat:'indices', tdSymbol:'PX',     source:'Twelve Data', base:1560 },
+  { id:'ATX',    symbol:'ATX',      name:'ATX (Austria)',           cat:'indices', tdSymbol:'ATX',    source:'Twelve Data', base:3640 },
+  { id:'PSI20',  symbol:'PSI 20',   name:'PSI 20 (Portugal)',       cat:'indices', tdSymbol:'PSI20',  source:'Twelve Data', base:6820 },
+  { id:'MOEX',   symbol:'MOEX',     name:'MOEX (Russia)',           cat:'indices', tdSymbol:'MOEX',   source:'Twelve Data', base:3240 },
+  { id:'ISE100', symbol:'BIST 100', name:'BIST 100 (Turkey)',       cat:'indices', tdSymbol:'ISE100', source:'Twelve Data', base:9840 },
+  { id:'TA35',   symbol:'TA-35',    name:'Tel Aviv 35 (Israel)',    cat:'indices', tdSymbol:'TA35',   source:'Twelve Data', base:1945 },
+  // Indices — Asia-Pacific
+  { id:'N225',   symbol:'Nikkei',   name:'Nikkei 225 (Japan)',      cat:'indices', tdSymbol:'N225',   source:'Twelve Data', base:38540 },
+  { id:'HSI',    symbol:'Hang Seng',name:'Hang Seng (Hong Kong)',   cat:'indices', tdSymbol:'HSI',    source:'Twelve Data', base:17123 },
+  { id:'ASX200', symbol:'ASX 200',  name:'ASX 200 (Australia)',     cat:'indices', tdSymbol:'ASX',    source:'Twelve Data', base:7802 },
+  { id:'KOSPI',  symbol:'KOSPI',    name:'KOSPI (South Korea)',     cat:'indices', tdSymbol:'KOSPI',  source:'Twelve Data', base:2590 },
+  { id:'SENSEX', symbol:'SENSEX',   name:'SENSEX (India)',          cat:'indices', tdSymbol:'SENSEX', source:'Twelve Data', base:72500 },
+  { id:'NIFTY',  symbol:'NIFTY 50', name:'Nifty 50 (India)',        cat:'indices', tdSymbol:'NIFTY',  source:'Twelve Data', base:21980 },
+  { id:'TWII',   symbol:'TAIEX',    name:'Taiwan Weighted (TAIEX)', cat:'indices', tdSymbol:'TWII',   source:'Twelve Data', base:19840 },
+  { id:'STI',    symbol:'STI',      name:'Straits Times (Singapore)',cat:'indices',tdSymbol:'STI',    source:'Twelve Data', base:3240 },
+  { id:'KLCI',   symbol:'KLCI',     name:'KLCI (Malaysia)',         cat:'indices', tdSymbol:'KLCI',   source:'Twelve Data', base:1542 },
+  { id:'JCI',    symbol:'IDX',      name:'IDX Composite (Indonesia)',cat:'indices',tdSymbol:'JCI',    source:'Twelve Data', base:7320 },
+  { id:'SET',    symbol:'SET',      name:'SET Index (Thailand)',    cat:'indices', tdSymbol:'SET',    source:'Twelve Data', base:1385 },
+  { id:'PSEi',   symbol:'PSEi',     name:'PSEi (Philippines)',      cat:'indices', tdSymbol:'PSEi',   source:'Twelve Data', base:6540 },
+  { id:'CSI300', symbol:'CSI 300',  name:'CSI 300 (China)',         cat:'indices', tdSymbol:'CSI300', source:'Twelve Data', base:3520 },
+  { id:'SHCOMP', symbol:'SSE',      name:'Shanghai Composite',      cat:'indices', tdSymbol:'SHCOMP', source:'Twelve Data', base:3092 },
+  { id:'SZCOMP', symbol:'SZSE',     name:'Shenzhen Composite',      cat:'indices', tdSymbol:'SZCOMP', source:'Twelve Data', base:1820 },
+  { id:'HSCEi',  symbol:'HSCEI',    name:'Hang Seng China Ent.',    cat:'indices', tdSymbol:'HSCEI',  source:'Twelve Data', base:6120 },
+  { id:'NZ50',   symbol:'NZX 50',   name:'NZX 50 (New Zealand)',    cat:'indices', tdSymbol:'NZ50',   source:'Twelve Data', base:11840 },
+  // Indices — Middle East & Africa
+  { id:'TADAWUL',symbol:'TASI',     name:'Tadawul (Saudi Arabia)',  cat:'indices', tdSymbol:'TADAWUL',source:'Twelve Data', base:11250 },
+  { id:'ADX',    symbol:'ADX',      name:'Abu Dhabi Securities Exch.',cat:'indices',tdSymbol:'ADX',   source:'Twelve Data', base:9380 },
+  { id:'DFM',    symbol:'DFM',      name:'Dubai Financial Market',  cat:'indices', tdSymbol:'DFM',    source:'Twelve Data', base:4120 },
+  { id:'EGX30',  symbol:'EGX 30',   name:'EGX 30 (Egypt)',          cat:'indices', tdSymbol:'EGX30',  source:'Twelve Data', base:24500 },
+  { id:'JSE',    symbol:'JSE TOP40',name:'JSE Top 40 (South Africa)',cat:'indices',tdSymbol:'JSE',    source:'Twelve Data', base:68200 },
+  { id:'NSE',    symbol:'NSE ASI',  name:'NSE All-Share (Nigeria)', cat:'indices', tdSymbol:'NSE',    source:'Twelve Data', base:97500 },
+
+  // ── ETFs ──────────────────────────────────────
+  { id:'SPY',  symbol:'SPY',  name:'SPDR S&P 500 ETF',         cat:'etf', tdSymbol:'SPY',  source:'Twelve Data', base:523.4 },
+  { id:'QQQ',  symbol:'QQQ',  name:'Invesco QQQ (NASDAQ)',     cat:'etf', tdSymbol:'QQQ',  source:'Twelve Data', base:441.8 },
+  { id:'IWM',  symbol:'IWM',  name:'iShares Russell 2000',     cat:'etf', tdSymbol:'IWM',  source:'Twelve Data', base:198.2 },
+  { id:'DIA',  symbol:'DIA',  name:'SPDR Dow Jones ETF',       cat:'etf', tdSymbol:'DIA',  source:'Twelve Data', base:389.5 },
+  { id:'GLD',  symbol:'GLD',  name:'SPDR Gold Shares ETF',     cat:'etf', tdSymbol:'GLD',  source:'Twelve Data', base:215.4 },
+  { id:'SLV',  symbol:'SLV',  name:'iShares Silver Trust ETF', cat:'etf', tdSymbol:'SLV',  source:'Twelve Data', base:24.8 },
+  { id:'USO',  symbol:'USO',  name:'US Oil Fund ETF',           cat:'etf', tdSymbol:'USO',  source:'Twelve Data', base:74.3 },
+  { id:'TLT',  symbol:'TLT',  name:'iShares 20Y Treasury ETF', cat:'etf', tdSymbol:'TLT',  source:'Twelve Data', base:95.8 },
+  { id:'XLF',  symbol:'XLF',  name:'Financial Select ETF',     cat:'etf', tdSymbol:'XLF',  source:'Twelve Data', base:40.2 },
+  { id:'XLK',  symbol:'XLK',  name:'Technology Select ETF',    cat:'etf', tdSymbol:'XLK',  source:'Twelve Data', base:208.5 },
+  { id:'XLE',  symbol:'XLE',  name:'Energy Select ETF',        cat:'etf', tdSymbol:'XLE',  source:'Twelve Data', base:88.4 },
+  { id:'XLV',  symbol:'XLV',  name:'Health Care Select ETF',   cat:'etf', tdSymbol:'XLV',  source:'Twelve Data', base:143.2 },
+  { id:'ARKK', symbol:'ARKK', name:'ARK Innovation ETF',        cat:'etf', tdSymbol:'ARKK', source:'Twelve Data', base:48.5 },
+  { id:'BITO', symbol:'BITO', name:'ProShares Bitcoin ETF',     cat:'etf', tdSymbol:'BITO', source:'Twelve Data', base:28.2 },
+  { id:'VWO',  symbol:'VWO',  name:'Vanguard Emerging Markets', cat:'etf', tdSymbol:'VWO',  source:'Twelve Data', base:40.8 },
+  { id:'EEM',  symbol:'EEM',  name:'iShares MSCI Emerging Mkts',cat:'etf', tdSymbol:'EEM',  source:'Twelve Data', base:40.2 },
+  { id:'EFA',  symbol:'EFA',  name:'iShares MSCI EAFE ETF',     cat:'etf', tdSymbol:'EFA',  source:'Twelve Data', base:78.4 },
+  { id:'XBI',  symbol:'XBI',  name:'Biotech ETF (SPDR)',        cat:'etf', tdSymbol:'XBI',  source:'Twelve Data', base:95.6 },
+];
+
+function openAddModal() {
+  document.getElementById('add-modal').style.display = 'flex';
+  document.getElementById('modal-search').value = '';
+  libSearchQuery = '';
+  currentLibTab = 'ALL';
+  document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.modal-tab').classList.add('active');
+  document.getElementById('lib-total-count').textContent = ASSET_LIBRARY.length;
+  renderLibrary();
+  setTimeout(() => document.getElementById('modal-search').focus(), 100);
+}
+
+function closeAddModal() { document.getElementById('add-modal').style.display = 'none'; }
+function closeModalIfBg(e) { if (e.target.id === 'add-modal') closeAddModal(); }
+
+function setLibTab(tab, btn) {
+  currentLibTab = tab;
+  document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderLibrary();
+}
+
+function filterLibrary() {
+  libSearchQuery = document.getElementById('modal-search').value.toLowerCase().trim();
+  renderLibrary();
+}
+
+function renderLibrary() {
+  const body = document.getElementById('lib-body');
+  const allWatchIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
+
+  // Build full pool = ASSET_LIBRARY + any watchlist assets not already in ASSET_LIBRARY
+  // This ensures removed default assets always reappear here
+  const libIds = new Set(ASSET_LIBRARY.map(a => a.id));
+  const extraAssets = Object.entries(ASSETS).flatMap(([cat, assets]) =>
+    assets.filter(a => !libIds.has(a.id)).map(a => ({ ...a, cat, base: BASE_PRICES[a.id] || 100 }))
+  );
+  const fullLibrary = [...ASSET_LIBRARY, ...extraAssets];
+
+  // Filter by tab
+  let pool = currentLibTab === 'ALL'
+    ? fullLibrary
+    : currentLibTab === 'watchlist'
+      ? Object.entries(ASSETS).flatMap(([cat, assets]) => assets.map(a => ({ ...a, cat })))
+      : fullLibrary.filter(a => a.cat === currentLibTab);
+
+  // Filter by search (search always scans full library, not just current tab)
+  if (libSearchQuery) {
+    pool = fullLibrary.filter(a =>
+      a.symbol.toLowerCase().includes(libSearchQuery) ||
+      a.name.toLowerCase().includes(libSearchQuery) ||
+      a.cat.toLowerCase().includes(libSearchQuery)
+    );
+  }
+
+  document.getElementById('lib-result-count').textContent = `${pool.length} results`;
+
+  if (currentLibTab === 'watchlist') {
+    body.innerHTML = '';
+    const allWatchAssets = Object.entries(ASSETS).flatMap(([cat, assets]) =>
+      assets.map(a => ({ ...a, cat }))
+    );
+    if (allWatchAssets.length === 0) {
+      body.innerHTML = '<div class="lib-empty">Your watchlist is empty.<br>Switch to another tab to add assets.</div>';
+      return;
+    }
+    const groups = {};
+    allWatchAssets.forEach(a => { if (!groups[a.cat]) groups[a.cat] = []; groups[a.cat].push(a); });
+    const catLabels = { crypto:'🪙 Crypto', stocks:'📈 Stocks', forex:'💱 Forex', commodities:'🥇 Commodities', indices:'📊 Indices', etf:'📦 ETFs' };
+    Object.entries(groups).forEach(([cat, assets]) => {
+      const sec = document.createElement('div');
+      sec.innerHTML = `<div class="lib-section-title">${catLabels[cat] || cat} · ${assets.length} assets</div>`;
+      const grid = document.createElement('div');
+      grid.className = 'lib-grid';
+      assets.forEach(asset => {
+        const card = document.createElement('div');
+        card.className = 'lib-card in-watch';
+        card.style.opacity = '1'; card.style.cursor = 'pointer';
+        card.style.borderColor = 'rgba(255,61,90,0.4)';
+        card.innerHTML = `<div><div class="lib-sym">${asset.symbol}</div><div class="lib-name">${asset.name}</div></div><div class="lib-action" style="color:var(--red)">✕ Remove</div>`;
+        card.onclick = (e) => { e.stopPropagation(); removeAssetFromWatchlist(asset.id, cat, { stopPropagation:()=>{} }); renderLibrary(); };
+        grid.appendChild(card);
+      });
+      sec.appendChild(grid);
+      body.appendChild(sec);
+    });
+    return;
+  }
+
+  if (pool.length === 0) {
+    body.innerHTML = '<div class="lib-empty">No assets found.<br>Try a different keyword.</div>';
+    return;
+  }
+
+  const groups = {};
+  pool.forEach(a => { if (!groups[a.cat]) groups[a.cat] = []; groups[a.cat].push(a); });
+  const catOrder = ['crypto','stocks','forex','commodities','indices','etf'];
+  const catLabels = { crypto:'🪙 Crypto', stocks:'📈 Stocks', forex:'💱 Forex', commodities:'🥇 Commodities', indices:'📊 Indices', etf:'📦 ETFs' };
+
+  body.innerHTML = '';
+  catOrder.forEach(cat => {
+    if (!groups[cat]) return;
+    const sec = document.createElement('div');
+    sec.innerHTML = `<div class="lib-section-title">${catLabels[cat]} · ${groups[cat].length} assets</div>`;
+    const grid = document.createElement('div');
+    grid.className = 'lib-grid';
+    groups[cat].forEach(asset => {
+      const inWatch = allWatchIds.has(asset.id);
+      const card = document.createElement('div');
+      card.className = `lib-card${inWatch ? ' in-watch' : ''}`;
+      card.innerHTML = `
+        <div>
+          <div class="lib-sym">${asset.symbol}</div>
+          <div class="lib-name">${asset.name}</div>
+        </div>
+        <div class="lib-action">${inWatch ? '✓' : '＋'}</div>`;
+      if (!inWatch) card.onclick = (e) => { e.stopPropagation(); addAssetToWatchlist(asset); };
+      grid.appendChild(card);
+    });
+    sec.appendChild(grid);
+    body.appendChild(sec);
+  });
+}
+
+function getCatForAsset(id) {
+  for (const [cat, assets] of Object.entries(ASSETS)) {
+    if (assets.find(a => a.id === id)) return cat;
+  }
+  return 'stocks';
+}
+
+function addAssetToWatchlist(asset) {
+  if (!ASSETS[asset.cat]) ASSETS[asset.cat] = [];
+  if (ASSETS[asset.cat].find(a => a.id === asset.id)) return;
+
+  ASSETS[asset.cat].push({ id: asset.id, symbol: asset.symbol, name: asset.name, tdSymbol: asset.tdSymbol, source: asset.source });
+  BASE_PRICES[asset.id] = asset.base || 100;
+  const p = BASE_PRICES[asset.id];
+  priceData[asset.id] = { price: p, change: '0.00', high:(p*1.015).toFixed(4), low:(p*0.985).toFixed(4), vol:'—', mcap:'—', live:false };
+  prices[asset.id] = p;
+
+  renderWatchlist();
+  populateDropdown();
+  showToast(`＋ ${asset.symbol} Added`, `${asset.name} is now on your watchlist.`, 'success');
+
+  // Defer renderLibrary so the current click event fully completes before DOM is rebuilt.
+  // Without this, rebuilding lib-body mid-click causes the event to retarget to the
+  // modal overlay, which triggers closeModalIfBg and closes the modal immediately.
+  setTimeout(() => renderLibrary(), 0);
+
+  // Fetch live price
+  if (asset.source === 'Twelve Data') {
+    fetchTwelveDataBatch([asset]).then(() => renderWatchlist());
+  } else if (asset.source === 'CoinGecko') {
+    fetchCryptoFromCoinGecko().then(() => renderWatchlist());
+  }
+}
+
+
+
+
+// Rebuild alert dropdown dynamically across all watchlist categories
+function populateDropdown() {
+  const sel = document.getElementById('alert-asset');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Select asset...</option>';
+  const catLabels = { crypto:'Crypto', stocks:'Stocks', forex:'Forex', commodities:'Commodities', indices:'Indices', etf:'ETFs' };
+  Object.entries(ASSETS).forEach(([cat, assets]) => {
+    if (!assets || assets.length === 0) return;
+    const og = document.createElement('optgroup');
+    og.label = catLabels[cat] || cat;
+    assets.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = `${a.symbol} — ${a.name}`;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  });
+  if (currentVal) sel.value = currentVal;
+}
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+function showToast(title, body, type = 'success') {
+  const container = document.getElementById('toasts');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  if (type === 'error') toast.style.borderColor = 'var(--red)';
+  if (type === 'alert') toast.style.borderColor = 'var(--gold)';
+  toast.innerHTML = `<div class="toast-title">${title}</div><div class="toast-body">${body}</div>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+// ═══════════════════════════════════════════════
+// REFRESH & TICK
+// ═══════════════════════════════════════════════
+async function refreshAll() {
+  document.getElementById('status-pill').textContent = '◌ CONNECTING';
+  document.getElementById('status-pill').style.borderColor = 'var(--muted)';
+  document.getElementById('status-pill').style.color = 'var(--muted)';
+  updateSimulatedPrices();
+  renderWatchlist();
+  const cgOk = await fetchCryptoFromCoinGecko();
+  fetchAllTwelveData().then(() => {
+    const anyLive = Object.values(priceData).some(d => d.live);
+    setStatusPill(cgOk || anyLive);
+  });
+  refreshSelectedAssetPanel();
+  checkAlerts();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+}
+
+// Auto-tick every 8 seconds
+setInterval(() => {
+  updateSimulatedPrices();
+  renderWatchlist();
+  // Single shared function updates all header + stats fields — no duplication
+  refreshSelectedAssetPanel();
+  checkAlerts();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+}, 8000);
+
+// Real crypto every 60 seconds
+setInterval(async () => {
+  await fetchCryptoFromCoinGecko();
+  renderWatchlist();
+  refreshSelectedAssetPanel();
+}, 60000);
+
+// Twelve Data refresh every 5 minutes (800 req/day free tier)
+setInterval(() => {
+  fetchAllTwelveData();
+}, 5 * 60 * 1000);
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+async function init() {
+  populateDropdown();
+  updateSimulatedPrices();
+  renderWatchlist();
+  renderAlerts();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+  // Select Bitcoin immediately with simulated data so UI isn't blank
+  selectAsset(ASSETS.crypto[0]);
+
+  // Fetch live data
+  const cgOk = await fetchCryptoFromCoinGecko();
+  const tdOk = await fetchTwelveDataBatch([ ...(ASSETS.stocks||[]), ...(ASSETS.forex||[]) ].slice(0,4));
+  setStatusPill(cgOk || tdOk);
+
+  renderWatchlist();
+  // Update panel with live data now available
+  refreshSelectedAssetPanel();
+
+  // Fetch remainder of TD assets non-blocking
+  fetchAllTwelveData();
+
+  renderAlerts();
+  renderWatchlist();
+}
+
+function setStatusPill(isLive) {
+  const pill = document.getElementById('status-pill');
+  if (isLive) {
+    pill.textContent = '● LIVE';
+    pill.style.borderColor = 'var(--green)';
+    pill.style.color = 'var(--green)';
+  } else {
+    pill.textContent = '◈ SIMULATED';
+    pill.style.borderColor = 'var(--gold)';
+    pill.style.color = 'var(--gold)';
+    pill.title = 'Live APIs unreachable. Open this file via a local server or Claude.ai to enable live data.';
+  }
+}
+
+window.addEventListener('resize', () => { if (selectedAsset) drawChart(); });
+
+// ── SWIPE GESTURES (mobile) ──────────────────────
+(function() {
+  let touchStartX = 0, touchStartY = 0;
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (window.innerWidth > 768) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    // Only count horizontal swipes (dx > 60px, must be more horizontal than vertical)
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    // Don't trigger inside scrollable modal
+    if (document.getElementById('add-modal').style.display !== 'none') return;
+    if (dx > 0) {
+      // Swipe right → go back to watchlist (from chart or alerts)
+      const mainActive = document.getElementById('panel-main').classList.contains('mobile-active');
+      const alertsActive = document.getElementById('panel-alerts').classList.contains('mobile-active');
+      if (mainActive || alertsActive) mobileTab('watchlist');
+    } else {
+      // Swipe left → from watchlist go to chart (if asset selected)
+      const watchActive = document.getElementById('panel-watchlist').classList.contains('mobile-active');
+      if (watchActive && selectedAsset) mobileTab('chart');
+    }
+  }, { passive: true });
+})();
 
 init();
 </script>
