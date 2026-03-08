@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TradeWatch — Personal Alert Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -510,133 +510,347 @@
   }
   .mobile-nav-btn .alert-badge-dot.show { display: block; }
 
-  /* ── MOBILE PANEL VISIBILITY ── */
+  /* ══════════════════════════════════════════════════════
+     MOBILE  (≤ 768px)
+  ══════════════════════════════════════════════════════ */
   @media (max-width: 768px) {
+
+    /* ── Safe-area & body ── */
+    body { overflow: hidden; }
+
+    /* ── Header ── */
     header {
-      padding: 0 14px;
-      height: 52px;
+      padding: 0 16px;
+      height: 54px;
+      padding-top: env(safe-area-inset-top);
+      height: calc(54px + env(safe-area-inset-top));
     }
     .logo { font-size: 1rem; gap: 8px; }
     .logo-dot { width: 7px; height: 7px; }
     .status-pill { display: none; }
     .refresh-btn { display: none; }
-    .header-right { gap: 8px; }
-    .icon-btn { width: 32px; height: 32px; font-size: 0.8rem; }
+    .header-right { gap: 6px; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      font-size: 1rem;
+      border-radius: 10px;
+      /* bigger tap target */
+      -webkit-tap-highlight-color: transparent;
+    }
 
-    /* App becomes a flex column so summary bar takes natural height,
-       panels fill remaining space — single rule, no conflict */
+    /* ── App shell — flex column under the header ── */
     .app {
       display: flex;
       flex-direction: column;
-      height: calc(100vh - 52px - 60px);
+      height: calc(100dvh - 54px - env(safe-area-inset-top));
       overflow: hidden;
       position: relative;
+      z-index: 1;
     }
 
-    /* Summary bar compact on mobile */
+    /* ── Summary bar — single scrollable ticker ── */
     .summary-bar {
-      padding: 8px 14px;
-      gap: 14px;
-      font-size: 0.6rem;
+      display: flex;
+      padding: 0 16px;
+      gap: 20px;
+      font-size: 0.62rem;
+      height: 36px;
+      min-height: 36px;
       border-bottom: 1px solid var(--border);
-      position: relative; z-index: 2;
+      position: relative;
+      z-index: 2;
       flex-shrink: 0;
-    }
-    .summary-bar .summary-item:last-child { display: none; }
-
-    /* All panels stack inside a relative flex container — no top offsets needed */
-    .panel, .main-panel {
-      position: absolute;
-      left: 0; right: 0;
-      bottom: 0;
-      overflow-y: auto;
+      overflow-x: auto;
       -webkit-overflow-scrolling: touch;
-      display: none;
-      padding: 14px;
-      border: none;
+      scrollbar-width: none;
+      align-items: center;
+      background: var(--surface);
     }
-    .panel.mobile-active, .main-panel.mobile-active { display: block; }
+    .summary-bar::-webkit-scrollbar { display: none; }
+    .summary-bar .summary-item:last-child { display: none; }
+    .divider { width: 1px; height: 12px; }
 
-    /* panels-wrap fills the space below the summary bar */
+    /* ── Panels wrap — fills all space between summary bar and nav ── */
     .panels-wrap {
       position: relative;
       flex: 1;
       overflow: hidden;
+      min-height: 0;
     }
-    /* Override stray top values from desktop rules */
-    .watchlist-panel { background: var(--surface); top: 0 !important; }
-    .main-panel { background: var(--bg); top: 0 !important; }
+
+    /* ── All panels: full-area absolute, hidden by default ── */
+    .panel, .main-panel {
+      position: absolute;
+      inset: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      display: none;
+      padding: 0;
+      border: none;
+      /* Smooth momentum scroll */
+      scroll-behavior: smooth;
+    }
+    .panel.mobile-active,
+    .main-panel.mobile-active { display: block; }
+
+    /* ── Watchlist panel ── */
+    .watchlist-panel {
+      background: var(--surface);
+      top: 0 !important;
+      padding: 0 0 16px 0;
+    }
+    .watchlist-panel .panel-title {
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      z-index: 10;
+      padding: 14px 16px 10px;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.6rem;
+    }
+    .market-group { padding: 0 16px; margin-bottom: 12px; }
+    .market-group:first-of-type { margin-top: 10px; }
+    .market-group-label {
+      padding: 10px 0 8px;
+      font-size: 0.6rem;
+      letter-spacing: 1.5px;
+    }
+
+    /* ── Asset cards ── */
+    .asset-card {
+      padding: 14px 16px;
+      margin-bottom: 8px;
+      border-radius: 10px;
+      /* prevent text selection on tap */
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .asset-card:active { transform: scale(0.98); border-color: var(--accent); }
+    .asset-card:hover { transform: none; }
+    .asset-card:hover::before { opacity: 0; }
+    .asset-card.selected::before { opacity: 1; }
+    .asset-remove {
+      opacity: 1;
+      top: 50%; transform: translateY(-50%);
+      right: 12px;
+      font-size: 0.9rem;
+      padding: 8px 10px;
+      border-radius: 6px;
+    }
+    .asset-card.has-alert::after { top: 10px; right: 40px; }
+    .asset-right { padding-right: 32px; }
+    .asset-symbol { font-size: 0.9rem; }
+    .asset-name { font-size: 0.67rem; }
+    .asset-price { font-size: 0.85rem; }
+    .asset-change { font-size: 0.67rem; }
+
+    /* ── Main / Chart panel ── */
+    .main-panel {
+      background: var(--bg);
+      top: 0 !important;
+    }
+
+    /* Sticky asset header inside chart panel */
     .asset-header {
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
       flex-direction: row;
       align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px 12px;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .asset-header-left h2 { font-size: 1.4rem; letter-spacing: -0.5px; }
+    .asset-header-left .full-name { font-size: 0.67rem; }
+    .asset-header-left .data-source { font-size: 0.6rem; margin-top: 2px; }
+    .asset-header-right { text-align: right; flex-shrink: 0; }
+    .big-price { font-size: 1.5rem; }
+    .big-change { font-size: 0.75rem; margin-top: 3px; }
+
+    /* Chart and stats inside scrollable content area */
+    .main-panel > *:not(.asset-header) { margin-left: 16px; margin-right: 16px; }
+    .spark-container {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 10px;
+    }
+    canvas#sparkChart { height: 160px; }
+    .spark-label { font-size: 0.6rem; }
+    .tf-tab { padding: 5px 12px; font-size: 0.62rem; }
+
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
       gap: 8px;
-      margin-bottom: 16px;
-      padding-bottom: 14px;
+      margin-bottom: 14px;
     }
-    .asset-header-left h2 { font-size: 1.3rem; }
-    .asset-header-left .full-name { font-size: 0.65rem; }
-    .big-price { font-size: 1.4rem; }
-    .big-change { font-size: 0.75rem; }
-    .data-source { font-size: 0.6rem; }
+    .stat-card { padding: 12px 14px; border-radius: 10px; }
+    .stat-label { font-size: 0.58rem; }
+    .stat-value { font-size: 0.88rem; }
 
-    canvas#sparkChart { height: 140px; }
+    /* Alert form */
+    .alert-form {
+      padding: 16px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .form-title { font-size: 0.6rem; margin-bottom: 14px; }
+    .form-row { grid-template-columns: 1fr; gap: 10px; margin-bottom: 10px; }
+    .form-group label { font-size: 0.62rem; }
+    .form-group input, .form-group select {
+      font-size: 1rem; /* prevents iOS zoom on focus */
+      padding: 13px 14px;
+      border-radius: 8px;
+    }
+    .form-note { font-size: 0.62rem; margin-bottom: 12px; }
+    .create-btn {
+      padding: 15px;
+      font-size: 1rem;
+      border-radius: 10px;
+      letter-spacing: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .create-btn:active { transform: scale(0.98); }
+    .create-btn:hover { transform: none; box-shadow: none; }
+    .sound-selector { flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .sound-opt {
+      padding: 9px 14px;
+      font-size: 0.7rem;
+      border-radius: 7px;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-    .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
-    .stat-card { padding: 10px 12px; }
-    .stat-value { font-size: 0.8rem; }
+    /* ── Alerts panel ── */
+    .alerts-panel {
+      background: var(--surface);
+      top: 0 !important;
+      padding: 0 0 16px 0;
+    }
+    .alerts-panel .panel-title {
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      z-index: 10;
+      padding: 14px 16px 10px;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.6rem;
+    }
+    #alerts-list { padding: 12px 16px 0; }
+    .alert-item {
+      padding: 14px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .alert-symbol { font-size: 0.9rem; }
+    .alert-detail { font-size: 0.75rem; }
+    .alert-action-btn {
+      padding: 11px 8px;
+      font-size: 0.7rem;
+      border-radius: 7px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .empty-state { padding: 60px 20px; }
+    .empty-state .icon { font-size: 3rem; }
+    .empty-state p { font-size: 0.78rem; }
 
-    .alert-form { padding: 14px; }
-    .form-row { grid-template-columns: 1fr; gap: 10px; }
-    .form-group input, .form-group select { font-size: 0.85rem; padding: 12px; }
-    .create-btn { padding: 14px; font-size: 0.9rem; }
+    /* ── Bottom nav ── */
+    .mobile-nav {
+      display: grid;
+      height: calc(60px + env(safe-area-inset-bottom));
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .mobile-nav-btn {
+      font-size: 0.58rem;
+      gap: 4px;
+      padding: 10px 4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mobile-nav-btn:active { opacity: 0.6; }
+    .mobile-nav-btn .nav-icon { font-size: 1.25rem; }
 
-    /* Asset cards touch-friendly */
-    .asset-card { padding: 14px; margin-bottom: 10px; }
-    .asset-remove { opacity: 1; top: 50%; transform: translateY(-50%); right: 10px; font-size: 0.85rem; padding: 6px 8px; }
-    .asset-card.has-alert::after { top: 8px; right: 34px; }
-    .asset-right { padding-right: 24px; }
-
-    /* Alerts panel */
-    .alerts-panel { top: 36px; background: var(--surface); }
-    .alert-item { padding: 14px; }
-    .alert-action-btn { padding: 10px; font-size: 0.7rem; }
-
-    /* Modal full-screen on mobile */
+    /* ── Modal ── */
+    .modal-overlay { align-items: flex-end; }
     .modal {
-      width: 100vw; max-width: 100vw;
-      height: 100dvh; max-height: 100dvh;
-      border-radius: 0; border: none;
+      width: 100vw;
+      max-width: 100vw;
+      height: 92dvh;
+      max-height: 92dvh;
+      border-radius: 20px 20px 0 0;
+      border: none;
+      border-top: 1px solid var(--border);
+      /* drag handle visual hint */
     }
-    .modal-header { padding: 14px 16px 0; }
+    .modal::before {
+      content: '';
+      display: block;
+      width: 36px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 10px auto 0;
+      flex-shrink: 0;
+    }
+    .modal-header { padding: 10px 16px 0; }
+    .modal-title-row { margin-bottom: 12px; }
     .modal-title { font-size: 1rem; }
-    .modal-search { font-size: 0.9rem; padding: 12px; }
-    .modal-body { padding: 12px 16px 16px; }
-    .lib-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-    .lib-card { padding: 12px; }
-    .lib-sym { font-size: 0.82rem; }
-    .lib-name { font-size: 0.62rem; }
+    .modal-title-sub { font-size: 0.6rem; }
+    .modal-search {
+      font-size: 1rem; /* prevent iOS zoom */
+      padding: 12px 14px;
+      border-radius: 10px;
+    }
+    .modal-count { font-size: 0.6rem; }
+    .modal-body { padding: 10px 14px 20px; }
+    .modal-tab {
+      padding: 10px 14px;
+      font-size: 0.62rem;
+    }
+    .lib-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .lib-card {
+      padding: 12px 10px;
+      border-radius: 10px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .lib-card:active:not(.in-watch) { transform: scale(0.96); }
+    .lib-sym { font-size: 0.84rem; }
+    .lib-name { font-size: 0.62rem; max-width: 100%; }
+    .lib-action { font-size: 0.82rem; }
+    .lib-section-title { font-size: 0.58rem; }
 
-    /* Bottom nav visible on mobile */
-    .mobile-nav { display: grid; }
+    /* ── Toasts ── */
+    .toast-container {
+      top: auto;
+      bottom: calc(70px + env(safe-area-inset-bottom));
+      right: 12px; left: 12px;
+    }
+    .toast { min-width: unset; width: 100%; border-radius: 12px; }
 
-    /* Toast position on mobile */
-    .toast-container { top: auto; bottom: 70px; right: 10px; left: 10px; }
-    .toast { min-width: unset; width: 100%; }
-
-    /* Notif banner mobile */
-    .notif-banner { min-width: unset; width: calc(100% - 28px); bottom: 70px; }
-
-    /* Market group label bigger tap area */
-    .market-group-label { padding: 10px 0 6px; font-size: 0.62rem; }
-
-    /* Sound selector touch */
-    .sound-opt { padding: 8px 12px; font-size: 0.68rem; }
+    /* ── Notif banner ── */
+    .notif-banner {
+      min-width: unset;
+      width: calc(100% - 28px);
+      bottom: calc(70px + env(safe-area-inset-bottom));
+      left: 14px; right: 14px;
+      transform: none;
+    }
   }
 
-  @media (max-width: 400px) {
+  /* ── Extra small phones ── */
+  @media (max-width: 390px) {
+    .asset-header-left h2 { font-size: 1.2rem; }
+    .big-price { font-size: 1.3rem; }
     .lib-grid { grid-template-columns: 1fr 1fr; }
-    .asset-header-left h2 { font-size: 1.1rem; }
-    .big-price { font-size: 1.2rem; }
+    .mobile-nav-btn { font-size: 0.52rem; }
+    .mobile-nav-btn .nav-icon { font-size: 1.1rem; }
   }
 </style>
 </head>
@@ -1262,7 +1476,9 @@ function mobileTab(tab) {
     document.getElementById('panel-watchlist').classList.add('mobile-active');
     document.getElementById('mnav-watchlist').classList.add('active');
   } else if (tab === 'chart') {
-    document.getElementById('panel-main').classList.add('mobile-active');
+    const panel = document.getElementById('panel-main');
+    panel.classList.add('mobile-active');
+    panel.scrollTop = 0; // always show asset header at top
     document.getElementById('mnav-chart').classList.add('active');
     // Draw chart after panel is visible and has dimensions
     setTimeout(() => {
@@ -1274,7 +1490,9 @@ function mobileTab(tab) {
       }
     }, 60);
   } else if (tab === 'alerts') {
-    document.getElementById('panel-alerts').classList.add('mobile-active');
+    const panel = document.getElementById('panel-alerts');
+    panel.classList.add('mobile-active');
+    panel.scrollTop = 0;
     document.getElementById('mnav-alerts').classList.add('active');
   }
 }
