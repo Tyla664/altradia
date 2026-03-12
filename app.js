@@ -1,42 +1,45 @@
 // ═══════════════════════════════════════════════
 // API KEYS
 // ═══════════════════════════════════════════════
-const TD_KEY = '6d7175c59a1546a28e37b0b23c402ec5'; // Twelve Data
+const TD_KEY   = '6d7175c59a1546a28e37b0b23c402ec5'; // Twelve Data (indices fallback only)
+const POLY_KEY = 'mv72pG6l9aFpvdZJZ59fySyX0jGP1JD6';  // Polygon.io
 
 // ═══════════════════════════════════════════════
 // DATA DEFINITIONS
+// polySymbol = Polygon REST/WS ticker
+// tdSymbol   = Twelve Data ticker (indices only)
 // ═══════════════════════════════════════════════
 const ASSETS = {
   crypto: [
-    { id: 'bitcoin',     symbol: 'BTC',     name: 'Bitcoin',            tdSymbol: 'BTC/USD',   source: 'CoinGecko' },
-    { id: 'ethereum',    symbol: 'ETH',     name: 'Ethereum',           tdSymbol: 'ETH/USD',   source: 'CoinGecko' },
-    { id: 'solana',      symbol: 'SOL',     name: 'Solana',             tdSymbol: 'SOL/USD',   source: 'CoinGecko' },
-    { id: 'ripple',      symbol: 'XRP',     name: 'XRP',                tdSymbol: 'XRP/USD',   source: 'CoinGecko' },
-    { id: 'binancecoin', symbol: 'BNB',     name: 'BNB',                tdSymbol: 'BNB/USD',   source: 'CoinGecko' },
+    { id: 'bitcoin',     symbol: 'BTC',     name: 'Bitcoin',            polySymbol: 'X:BTCUSD',  tdSymbol: 'BTC/USD',   source: 'Polygon' },
+    { id: 'ethereum',    symbol: 'ETH',     name: 'Ethereum',           polySymbol: 'X:ETHUSD',  tdSymbol: 'ETH/USD',   source: 'Polygon' },
+    { id: 'solana',      symbol: 'SOL',     name: 'Solana',             polySymbol: 'X:SOLUSD',  tdSymbol: 'SOL/USD',   source: 'Polygon' },
+    { id: 'ripple',      symbol: 'XRP',     name: 'XRP',                polySymbol: 'X:XRPUSD',  tdSymbol: 'XRP/USD',   source: 'Polygon' },
+    { id: 'binancecoin', symbol: 'BNB',     name: 'BNB',                polySymbol: 'X:BNBUSD',  tdSymbol: 'BNB/USD',   source: 'Polygon' },
   ],
   stocks: [
-    { id: 'AAPL', symbol: 'AAPL', name: 'Apple Inc.',      tdSymbol: 'AAPL', source: 'Twelve Data' },
-    { id: 'TSLA', symbol: 'TSLA', name: 'Tesla Inc.',      tdSymbol: 'TSLA', source: 'Twelve Data' },
-    { id: 'NVDA', symbol: 'NVDA', name: 'NVIDIA Corp.',    tdSymbol: 'NVDA', source: 'Twelve Data' },
-    { id: 'MSFT', symbol: 'MSFT', name: 'Microsoft Corp.', tdSymbol: 'MSFT', source: 'Twelve Data' },
+    { id: 'AAPL', symbol: 'AAPL', name: 'Apple Inc.',      polySymbol: 'AAPL', tdSymbol: 'AAPL', source: 'Polygon' },
+    { id: 'TSLA', symbol: 'TSLA', name: 'Tesla Inc.',      polySymbol: 'TSLA', tdSymbol: 'TSLA', source: 'Polygon' },
+    { id: 'NVDA', symbol: 'NVDA', name: 'NVIDIA Corp.',    polySymbol: 'NVDA', tdSymbol: 'NVDA', source: 'Polygon' },
+    { id: 'MSFT', symbol: 'MSFT', name: 'Microsoft Corp.', polySymbol: 'MSFT', tdSymbol: 'MSFT', source: 'Polygon' },
   ],
   forex: [
-    { id: 'EUR/USD', symbol: 'EUR/USD', name: 'Euro / US Dollar',         tdSymbol: 'EUR/USD', source: 'Twelve Data' },
-    { id: 'GBP/USD', symbol: 'GBP/USD', name: 'Pound / US Dollar',        tdSymbol: 'GBP/USD', source: 'Twelve Data' },
-    { id: 'USD/JPY', symbol: 'USD/JPY', name: 'Dollar / Japanese Yen',    tdSymbol: 'USD/JPY', source: 'Twelve Data' },
-    { id: 'AUD/USD', symbol: 'AUD/USD', name: 'Australian / US Dollar',   tdSymbol: 'AUD/USD', source: 'Twelve Data' },
+    { id: 'EUR/USD', symbol: 'EUR/USD', name: 'Euro / US Dollar',       polySymbol: 'C:EURUSD', tdSymbol: 'EUR/USD', source: 'Polygon' },
+    { id: 'GBP/USD', symbol: 'GBP/USD', name: 'Pound / US Dollar',      polySymbol: 'C:GBPUSD', tdSymbol: 'GBP/USD', source: 'Polygon' },
+    { id: 'USD/JPY', symbol: 'USD/JPY', name: 'Dollar / Japanese Yen',  polySymbol: 'C:USDJPY', tdSymbol: 'USD/JPY', source: 'Polygon' },
+    { id: 'AUD/USD', symbol: 'AUD/USD', name: 'Australian / US Dollar', polySymbol: 'C:AUDUSD', tdSymbol: 'AUD/USD', source: 'Polygon' },
   ],
   commodities: [
-    { id: 'XAU/USD', symbol: 'XAU/USD',  name: 'Gold Spot',      tdSymbol: 'XAU/USD',  source: 'Twelve Data' },
-    { id: 'XAG/USD', symbol: 'XAG/USD',  name: 'Silver Spot',    tdSymbol: 'XAG/USD',  source: 'Twelve Data' },
-    { id: 'WTI/USD', symbol: 'WTI/USD',  name: 'WTI Crude Oil',  tdSymbol: 'WTI/USD',  source: 'Twelve Data' },
-    { id: 'XNG/USD', symbol: 'XNG/USD',  name: 'Natural Gas',    tdSymbol: 'XNG/USD',  source: 'Twelve Data' },
+    { id: 'XAU/USD', symbol: 'XAU/USD', name: 'Gold Spot',     polySymbol: 'C:XAUUSD', tdSymbol: 'XAU/USD', source: 'Polygon' },
+    { id: 'XAG/USD', symbol: 'XAG/USD', name: 'Silver Spot',   polySymbol: 'C:XAGUSD', tdSymbol: 'XAG/USD', source: 'Polygon' },
+    { id: 'WTI/USD', symbol: 'WTI/USD', name: 'WTI Crude Oil', polySymbol: null,        tdSymbol: 'WTI/USD', source: 'Twelve Data' },
+    { id: 'XNG/USD', symbol: 'XNG/USD', name: 'Natural Gas',   polySymbol: null,        tdSymbol: 'XNG/USD', source: 'Twelve Data' },
   ],
   indices: [
-    { id: 'SPX',  symbol: 'S&P 500', name: 'S&P 500 Index',        tdSymbol: 'SPX',  source: 'Twelve Data' },
-    { id: 'IXIC', symbol: 'NASDAQ',  name: 'NASDAQ Composite',     tdSymbol: 'IXIC', source: 'Twelve Data' },
-    { id: 'DJI',  symbol: 'DOW',     name: 'Dow Jones Industrial', tdSymbol: 'DJI',  source: 'Twelve Data' },
-    { id: 'FTSE', symbol: 'FTSE 100',name: 'FTSE 100 Index',       tdSymbol: 'FTSE', source: 'Twelve Data' },
+    { id: 'SPX',  symbol: 'S&P 500',  name: 'S&P 500 Index',        polySymbol: 'I:SPX',  tdSymbol: 'SPX',  source: 'Polygon' },
+    { id: 'IXIC', symbol: 'NASDAQ',   name: 'NASDAQ Composite',     polySymbol: 'I:COMP', tdSymbol: 'IXIC', source: 'Polygon' },
+    { id: 'DJI',  symbol: 'DOW',      name: 'Dow Jones Industrial', polySymbol: 'I:DJI',  tdSymbol: 'DJI',  source: 'Polygon' },
+    { id: 'FTSE', symbol: 'FTSE 100', name: 'FTSE 100 Index',       polySymbol: 'I:FTSE', tdSymbol: 'FTSE', source: 'Polygon' },
   ]
 };
 
@@ -91,106 +94,344 @@ const CORS_PROXIES = [
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
 ];
 
-async function fetchWithCORSFallback(url) {
-  for (const proxy of CORS_PROXIES) {
-    try {
-      const proxiedUrl = proxy(url);
-      const res = await fetch(proxiedUrl, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) continue;
-      const text = await res.text();
-      return JSON.parse(text);
-    } catch (e) {
-      // try next proxy
-    }
-  }
-  throw new Error('All proxies failed for: ' + url);
+// ── POLYGON REST — single ticker snapshot ────────
+async function fetchPolygonSnapshot(asset) {
+  if (!asset.polySymbol) return false;
+  try {
+    const url = `https://api.massive.com/v2/snapshot/locale/global/markets/crypto/tickers/${asset.polySymbol}?apiKey=${POLY_KEY}`;
+    const data = await fetchWithCORSFallback(url);
+    const t = data?.ticker;
+    if (!t) return false;
+    const price  = t.lastTrade?.p || t.day?.c || 0;
+    const open   = t.day?.o || price;
+    const high   = t.day?.h || price;
+    const low    = t.day?.l || price;
+    const vol    = t.day?.v || 0;
+    const change = open ? (((price - open) / open) * 100).toFixed(2) : '0.00';
+    if (!price) return false;
+    priceData[asset.id] = { price, change, high, low, vol: formatLarge(vol), mcap: '—', live: true };
+    prices[asset.id] = price;
+    return true;
+  } catch(e) { return false; }
 }
 
-// ── TWELVE DATA ──────────────────────────────────
+// ── POLYGON REST — batch snapshots by market ─────
+async function fetchPolygonBatch(assets, market) {
+  // market: 'stocks' | 'forex' | 'crypto' | 'indices'
+  const polyAssets = assets.filter(a => a.polySymbol);
+  if (!polyAssets.length) return false;
+
+  let ok = false;
+  await Promise.all(polyAssets.map(async asset => {
+    try {
+      let url, price, high, low, vol, change;
+
+      if (market === 'crypto') {
+        // Polygon crypto snapshot
+        const sym = asset.polySymbol; // e.g. X:BTCUSD
+        const data = await fetchWithCORSFallback(
+          `https://api.massive.com/v2/snapshot/locale/global/markets/crypto/tickers/${sym}?apiKey=${POLY_KEY}`
+        );
+        const t = data?.ticker;
+        if (!t) return;
+        price  = t.lastTrade?.p || t.day?.c || 0;
+        high   = t.day?.h || price;
+        low    = t.day?.l || price;
+        vol    = t.day?.v || 0;
+        const open = t.day?.o || price;
+        change = open ? (((price - open) / open) * 100).toFixed(2) : '0.00';
+
+      } else if (market === 'stocks') {
+        // Polygon stocks snapshot
+        const data = await fetchWithCORSFallback(
+          `https://api.massive.com/v2/snapshot/locale/us/markets/stocks/tickers/${asset.polySymbol}?apiKey=${POLY_KEY}`
+        );
+        const t = data?.ticker;
+        if (!t) return;
+        price  = t.lastTrade?.p || t.day?.c || 0;
+        high   = t.day?.h || price;
+        low    = t.day?.l || price;
+        vol    = t.day?.v || 0;
+        change = t.todaysChangePerc?.toFixed(2) || '0.00';
+
+      } else if (market === 'forex' || market === 'commodities') {
+        // Polygon forex/metals snapshot (previous close)
+        const data = await fetchWithCORSFallback(
+          `https://api.massive.com/v2/aggs/ticker/${asset.polySymbol}/prev?adjusted=true&apiKey=${POLY_KEY}`
+        );
+        const r = data?.results?.[0];
+        if (!r) return;
+        price  = r.c || 0;
+        high   = r.h || price;
+        low    = r.l || price;
+        vol    = r.v || 0;
+        change = r.o ? (((r.c - r.o) / r.o) * 100).toFixed(2) : '0.00';
+
+      } else if (market === 'indices') {
+        // Polygon indices snapshot
+        const data = await fetchWithCORSFallback(
+          `https://api.massive.com/v3/snapshot?ticker=${asset.polySymbol}&apiKey=${POLY_KEY}`
+        );
+        const r = data?.results?.[0];
+        if (!r) return;
+        price  = r.value || r.session?.close || 0;
+        high   = r.session?.high  || price;
+        low    = r.session?.low   || price;
+        vol    = r.session?.volume || 0;
+        change = r.session?.change_percent?.toFixed(2) || '0.00';
+      }
+
+      if (!price) return;
+      priceData[asset.id] = { price, change, high, low, vol: formatLarge(vol), mcap: '—', live: true };
+      prices[asset.id] = price;
+      ok = true;
+    } catch(e) {
+      console.warn(`Polygon fetch failed for ${asset.id}:`, e.message);
+    }
+  }));
+  return ok;
+}
+
+// ── TWELVE DATA fallback — WTI, Natural Gas only ─
 async function fetchTwelveDataBatch(assets) {
-  const symbols = assets.map(a => a.tdSymbol).join(',');
+  const tdAssets = assets.filter(a => a.source === 'Twelve Data' && a.tdSymbol);
+  if (!tdAssets.length) return false;
+  const symbols = tdAssets.map(a => a.tdSymbol).join(',');
   try {
     const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbols)}&apikey=${TD_KEY}`;
     const data = await fetchWithCORSFallback(url);
-
-    assets.forEach(asset => {
-      const q = assets.length === 1 ? data : (data[asset.tdSymbol] || data);
+    tdAssets.forEach(asset => {
+      const q = tdAssets.length === 1 ? data : (data[asset.tdSymbol] || data);
       if (!q || q.status === 'error' || !q.close) return;
-
       const price  = parseFloat(q.close);
       const high   = parseFloat(q.high  || price * 1.01);
       const low    = parseFloat(q.low   || price * 0.99);
       const change = parseFloat(q.percent_change || 0);
       const vol    = parseFloat(q.volume || 0);
-
-      priceData[asset.id] = {
-        price, change: change.toFixed(2), high, low,
-        vol: vol ? formatLarge(vol) : '—', mcap: '—', live: true
-      };
+      priceData[asset.id] = { price, change: change.toFixed(2), high, low, vol: vol ? formatLarge(vol) : '—', mcap: '—', live: true };
       prices[asset.id] = price;
     });
     return true;
   } catch(e) {
-    console.warn('Twelve Data batch failed:', e.message);
+    console.warn('Twelve Data fallback failed:', e.message);
     return false;
   }
 }
 
-async function fetchAllTwelveData() {
-  const nonCrypto = [
-    ...(ASSETS.stocks || []),
-    ...(ASSETS.forex  || []),
-    ...(ASSETS.commodities || []),
-    ...(ASSETS.indices || []),
-    ...(ASSETS.etf    || []),
-  ];
+// ── MASTER REFRESH — all assets via Polygon + TD fallback ──
+async function fetchAllPrices() {
+  const cryptoAssets      = (ASSETS.crypto      || []).filter(a => a.polySymbol);
+  const stockAssets       = (ASSETS.stocks      || []).filter(a => a.polySymbol);
+  const forexAssets       = (ASSETS.forex       || []).filter(a => a.polySymbol);
+  const commodityPoly     = (ASSETS.commodities || []).filter(a => a.polySymbol);
+  const commodityTD       = (ASSETS.commodities || []).filter(a => !a.polySymbol);
+  const indexAssets       = (ASSETS.indices     || []).filter(a => a.polySymbol);
 
-  const batchSize = 8;
-  for (let i = 0; i < nonCrypto.length; i += batchSize) {
-    const batch = nonCrypto.slice(i, i + batchSize);
-    await fetchTwelveDataBatch(batch);
-    if (i + batchSize < nonCrypto.length) {
-      await new Promise(r => setTimeout(r, 900));
-    }
-  }
+  await Promise.all([
+    fetchPolygonBatch(cryptoAssets,  'crypto'),
+    fetchPolygonBatch(stockAssets,   'stocks'),
+    fetchPolygonBatch(forexAssets,   'forex'),
+    fetchPolygonBatch(commodityPoly, 'commodities'),
+    fetchPolygonBatch(indexAssets,   'indices'),
+    fetchTwelveDataBatch(commodityTD),
+  ]);
 
   renderHotList();
   renderWatchlist();
   refreshSelectedAssetPanel();
-  renderAlertOverlay();
   checkAlerts();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 }
 
-// ── COINGECKO ────────────────────────────────────
-async function fetchCryptoFromCoinGecko() {
-  const cryptoAssets = Object.values(ASSETS).flat().filter(a => a.source === 'CoinGecko');
-  const ids = cryptoAssets.map(a => a.id).join(',');
-  if (!ids) return false;
-  try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&include_high_24h=true&include_low_24h=true`;
-    const data = await fetchWithCORSFallback(url);
+// Keep old name as alias so existing call sites still work
+const fetchAllTwelveData = fetchAllPrices;
 
-    cryptoAssets.forEach(asset => {
-      const d = data[asset.id];
-      if (!d) return;
-      priceData[asset.id] = {
-        price: d.usd,
-        change: (d.usd_24h_change || 0).toFixed(2),
-        high: d.usd_24h_high  || d.usd * 1.02,
-        low:  d.usd_24h_low   || d.usd * 0.98,
-        vol:  d.usd_24h_vol   || 0,
-        mcap: d.usd_market_cap || 0,
-        live: true
-      };
-      prices[asset.id] = d.usd;
-    });
-    return true;
-  } catch(e) {
-    console.warn('CoinGecko failed:', e.message);
+// ── Initial REST load for a single asset ──────────
+async function fetchSingleAsset(asset) {
+  if (asset.source === 'Twelve Data') return fetchTwelveDataBatch([asset]);
+  const market = asset.id.startsWith('X:') || asset.polySymbol?.startsWith('X:') ? 'crypto'
+               : asset.cat === 'stocks'  ? 'stocks'
+               : asset.cat === 'indices' ? 'indices'
+               : 'forex';
+  return fetchPolygonBatch([asset], market);
+}
+
+// ═══════════════════════════════════════════════
+// POLYGON — WEBSOCKET (3 connections: stocks, crypto, forex)
+// Indices don't have a WS feed on free tier — covered by REST.
+// ═══════════════════════════════════════════════
+const polyWs = { stocks: null, crypto: null, forex: null };
+const polyWsConnected = { stocks: false, crypto: false, forex: false };
+const polyWsReconnectTimers = { stocks: null, crypto: null, forex: null };
+
+const POLY_WS_URLS = {
+  stocks: 'wss://socket.massive.com/stocks',
+  crypto: 'wss://socket.massive.com/crypto',
+  forex:  'wss://socket.massive.com/forex',
+};
+
+// Maps Polygon WS ticker → asset id
+function buildPolyWsMap() {
+  const map = {};
+  Object.values(ASSETS).flat().forEach(a => {
+    if (!a.polySymbol) return;
+    // WS tickers differ slightly from REST tickers
+    if (a.cat === 'crypto' || a.polySymbol.startsWith('X:')) {
+      map['XT.' + a.polySymbol.replace('X:', '')] = a.id; // e.g. XT.BTCUSD
+    } else if (a.cat === 'forex' || a.cat === 'commodities') {
+      map['C.' + a.polySymbol.replace('C:', '')] = a.id;  // e.g. C.EURUSD
+    } else {
+      map['T.' + a.polySymbol] = a.id; // stocks: T.AAPL
+      map['Q.' + a.polySymbol] = a.id; // quotes: Q.AAPL
+    }
+  });
+  return map;
+}
+
+function getPolyWsSymbols(feed) {
+  return Object.values(ASSETS).flat().filter(a => {
+    if (!a.polySymbol) return false;
+    if (feed === 'crypto')  return a.polySymbol.startsWith('X:');
+    if (feed === 'forex')   return a.polySymbol.startsWith('C:');
+    if (feed === 'stocks')  return !a.polySymbol.startsWith('X:') && !a.polySymbol.startsWith('C:') && !a.polySymbol.startsWith('I:');
     return false;
+  }).map(a => {
+    if (feed === 'crypto') return 'XT.' + a.polySymbol.replace('X:', '');
+    if (feed === 'forex')  return 'C.'  + a.polySymbol.replace('C:', '');
+    return 'T.' + a.polySymbol;
+  });
+}
+
+function connectPolyWs(feed) {
+  const ws = polyWs[feed];
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+  const symbols = getPolyWsSymbols(feed);
+  if (!symbols.length) return;
+
+  let socket;
+  try {
+    socket = new WebSocket(POLY_WS_URLS[feed]);
+  } catch(e) {
+    console.warn(`Polygon WS [${feed}]: failed to create`, e.message);
+    schedulePolyReconnect(feed);
+    return;
+  }
+  polyWs[feed] = socket;
+
+  socket.onopen = () => {
+    socket.send(JSON.stringify({ action: 'auth', params: POLY_KEY }));
+  };
+
+  socket.onmessage = (event) => {
+    try {
+      const messages = JSON.parse(event.data);
+      const wsMap = buildPolyWsMap();
+
+      messages.forEach(msg => {
+        // Auth response
+        if (msg.ev === 'status' && msg.status === 'auth_success') {
+          polyWsConnected[feed] = true;
+          console.log(`Polygon WS [${feed}]: authenticated, subscribing to ${symbols.length} symbols`);
+          socket.send(JSON.stringify({ action: 'subscribe', params: symbols.join(',') }));
+          updateWsStatusPill();
+          return;
+        }
+
+        // Price tick — stocks trade
+        if (msg.ev === 'T' || msg.ev === 'Q') {
+          const assetId = wsMap['T.' + msg.sym] || wsMap['Q.' + msg.sym];
+          if (!assetId) return;
+          const newPrice = msg.p || msg.bp || msg.ap;
+          if (!newPrice) return;
+          applyWsTick(assetId, newPrice);
+        }
+
+        // Crypto trade
+        if (msg.ev === 'XT') {
+          const assetId = wsMap['XT.' + msg.pair];
+          if (!assetId) return;
+          applyWsTick(assetId, msg.p);
+        }
+
+        // Forex quote
+        if (msg.ev === 'C') {
+          const assetId = wsMap['C.' + msg.p];
+          if (!assetId) return;
+          applyWsTick(assetId, msg.a || msg.b); // ask or bid
+        }
+      });
+    } catch(e) { /* ignore malformed */ }
+  };
+
+  socket.onerror = (e) => {
+    console.warn(`Polygon WS [${feed}] error`);
+  };
+
+  socket.onclose = (e) => {
+    polyWsConnected[feed] = false;
+    updateWsStatusPill();
+    console.log(`Polygon WS [${feed}] closed (${e.code}), reconnecting in 10s...`);
+    schedulePolyReconnect(feed);
+  };
+}
+
+function applyWsTick(assetId, newPrice) {
+  newPrice = parseFloat(newPrice);
+  if (!newPrice || isNaN(newPrice)) return;
+  const prev = priceData[assetId];
+  priceData[assetId] = {
+    price:  newPrice,
+    change: prev?.change || '0.00',
+    high:   prev?.high && newPrice > parseFloat(prev.high) ? newPrice : (prev?.high || newPrice),
+    low:    prev?.low  && newPrice < parseFloat(prev.low)  ? newPrice : (prev?.low  || newPrice),
+    vol:    prev?.vol  || '—',
+    mcap:   prev?.mcap || '—',
+    live:   true,
+    ws:     true,
+  };
+  prices[assetId] = newPrice;
+}
+
+function schedulePolyReconnect(feed) {
+  clearTimeout(polyWsReconnectTimers[feed]);
+  polyWsReconnectTimers[feed] = setTimeout(() => connectPolyWs(feed), 10000);
+}
+
+function connectAllPolyWs() {
+  connectPolyWs('crypto');
+  connectPolyWs('stocks');
+  connectPolyWs('forex');
+}
+
+function refreshPolyWsSubscriptions() {
+  ['crypto', 'stocks', 'forex'].forEach(feed => {
+    if (!polyWsConnected[feed] || !polyWs[feed]) { connectPolyWs(feed); return; }
+    const symbols = getPolyWsSymbols(feed);
+    if (symbols.length) {
+      polyWs[feed].send(JSON.stringify({ action: 'subscribe', params: symbols.join(',') }));
+    }
+  });
+}
+
+function updateWsStatusPill() {
+  const anyConnected = Object.values(polyWsConnected).some(Boolean);
+  const pill = document.getElementById('status-pill');
+  if (!pill) return;
+  if (anyConnected) {
+    pill.textContent = '⚡ LIVE';
+    pill.style.borderColor = 'var(--green)';
+    pill.style.color = 'var(--green)';
+    pill.title = 'Massive.com WebSocket — real-time price ticks';
+  } else {
+    pill.textContent = '● LIVE';
+    pill.style.borderColor = 'var(--green)';
+    pill.style.color = 'var(--green)';
+    pill.title = 'Massive.com REST';
   }
 }
+
+
 
 function formatLarge(n) {
   if (n >= 1e12) return (n/1e12).toFixed(2) + 'T';
@@ -277,57 +518,6 @@ function refreshSelectedAssetPanel() {
 
 // ═══════════════════════════════════════════════
 // ALERT TARGET LINE OVERLAY ON CHART
-// ═══════════════════════════════════════════════
-function renderAlertOverlay() {
-  const overlay = document.getElementById('tv-alert-overlay');
-  const container = document.getElementById('tv-container');
-  if (!overlay || !container || !selectedAsset) { if (overlay) overlay.innerHTML = ''; return; }
-
-  const assetAlerts = alerts.filter(a =>
-    a.assetId === selectedAsset.id && a.status === 'active'
-  );
-  if (assetAlerts.length === 0) { overlay.innerHTML = ''; return; }
-
-  const d = priceData[selectedAsset.id];
-  const currentPrice = d?.price;
-  if (!currentPrice) { overlay.innerHTML = ''; return; }
-
-  // TradingView toolbar is ~38px on desktop, 0 on mobile (hidden)
-  const isMobile = window.innerWidth <= 768;
-  const tvTopOffset = isMobile ? 0 : 38;
-  const tvBottomOffset = 28; // bottom scale bar
-
-  const totalH = container.offsetHeight;
-  const chartH = totalH - tvTopOffset - tvBottomOffset; // drawable area
-
-  // Build price range: use 24h high/low but expand symmetrically around
-  // current price so the target line position is always relative to current price.
-  // TradingView typically shows ~10-15% padding above/below on a daily chart.
-  const rawHigh = d.high ? parseFloat(d.high) : currentPrice * 1.05;
-  const rawLow  = d.low  ? parseFloat(d.low)  : currentPrice * 0.95;
-  const rawRange = rawHigh - rawLow;
-
-  // Expand the range by 40% total (TradingView adds padding around candles)
-  const padding = rawRange * 0.7;
-  const visHigh = rawHigh + padding;
-  const visLow  = rawLow  - padding;
-  const visRange = visHigh - visLow;
-
-  overlay.innerHTML = assetAlerts.map(alert => {
-    const pct = (visHigh - alert.targetPrice) / visRange; // 0 = top, 1 = bottom
-    if (pct < -0.05 || pct > 1.05) return ''; // out of range
-    const clampedPct = Math.max(0.01, Math.min(0.99, pct));
-    const top = Math.round(tvTopOffset + clampedPct * chartH);
-    const isAbove = alert.condition === 'above';
-    const color = isAbove ? 'var(--green)' : 'var(--red)';
-    const label = `${isAbove ? '▲' : '▼'} ${formatPrice(alert.targetPrice, selectedAsset.id)}${alert.note ? '  ·  ' + alert.note : ''}`;
-    return `
-      <div class="tv-alert-line" style="top:${top}px;color:${color};">
-        <div class="tv-alert-line-label">${label}</div>
-      </div>`;
-  }).join('');
-}
-
 // ═══════════════════════════════════════════════
 // UPDATE WATCHLIST SELECTION HIGHLIGHT ONLY
 // Lightweight — just flips CSS classes, no full re-render.
@@ -496,7 +686,6 @@ function selectAsset(asset) {
 
   // Update panel content via shared function
   refreshSelectedAssetPanel();
-  renderAlertOverlay();
 
   // Update the alert form's asset display to show the selected asset name.
   const display = document.getElementById('alert-asset-display');
@@ -626,10 +815,6 @@ function loadTVChart(asset) {
   if (!container) return;
   container.innerHTML = '';
 
-  // Clear stale alert lines while new chart loads
-  const overlay = document.getElementById('tv-alert-overlay');
-  if (overlay) overlay.innerHTML = '';
-
   const symbol = getTVSymbol(asset);
   const isMobile = window.innerWidth <= 768;
 
@@ -686,7 +871,6 @@ function createTVWidget(symbol, isMobile) {
   });
 
   // Draw alert lines after chart has had time to render
-  setTimeout(renderAlertOverlay, 800);
 }
 
 // Keep stubs so nothing else breaks
@@ -752,7 +936,6 @@ async function createAlert() {
 
   renderAlerts();
   renderWatchlist();
-  renderAlertOverlay();
   if (window.innerWidth <= 768) {
     switchAlertTab('active');
     mobileTab('alerts');
@@ -764,7 +947,6 @@ function deleteAlert(id) {
   alerts = alerts.filter(a => a.id !== id);
   renderAlerts();
   renderWatchlist();
-  renderAlertOverlay();
 }
 
 function toggleAlert(id) {
@@ -774,7 +956,6 @@ function toggleAlert(id) {
   else if (a.status === 'paused') a.status = 'active';
   updateAlert(id, { status: a.status });
   renderAlerts();
-  renderAlertOverlay();
 }
 
 function dismissAlert(id) {
@@ -799,7 +980,6 @@ function dismissAlert(id) {
   alerts = alerts.filter(a => a.id !== id);
   renderAlerts();
   renderWatchlist();
-  renderAlertOverlay();
 }
 
 function renderAlerts() {
@@ -1920,12 +2100,9 @@ function addAssetToWatchlist(asset) {
   // modal overlay, which triggers closeModalIfBg and closes the modal immediately.
   setTimeout(() => renderLibrary(), 0);
 
-  // Fetch live price
-  if (asset.source === 'Twelve Data') {
-    fetchTwelveDataBatch([asset]).then(() => renderWatchlist());
-  } else if (asset.source === 'CoinGecko') {
-    fetchCryptoFromCoinGecko().then(() => renderWatchlist());
-  }
+  // Fetch live price immediately via REST, then subscribe via WebSocket
+  fetchSingleAsset(asset).then(() => renderWatchlist());
+  refreshPolyWsSubscriptions();
 }
 
 
@@ -1957,19 +2134,17 @@ async function refreshAll() {
   document.getElementById('status-pill').style.color = 'var(--muted)';
   renderHotList();
   renderWatchlist();
-  const cgOk = await fetchCryptoFromCoinGecko();
-  fetchAllTwelveData().then(() => {
-    const anyLive = Object.values(priceData).some(d => d.live);
-    setStatusPill(cgOk || anyLive);
-    renderHotList();
-    renderWatchlist();
-  });
+  await fetchAllPrices();
+  const anyLive = Object.values(priceData).some(d => d.live);
+  setStatusPill(anyLive);
+  renderHotList();
+  renderWatchlist();
   refreshSelectedAssetPanel();
   checkAlerts();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 }
 
-// Auto-tick every 8 seconds
+// Auto-tick every 8 seconds — picks up WS price updates
 setInterval(() => {
   renderHotList();
   renderWatchlist();
@@ -1978,34 +2153,22 @@ setInterval(() => {
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 }, 8000);
 
-// Real crypto every 60 seconds
-setInterval(async () => {
-  await fetchCryptoFromCoinGecko();
-  renderHotList();
-  renderWatchlist();
-  refreshSelectedAssetPanel();
-}, 60000);
-
-// Twelve Data refresh every 5 minutes (800 req/day free tier)
+// Polygon REST refresh every 5 minutes — keeps OHLCV data fresh
 setInterval(() => {
-  fetchAllTwelveData();
+  fetchAllPrices();
 }, 5 * 60 * 1000);
 
 // ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
 async function init() {
-  // ── Bootstrap DB user — uses Telegram ID if in Mini App, guest ID otherwise ──
   await getOrCreateUser(currentTelegramId);
 
-  // ── Load preferences from DB ──
   const prefs = await loadPreferencesFromDB();
   const isTelegramApp = !!window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
 
   if (isTelegramApp) {
-    // Running inside Telegram — chat ID and enabled state already set by SDK detector
     soundEnabled = prefs?.sound_enabled ?? true;
-    // Save auto-detected prefs to DB if not already there
     if (!prefs?.telegram_chat_id) {
       savePreferencesDB({ telegram_chat_id: telegramChatId, telegram_enabled: true, sound_enabled: soundEnabled });
     }
@@ -2019,14 +2182,11 @@ async function init() {
   }
   if (telegramChatId) updateTgBtn();
 
-  // ── Load alerts from DB ──
   const dbAlerts = await loadAlertsFromDB();
   if (dbAlerts !== null) alerts = dbAlerts;
 
-  // ── Load alert history from DB ──
   await initAlertHistory();
 
-  // ── Load dynamic Hot List rankings from DB ──
   const rankings = await loadHotListRankings();
   if (rankings) {
     Object.keys(HOT_LIST_SEED).forEach(cat => {
@@ -2045,26 +2205,18 @@ async function init() {
   renderAlerts();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 
-  // Fetch live data — all assets needed for hot list prices
-  const cgOk = await fetchCryptoFromCoinGecko();
-  const tdOk = await fetchTwelveDataBatch([
-    ...(ASSETS.stocks || []),
-    ...(ASSETS.forex || []),
-    ...(ASSETS.commodities || []),
-    ...(ASSETS.indices || []),
-  ]);
-  setStatusPill(cgOk || tdOk);
+  // Initial REST fetch — all assets
+  await fetchAllPrices();
+  const anyLive = Object.values(priceData).some(d => d.live);
+  setStatusPill(anyLive);
 
   renderHotList();
   renderWatchlist();
   refreshSelectedAssetPanel();
-
-  // Fetch remainder non-blocking
-  fetchAllTwelveData();
-
   renderAlerts();
-  renderHotList();
-  renderWatchlist();
+
+  // ── Connect Polygon WebSocket for live ticks ──
+  connectAllPolyWs();
 }
 
 function setStatusPill(isLive) {
@@ -2082,6 +2234,13 @@ function setStatusPill(isLive) {
 }
 
 window.addEventListener('resize', () => { if (selectedAsset && window.innerWidth > 768) loadTVChart(selectedAsset); });
+
+// Reconnect WebSocket when user returns to the tab
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    connectAllPolyWs();
+  }
+});
 
 // ── SWIPE GESTURES (mobile) ──────────────────────
 (function() {

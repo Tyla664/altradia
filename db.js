@@ -82,14 +82,34 @@ const db = {
 
 // ═══════════════════════════════════════════════
 // USER — get or create user by telegram_id
-// For now uses a temporary guest ID until Telegram Mini App is integrated
+// Detects Telegram user ID from WebApp SDK,
+// falls back to persistent guest ID for browser testing
 // ═══════════════════════════════════════════════
 let currentUserId = null;
-let currentTelegramId = localStorage.getItem('tw_user_id') || 'guest_' + Math.random().toString(36).slice(2);
+
+// Detect Telegram user ID
+function detectTelegramId() {
+  try {
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (tgUser?.id) {
+      window.Telegram.WebApp.ready(); // signal app is ready
+      window.Telegram.WebApp.expand(); // expand to full screen
+      return String(tgUser.id);
+    }
+  } catch(e) {}
+  // Fallback — persistent guest ID for browser/dev testing
+  let guestId = localStorage.getItem('tw_user_id');
+  if (!guestId) {
+    guestId = 'guest_' + Math.random().toString(36).slice(2);
+    localStorage.setItem('tw_user_id', guestId);
+  }
+  return guestId;
+}
+
+let currentTelegramId = detectTelegramId();
 
 async function getOrCreateUser(telegramId) {
   try {
-    // Try to find existing user
     const rows = await db.query('users', {
       select: 'id',
       filter: { 'telegram_id': `eq.${telegramId}` },
@@ -104,7 +124,6 @@ async function getOrCreateUser(telegramId) {
     // Create new user
     const created = await db.insert('users', { telegram_id: telegramId });
     currentUserId = created[0].id;
-    localStorage.setItem('tw_user_id', telegramId);
     return currentUserId;
   } catch (e) {
     console.warn('DB: getOrCreateUser failed, using offline mode', e);

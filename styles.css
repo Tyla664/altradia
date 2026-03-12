@@ -263,42 +263,6 @@
 
   /* TradingView chart */
 
-  /* Alert target line overlay on chart */
-  #tv-alert-overlay {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 5;
-    overflow: hidden;
-  }
-  .tv-alert-line {
-    position: absolute;
-    left: 0; right: 0;
-    height: 1px;
-    display: flex; align-items: center;
-    pointer-events: none;
-  }
-  .tv-alert-line::before {
-    content: '';
-    flex: 1;
-    height: 1px;
-    border-top: 1.5px dashed currentColor;
-    opacity: 0.75;
-  }
-  .tv-alert-line-label {
-    font-family: var(--mono);
-    font-size: 0.58rem;
-    letter-spacing: 0.5px;
-    padding: 2px 6px;
-    border-radius: 3px;
-    background: var(--bg);
-    border: 1px solid currentColor;
-    white-space: nowrap;
-    opacity: 0.9;
-    margin-left: 4px;
-    margin-right: 8px;
-  }
-
   .tv-container {
     border-radius: 12px;
     overflow: hidden;
