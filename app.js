@@ -969,7 +969,7 @@ function renderAlerts() {
     let badgeClass, badgeLabel;
     if (isTriggered) {
       badgeClass = alert.condition === 'zone' ? 'badge-triggered-below' : `badge-triggered-${dir}`;
-      badgeLabel = alert.condition === 'zone' ? '📍 TRIGGERED' : (dir === 'above' ? '▲ TRIGGERED' : '▼ TRIGGERED');
+      badgeLabel = alert.condition === 'zone' ? '◈ TRIGGERED' : (dir === 'above' ? '▲ TRIGGERED' : '▼ TRIGGERED');
     } else if (alert.status === 'paused') {
       badgeClass = 'badge-inactive'; badgeLabel = 'PAUSED';
     } else {
@@ -985,7 +985,7 @@ function renderAlerts() {
     // Detail line — zone vs above/below
     const isZoneAlert = alert.condition === 'zone';
     const detailLine = isZoneAlert
-      ? `<strong>📍 ZONE</strong> ${formatPrice(alert.zoneLow, alert.assetId)} – ${formatPrice(alert.zoneHigh, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}${alert.repeatInterval ? ` <span style="opacity:0.6;font-size:0.75em">· repeats ${alert.repeatInterval}m</span>` : ''}`
+      ? `<strong>◈ ZONE</strong> ${formatPrice(alert.zoneLow, alert.assetId)} – ${formatPrice(alert.zoneHigh, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}${alert.repeatInterval ? ` <span style="opacity:0.6;font-size:0.75em">· repeats ${alert.repeatInterval}m</span>` : ''}`
       : `<strong>${alert.condition === 'above'
           ? '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="1,7 5,3 9,7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>ABOVE'
           : '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="1,3 5,7 9,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>BELOW'
@@ -1542,7 +1542,10 @@ function tgRow(label, value) {
 function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval) {
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
-  const time    = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Auto-detect user's timezone for timestamp
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const time   = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: userTz })
+               + ' ' + (userTz.split('/')[1] || userTz).replace(/_/g,' ');
 
   let header, subtitle, rows = [];
 
@@ -2123,7 +2126,12 @@ async function init() {
   if (isTelegramApp) {
     soundEnabled = prefs?.sound_enabled ?? true;
     if (!prefs?.telegram_chat_id) {
-      savePreferencesDB({ telegram_chat_id: telegramChatId, telegram_enabled: true, sound_enabled: soundEnabled });
+      savePreferencesDB({
+        telegram_chat_id: telegramChatId,
+        telegram_enabled: true,
+        sound_enabled: soundEnabled,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
     }
     // Silent connection — no nag toast
   } else {
