@@ -968,8 +968,8 @@ function renderAlerts() {
 
     let badgeClass, badgeLabel;
     if (isTriggered) {
-      badgeClass = `badge-triggered-${dir}`;
-      badgeLabel = dir === 'above' ? '▲ TRIGGERED' : '▼ TRIGGERED';
+      badgeClass = alert.condition === 'zone' ? 'badge-triggered-below' : `badge-triggered-${dir}`;
+      badgeLabel = alert.condition === 'zone' ? '📍 TRIGGERED' : (dir === 'above' ? '▲ TRIGGERED' : '▼ TRIGGERED');
     } else if (alert.status === 'paused') {
       badgeClass = 'badge-inactive'; badgeLabel = 'PAUSED';
     } else {
@@ -981,6 +981,15 @@ function renderAlerts() {
            Hit ${formatPrice(alert.triggeredPrice, alert.assetId)} at ${alert.triggeredAt}
          </span><br>`
       : '';
+
+    // Detail line — zone vs above/below
+    const isZoneAlert = alert.condition === 'zone';
+    const detailLine = isZoneAlert
+      ? `<strong>📍 ZONE</strong> ${formatPrice(alert.zoneLow, alert.assetId)} – ${formatPrice(alert.zoneHigh, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}${alert.repeatInterval ? ` <span style="opacity:0.6;font-size:0.75em">· repeats ${alert.repeatInterval}m</span>` : ''}`
+      : `<strong>${alert.condition === 'above'
+          ? '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="1,7 5,3 9,7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>ABOVE'
+          : '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="1,3 5,7 9,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>BELOW'
+        }</strong> ${formatPrice(alert.targetPrice, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}`;
 
     const actions = isTriggered
       ? `<button class="alert-action-btn dismiss" onclick="dismissAlert('${alert.id}')">
@@ -1005,10 +1014,7 @@ function renderAlerts() {
         <div class="alert-badge ${badgeClass}">${badgeLabel}</div>
       </div>
       <div class="alert-detail">
-        <strong>${alert.condition === 'above'
-          ? '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="1,7 5,3 9,7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>ABOVE'
-          : '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="1,3 5,7 9,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>BELOW'
-        }</strong> ${formatPrice(alert.targetPrice, alert.assetId)}<br>
+        ${detailLine}<br>
         ${triggeredLine}
         ${alert.note ? `<em style="color:var(--muted)">"${alert.note}"</em><br>` : ''}
         Set at ${alert.createdAt}
