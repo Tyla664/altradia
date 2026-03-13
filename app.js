@@ -260,9 +260,7 @@ async function fetchAllPrices() {
     prices[asset.id]    = sim.price;
   });
 
-  renderHotList();
-  renderWatchlist();
-  refreshSelectedAssetPanel();
+  // Update alert engine only — no price display
   checkAlerts();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 }
@@ -491,63 +489,22 @@ function formatPrice(p, id) {
 function refreshSelectedAssetPanel() {
   if (!selectedAsset) return;
   const asset = selectedAsset;
-  const d = priceData[asset.id];
-  const price = d ? d.price : null;
-  const change = d ? parseFloat(d.change) : 0;
-  const isUp = change >= 0;
-
-  // Header
+  // Update asset header identity only — no price display
   document.getElementById('sel-symbol').textContent = asset.symbol;
-  document.getElementById('sel-name').textContent = asset.name;
-  const priceEl = document.getElementById('sel-price');
-  priceEl.textContent = price ? formatPrice(price, asset.id) : '—';
-  priceEl.style.color = isUp ? 'var(--green)' : 'var(--red)';
+  document.getElementById('sel-name').textContent   = asset.name;
+  // Clear any stale price/change text
+  const priceEl  = document.getElementById('sel-price');
   const changeEl = document.getElementById('sel-change');
-  changeEl.textContent = price ? (isUp ? '▲ +' : '▼ ') + Math.abs(change).toFixed(2) + '% (24h)' : '';
-  changeEl.className = 'big-change ' + (isUp ? 'up' : 'down');
-
-  // Stats — smart label for MKT CAP based on asset type
-  const high = d?.high ? formatPrice(parseFloat(d.high), asset.id) : '—';
-  const low  = d?.low  ? formatPrice(parseFloat(d.low),  asset.id) : '—';
-  const vol  = d?.vol  ? (typeof d.vol  === 'string' ? d.vol  : formatLarge(d.vol))  : '—';
-
-  // MKT CAP: only meaningful for crypto. Stocks/forex get a contextual label.
-  let mcapLabel, mcapVal;
-  if (asset.source === 'CoinGecko') {
-    mcapLabel = 'MKT CAP';
-    mcapVal = d?.mcap ? (typeof d.mcap === 'string' ? d.mcap : formatLarge(d.mcap)) : '—';
-  } else if (asset.cat === 'stocks' || (asset.source === 'Twelve Data' && !asset.id.includes('/'))) {
-    mcapLabel = 'MKT CAP';
-    mcapVal = 'N/A';
-  } else if (asset.id.includes('/') && !asset.id.startsWith('X')) {
-    mcapLabel = 'SPREAD';
-    mcapVal = '—';
-  } else {
-    mcapLabel = 'MKT CAP';
-    mcapVal = '—';
-  }
-
-  document.getElementById('stat-high').textContent = high;
-  document.getElementById('stat-low').textContent  = low;
-  document.getElementById('stat-vol').textContent  = vol;
-  document.getElementById('stat-mcap').textContent = mcapVal;
-  // Update label dynamically
-  const mcapLabelEl = document.querySelector('#stat-mcap')?.previousElementSibling;
-  if (mcapLabelEl) mcapLabelEl.textContent = mcapLabel;
-
-  // Alert form — pre-fill price input with current price (editable)
-  const priceInput = document.getElementById('alert-price');
-  if (priceInput && price) {
-    // Only pre-fill if the user hasn't already typed something
-    if (!priceInput.dataset.userEdited) {
-      priceInput.value = parseFloat(price.toFixed(price >= 1000 ? 2 : price >= 1 ? 4 : 6));
-    }
-  }
-  document.getElementById('current-price-note').textContent = price
-    ? `Current price: ${formatPrice(price, asset.id)} — Your alert will trigger when the condition is met.`
-    : 'Select an asset to see current price';
-  // NOTE: alert-asset dropdown is kept in sync by populateDropdown() and createAlert().
-  // Do NOT set it here — doing so causes mobile browsers to scroll the panel to the select every tick.
+  if (priceEl)  priceEl.textContent  = '';
+  if (changeEl) changeEl.textContent = '';
+  // Clear stats
+  ['stat-high','stat-low','stat-vol','stat-mcap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+  // Keep alert form note neutral
+  const noteEl = document.getElementById('current-price-note');
+  if (noteEl) noteEl.textContent = 'Enter your target price below';
 }
 
 // ═══════════════════════════════════════════════
@@ -584,10 +541,6 @@ function renderWatchlist() {
     if (!container) return;
     container.innerHTML = '';
     assets.forEach(asset => {
-      const d = priceData[asset.id];
-      const price = d ? d.price : null;
-      const change = d ? d.change : null;
-      const isUp = change !== null && parseFloat(change) >= 0;
       const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
       const isSelected = selectedAsset && selectedAsset.id === asset.id;
 
@@ -600,10 +553,7 @@ function renderWatchlist() {
           <div class="asset-symbol">${asset.symbol}</div>
           <div class="asset-name">${asset.name}</div>
         </div>
-        <div class="asset-right">
-          <div class="asset-price">${formatPrice(price, asset.id)}</div>
-          <div class="asset-change ${isUp ? 'up' : 'down'}">${change !== null ? (isUp ? '▲' : '▼') + ' ' + Math.abs(change) + '%' : '—'}</div>
-        </div>`;
+        ${hasAlert ? '<div class="asset-right"><div class="alert-dot" title="Alert active"></div></div>' : ''}`;
       card.onclick = (e) => {
         // Don't trigger selectAsset if the remove button was clicked
         if (e.target.classList.contains('asset-remove') || e.target.closest('.asset-remove')) return;
@@ -634,10 +584,6 @@ function renderHotList() {
     assetIds.forEach(assetId => {
       const asset = Object.values(ASSETS).flat().find(a => a.id === assetId);
       if (!asset) return;
-      const d = priceData[asset.id];
-      const price = d ? d.price : null;
-      const change = d ? d.change : null;
-      const isUp = change !== null && parseFloat(change) >= 0;
       const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
       const isSelected = selectedAsset && selectedAsset.id === asset.id;
       const inWatchlist = ASSETS[cat]?.some(a => a.id === assetId);
@@ -656,10 +602,7 @@ function renderHotList() {
           <div class="asset-symbol">${asset.symbol}</div>
           <div class="asset-name">${asset.name}</div>
         </div>
-        <div class="asset-right">
-          <div class="asset-price">${formatPrice(price, asset.id)}</div>
-          <div class="asset-change ${isUp ? 'up' : 'down'}">${change !== null ? (isUp ? '▲' : '▼') + ' ' + Math.abs(change) + '%' : '—'}</div>
-        </div>`;
+        ${hasAlert ? '<div class="asset-right"><div class="alert-dot" title="Alert active"></div></div>' : ''}`;
       card.onclick = (e) => {
         if (e.target.closest('.asset-add-btn')) return;
         navigateToChartOnSelect = true;
@@ -2285,7 +2228,7 @@ function addAssetToWatchlist(asset) {
   setTimeout(() => renderLibrary(), 0);
 
   // Fetch live price immediately via REST, then subscribe via WebSocket
-  fetchSingleAsset(asset).then(() => renderWatchlist());
+  // Price fetch happens on background interval — no per-click fetch needed
   refreshPolyWsSubscriptions();
 }
 
