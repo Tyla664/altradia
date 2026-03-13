@@ -168,7 +168,7 @@ async function loadWatchlist() {
   if (!currentUserId) return null;
   try {
     const rows = await db.query('watchlist', {
-      select: '*',
+      select: 'asset_id,symbol,name,category,td_symbol,source',
       filter: { 'user_id': `eq.${currentUserId}` },
       order: 'created_at.asc',
     });
@@ -183,11 +183,13 @@ async function addToWatchlist(asset, category) {
   if (!currentUserId) return;
   try {
     await db.upsert('watchlist', {
-      user_id: currentUserId,
-      asset_id: asset.id,
-      symbol: asset.symbol,
-      name: asset.name,
+      user_id:   currentUserId,
+      asset_id:  asset.id,
+      symbol:    asset.symbol,
+      name:      asset.name,
       category,
+      td_symbol: asset.tdSymbol  || null,
+      source:    asset.source    || null,
     }, 'user_id,asset_id');
   } catch (e) {
     console.warn('DB: addToWatchlist failed', e);
