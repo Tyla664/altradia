@@ -877,57 +877,98 @@ function setTF() {}
 // ═══════════════════════════════════════════════
 // ALERTS
 // ═══════════════════════════════════════════════
+// ── Toggle zone vs single price UI ───────────────
+function onConditionChange() {
+  const condition = document.getElementById('alert-condition').value;
+  const isZone = condition === 'zone';
+  document.getElementById('alert-single-row').style.display = isZone ? 'none' : '';
+  document.getElementById('alert-zone-row').style.display   = isZone ? '' : 'none';
+}
+
 async function createAlert() {
   if (!selectedAsset) return showToast('No Asset', 'Tap any asset from the Hot List or Watchlist first.', 'error');
 
-  const assetId = selectedAsset.id;
-  const condition = document.getElementById('alert-condition').value;
-  const targetPrice = parseFloat(document.getElementById('alert-price').value);
-  const note = document.getElementById('alert-note').value.trim();
+  const assetId    = selectedAsset.id;
+  const condition  = document.getElementById('alert-condition').value;
+  const timeframe  = document.getElementById('alert-timeframe').value;
+  const isZone     = condition === 'zone';
 
-  if (isNaN(targetPrice) || targetPrice <= 0) return showToast('Invalid Price', 'Enter a valid target price.', 'error');
+  let targetPrice = 0, zoneLow = 0, zoneHigh = 0, note = '', repeatInterval = 0;
 
-  const assetInfo = selectedAsset;
+  if (isZone) {
+    zoneLow  = parseFloat(document.getElementById('alert-zone-low').value);
+    zoneHigh = parseFloat(document.getElementById('alert-zone-high').value);
+    note     = document.getElementById('alert-note-zone').value.trim();
+    repeatInterval = parseInt(document.getElementById('alert-repeat').value) || 0;
+    if (isNaN(zoneLow) || isNaN(zoneHigh) || zoneLow <= 0 || zoneHigh <= 0)
+      return showToast('Invalid Zone', 'Enter valid zone low and high prices.', 'error');
+    if (zoneLow >= zoneHigh)
+      return showToast('Invalid Zone', 'Zone low must be less than zone high.', 'error');
+    targetPrice = zoneLow; // store low as main target for DB compat
+  } else {
+    targetPrice = parseFloat(document.getElementById('alert-price').value);
+    note        = document.getElementById('alert-note').value.trim();
+    if (isNaN(targetPrice) || targetPrice <= 0)
+      return showToast('Invalid Price', 'Enter a valid target price.', 'error');
+  }
+
+  const assetInfo    = selectedAsset;
   const currentPrice = priceData[assetId]?.price || 0;
 
   const newAlert = {
-    id: 'temp_' + alertIdCounter++,  // temp id until DB returns UUID
+    id: 'temp_' + alertIdCounter++,
     assetId,
-    symbol: assetInfo.symbol,
-    name: assetInfo.name,
+    symbol:       assetInfo.symbol,
+    name:         assetInfo.name,
     condition,
     targetPrice,
+    zoneLow:      isZone ? zoneLow  : null,
+    zoneHigh:     isZone ? zoneHigh : null,
+    timeframe:    timeframe || null,
+    repeatInterval,
     note,
-    sound: selectedAlertSound,
-    status: 'active',
-    createdAt: new Date().toLocaleTimeString(),
-    currentPriceWhenCreated: currentPrice
+    sound:        selectedAlertSound,
+    status:       'active',
+    createdAt:    new Date().toLocaleTimeString(),
+    currentPriceWhenCreated: currentPrice,
   };
 
   alerts.push(newAlert);
 
-  // Save to DB — await UUID back and replace temp id
   try {
     const saved = await saveAlert(newAlert);
     const idx = alerts.findIndex(a => a.id === newAlert.id);
     if (idx !== -1 && saved?.id) alerts[idx].id = saved.id;
   } catch(e) {
-    console.warn('createAlert: DB save failed, keeping temp id', e);
+    console.warn('createAlert: DB save failed', e);
   }
 
-  document.getElementById('alert-price').value = '';
+  // Reset form
+  document.getElementById('alert-price').value     = '';
+  document.getElementById('alert-zone-low').value  = '';
+  document.getElementById('alert-zone-high').value = '';
+  document.getElementById('alert-note').value      = '';
+  document.getElementById('alert-note-zone').value = '';
+  document.getElementById('alert-timeframe').value = '';
+  document.getElementById('alert-repeat').value    = '0';
   delete document.getElementById('alert-price').dataset.userEdited;
-  document.getElementById('alert-note').value = '';
 
-  showToast('Alert Created', `${assetInfo.symbol} ${condition} ${formatPrice(targetPrice, assetId)} is now active.`, 'success');
+  const tfLabel = timeframe ? ` · ${timeframe}` : '';
+  if (isZone) {
+    showToast('Zone Alert Created', `${assetInfo.symbol} zone ${formatPrice(zoneLow, assetId)}–${formatPrice(zoneHigh, assetId)}${tfLabel} is now active.`, 'success');
+  } else {
+    showToast('Alert Created', `${assetInfo.symbol} ${condition} ${formatPrice(targetPrice, assetId)}${tfLabel} is now active.`, 'success');
+  }
 
   sendBrowserNotification(
     `Alert Set — ${assetInfo.symbol}`,
-    `Watching for price ${condition} ${formatPrice(targetPrice, assetId)}`
+    isZone
+      ? `Zone ${formatPrice(zoneLow, assetId)}–${formatPrice(zoneHigh, assetId)}${tfLabel}`
+      : `Price ${condition} ${formatPrice(targetPrice, assetId)}${tfLabel}`
   );
 
   if (telegramEnabled) {
-    sendTelegram(tgCreatedMessage(assetInfo.symbol, condition, targetPrice, assetId, note));
+    sendTelegram(tgCreatedMessage(assetInfo.symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval));
   }
 
   renderAlerts();
@@ -1219,42 +1260,68 @@ function toggleHistoryGroup(assetId) {
   renderHistory();
 }
 function checkAlerts() {
+  const now = Date.now();
   alerts.forEach(alert => {
     if (alert.status !== 'active') return;
     const currentPrice = priceData[alert.assetId]?.price || prices[alert.assetId];
     if (!currentPrice) return;
 
-    const triggered =
-      (alert.condition === 'above' && currentPrice >= alert.targetPrice) ||
-      (alert.condition === 'below' && currentPrice <= alert.targetPrice);
+    const isZone = alert.condition === 'zone';
+    let fired = false;
 
-    if (triggered) {
-      alert.triggeredDirection = alert.condition;
-      triggeredToday++;
-
-      // Mark as triggered — stays in Active panel until user taps Dismiss
+    if (isZone) {
+      const inZone = currentPrice >= alert.zoneLow && currentPrice <= alert.zoneHigh;
+      if (!inZone) { alert.zoneTriggeredOnce = false; return; }
+      const repeatMs = (alert.repeatInterval || 0) * 60 * 1000;
+      const lastFired = alert.lastTriggeredAt || 0;
+      if (repeatMs === 0) {
+        if (alert.zoneTriggeredOnce) return;
+        alert.zoneTriggeredOnce = true;
+        alert.status = 'triggered';
+      } else {
+        if (now - lastFired < repeatMs) return;
+        alert.lastTriggeredAt = now;
+      }
+      fired = true;
+    } else {
+      fired =
+        (alert.condition === 'above' && currentPrice >= alert.targetPrice) ||
+        (alert.condition === 'below' && currentPrice <= alert.targetPrice);
+      if (!fired) return;
       alert.status = 'triggered';
-      alert.triggeredAt = new Date().toLocaleTimeString();
-      alert.triggeredPrice = currentPrice;
+    }
 
-      // Persist triggered status to DB
+    alert.triggeredDirection = alert.condition;
+    alert.triggeredAt    = new Date().toLocaleTimeString();
+    alert.triggeredPrice = currentPrice;
+    triggeredToday++;
+
+    if (!isZone || (alert.repeatInterval || 0) === 0) {
       updateAlert(alert.id, {
         status: 'triggered',
         triggered_at: alert.triggeredAt,
         triggered_price: currentPrice,
         triggered_direction: alert.condition,
       });
-
-      const msg = `${alert.condition === 'above' ? 'Rose above' : 'Fell below'} ${formatPrice(alert.targetPrice, alert.assetId)} | Now: ${formatPrice(currentPrice, alert.assetId)}`;
-
-      showToast(`ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
-      playAlertSound(alert.sound || selectedAlertSound);
-      sendBrowserNotification(`${alert.symbol} Alert Triggered`, msg);
-      if (telegramEnabled) {
-        sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition, alert.targetPrice, currentPrice, alert.assetId, alert.note));
-      }
-      renderAlerts();
     }
+
+    const tfLabel = alert.timeframe ? ` [${alert.timeframe}]` : '';
+    let msg;
+    if (isZone) {
+      msg = `Entered zone ${formatPrice(alert.zoneLow, alert.assetId)}–${formatPrice(alert.zoneHigh, alert.assetId)}${tfLabel} | Current price: ${formatPrice(currentPrice, alert.assetId)}`;
+    } else {
+      msg = `${alert.condition === 'above' ? 'Rose above' : 'Fell below'} ${formatPrice(alert.targetPrice, alert.assetId)}${tfLabel} | Current price: ${formatPrice(currentPrice, alert.assetId)}`;
+    }
+
+    showToast(`ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
+    playAlertSound(alert.sound || selectedAlertSound);
+    sendBrowserNotification(`${alert.symbol} Alert Triggered`, msg);
+    if (telegramEnabled) {
+      sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition,
+        alert.targetPrice, currentPrice, alert.assetId,
+        alert.note, alert.timeframe, alert.zoneLow, alert.zoneHigh, alert.repeatInterval));
+    }
+    renderAlerts();
   });
 }
 
@@ -1609,42 +1676,75 @@ async function sendTelegram(message) {
 }
 
 // Format a rich alert message for Telegram
-function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note) {
+function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval) {
+  const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
-  const emoji   = isAbove ? '🚀' : '📉';
-  const dirWord = isAbove ? 'broke above' : 'dropped below';
-  const arrow   = isAbove ? '⬆️' : '⬇️';
   const time    = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const tfLabel = timeframe ? ` (${timeframe})` : '';
 
-  return [
-    `${emoji} <b>ALERT TRIGGERED</b>`,
-    ``,
-    `<b>${symbol}</b> ${dirWord} your target`,
-    ``,
-    `🎯 Target:  <b>${formatPrice(targetPrice, assetId)}</b>`,
-    `${arrow} Now:     <b>${formatPrice(currentPrice, assetId)}</b>`,
-    note ? `📝 Note: <i>${note}</i>` : null,
-    ``,
-    `⏰ ${time}`,
-    ``,
-    `<i>Tap to open TradeWatch</i>`,
-  ].filter(l => l !== null).join('\n');
+  let lines = [];
+
+  if (isZone) {
+    lines = [
+      `📍 <b>ZONE ALERT TRIGGERED</b>`,
+      ``,
+      `<b>${symbol}</b> entered your price zone${tfLabel}`,
+      ``,
+      `📊 Zone:          <b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`,
+      `💰 Current price: <b>${formatPrice(currentPrice, assetId)}</b>`,
+    ];
+    if (repeatInterval && repeatInterval > 0) {
+      lines.push(`🔁 Repeating every <b>${repeatInterval} min</b> while price stays in zone`);
+    }
+  } else {
+    const emoji   = isAbove ? '🚀' : '📉';
+    const dirWord = isAbove ? 'broke above' : 'dropped below';
+    const arrow   = isAbove ? '⬆️' : '⬇️';
+    lines = [
+      `${emoji} <b>ALERT TRIGGERED</b>`,
+      ``,
+      `<b>${symbol}</b> ${dirWord} your target${tfLabel}`,
+      ``,
+      `🎯 Target:         <b>${formatPrice(targetPrice, assetId)}</b>`,
+      `${arrow} Current price: <b>${formatPrice(currentPrice, assetId)}</b>`,
+    ];
+  }
+
+  if (note) lines.push(`📝 Note: <i>${note}</i>`);
+  lines.push(``, `⏰ ${time}`, ``, `<i>Tap to open TradeWatch</i>`);
+  return lines.join('\n');
 }
 
-function tgCreatedMessage(symbol, condition, targetPrice, assetId, note) {
+function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval) {
+  const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
-  const emoji   = isAbove ? '🟢' : '🔴';
-  const dirWord = isAbove ? 'rises above' : 'falls below';
+  const tfLabel = timeframe ? ` · <b>${timeframe}</b>` : '';
 
-  return [
-    `${emoji} <b>Alert Set — ${symbol}</b>`,
-    ``,
-    `You'll be notified when <b>${symbol}</b> ${dirWord}`,
-    `🎯 <b>${formatPrice(targetPrice, assetId)}</b>`,
-    note ? `📝 Note: <i>${note}</i>` : null,
-    ``,
-    `<i>Watching the markets for you 👀</i>`,
-  ].filter(l => l !== null).join('\n');
+  let lines = [];
+  if (isZone) {
+    lines = [
+      `📍 <b>Zone Alert Set — ${symbol}</b>`,
+      ``,
+      `You'll be notified when <b>${symbol}</b> enters the zone${tfLabel}`,
+      `📊 Zone: <b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`,
+    ];
+    if (repeatInterval && repeatInterval > 0) {
+      lines.push(`🔁 Repeats every <b>${repeatInterval} min</b> while price stays in zone`);
+    }
+  } else {
+    const emoji   = isZone ? '📍' : isAbove ? '🟢' : '🔴';
+    const dirWord = isAbove ? 'rises above' : 'falls below';
+    lines = [
+      `${emoji} <b>Alert Set — ${symbol}</b>`,
+      ``,
+      `You'll be notified when <b>${symbol}</b> ${dirWord}${tfLabel}`,
+      `🎯 <b>${formatPrice(targetPrice, assetId)}</b>`,
+    ];
+  }
+
+  if (note) lines.push(`📝 Note: <i>${note}</i>`);
+  lines.push(``, `<i>Watching the markets for you 👀</i>`);
+  return lines.filter(l => l !== null).join('\n');
 }
 
 // ═══════════════════════════════════════════════
