@@ -97,19 +97,21 @@
     </div>
     <div class="tg-modal-body">
 
-      <div class="tg-section">
-        <div class="tg-step">STEP 1 — Get your personal Chat ID</div>
-        <div class="tg-instructions">
-          Open Telegram and search for <strong>@userinfobot</strong>, then send it any message. It will instantly reply with your <strong>Chat ID</strong> number. Copy that number and paste it below.
+      <!-- Auto-detected Telegram identity -->
+      <div class="tg-section" id="tg-identity-section">
+        <div id="tg-detected-box" style="display:none;">
+          <div class="tg-step">✅ Telegram Account Detected</div>
+          <div class="tg-instructions" id="tg-detected-name" style="margin-top:6px;"></div>
         </div>
-        <div class="form-group" style="margin-top:10px;">
-          <label>YOUR TELEGRAM CHAT ID</label>
-          <input type="text" id="tg-chat-id" placeholder="e.g. 123456789" style="width:100%" inputmode="numeric">
+        <div id="tg-not-detected-box" style="display:none;">
+          <div class="tg-step">⚠️ Open in Telegram</div>
+          <div class="tg-instructions">
+            To use Telegram alerts, open this app via the bot: <strong>@tradewatchalert_bot</strong>. Your account will be detected automatically — no Chat ID needed.
+          </div>
         </div>
       </div>
 
       <div class="tg-section">
-        <div class="tg-step">STEP 2 — Send a test message to confirm it works.</div>
         <button class="tg-test-btn" onclick="testTelegram()">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:inline-block;vertical-align:middle;margin-right:5px;margin-bottom:1px"><path d="M13 1L1 5.5l4 1.5 1.5 4 2-2.5 3.5 2.5L13 1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/><line x1="5" y1="7" x2="8.5" y2="5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>Send Test Message</button>
         <div class="tg-status" id="tg-status"></div>
@@ -118,13 +120,13 @@
       <div class="tg-section tg-toggle-row">
         <div>
           <div class="tg-label">Telegram Alerts</div>
-          <div class="tg-sublabel" id="tg-toggle-sub">Enter your Chat ID above to enable</div>
+          <div class="tg-sublabel" id="tg-toggle-sub">Detecting your Telegram account...</div>
         </div>
         <button class="tg-toggle-btn" id="tg-toggle-btn" onclick="toggleTelegram()">OFF</button>
       </div>
 
       <div class="tg-info">
-        <strong>What gets sent:</strong> Alert triggered notifications, and a confirmation when you create a new alert. Your Chat ID stays in your browser only — it is never stored on any server.
+        <strong>What gets sent:</strong> Alert triggered notifications and a confirmation when you create a new alert.
       </div>
     </div>
   </div>
