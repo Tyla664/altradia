@@ -746,12 +746,28 @@ async function createAlert() {
       return showToast('Invalid Zone', 'Enter valid zone low and high prices.', 'error');
     if (zoneLow >= zoneHigh)
       return showToast('Invalid Zone', 'Zone low must be less than zone high.', 'error');
-    targetPrice = zoneLow; // store low as main target for DB compat
+    targetPrice = zoneLow;
   } else {
     targetPrice = parseFloat(document.getElementById('alert-price').value);
     note        = document.getElementById('alert-note').value.trim();
     if (isNaN(targetPrice) || targetPrice <= 0)
       return showToast('Invalid Price', 'Enter a valid target price.', 'error');
+  }
+
+  // ── Duplicate check ───────────────────────────────
+  const duplicate = alerts.find(a => {
+    if (a.assetId !== assetId || a.status === 'triggered') return false;
+    if (isZone && a.condition === 'zone')
+      return a.zoneLow === zoneLow && a.zoneHigh === zoneHigh;
+    if (!isZone && a.condition === condition)
+      return a.targetPrice === targetPrice;
+    return false;
+  });
+  if (duplicate) {
+    const label = isZone
+      ? `a zone alert (${formatPrice(zoneLow, assetId)}–${formatPrice(zoneHigh, assetId)})`
+      : `a ${condition} alert at ${formatPrice(targetPrice, assetId)}`;
+    return showToast('Duplicate Alert', `You already have ${label} for ${selectedAsset.symbol}.`, 'error');
   }
 
   const assetInfo    = selectedAsset;
@@ -822,10 +838,75 @@ async function createAlert() {
 }
 
 function deleteAlert(id) {
-  deleteAlertFromDB(id);
-  alerts = alerts.filter(a => a.id !== id);
-  renderAlerts();
-  renderWatchlist();
+  const alert = alerts.find(a => a.id === id);
+  if (!alert) return;
+
+  const isZone  = alert.condition === 'zone';
+  const label   = isZone
+    ? `${alert.symbol} zone ${formatPrice(alert.zoneLow, alert.assetId)}–${formatPrice(alert.zoneHigh, alert.assetId)}`
+    : `${alert.symbol} ${alert.condition} ${formatPrice(alert.targetPrice, alert.assetId)}`;
+  const tf      = alert.timeframe ? ` · ${alert.timeframe}` : '';
+
+  showConfirm(
+    'Delete Alert',
+    `Remove <b>${label}${tf}</b>?<br><small style="opacity:0.65;font-size:0.75rem">This cannot be undone.</small>`,
+    () => {
+      deleteAlertFromDB(id);
+      alerts = alerts.filter(a => a.id !== id);
+      renderAlerts();
+      renderWatchlist();
+      showToast('Alert Deleted', `${alert.symbol} alert removed.`, 'success');
+    }
+  );
+}
+
+// ── Generic confirmation modal ────────────────────
+function showConfirm(title, bodyHtml, onConfirm) {
+  // Remove any existing confirm modal
+  const existing = document.getElementById('confirm-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'confirm-modal';
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:99998;
+    background:rgba(0,0,0,0.6);
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;backdrop-filter:blur(4px);
+  `;
+  overlay.innerHTML = `
+    <div style="
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:24px 22px;
+      max-width:320px;width:100%;
+      box-shadow:0 8px 40px rgba(0,0,0,0.5);
+    ">
+      <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;color:var(--muted);margin-bottom:8px;">${title.toUpperCase()}</div>
+      <div style="font-size:0.9rem;line-height:1.5;margin-bottom:22px;">${bodyHtml}</div>
+      <div style="display:flex;gap:10px;">
+        <button id="confirm-cancel" style="
+          flex:1;padding:12px;border-radius:8px;
+          background:transparent;border:1px solid var(--border);
+          color:var(--muted);font-family:var(--mono);font-size:0.7rem;
+          letter-spacing:0.08em;cursor:pointer;
+        ">CANCEL</button>
+        <button id="confirm-ok" style="
+          flex:1;padding:12px;border-radius:8px;
+          background:rgba(255,61,90,0.15);border:1px solid rgba(255,61,90,0.4);
+          color:var(--red);font-family:var(--mono);font-size:0.7rem;
+          letter-spacing:0.08em;cursor:pointer;font-weight:700;
+        ">DELETE</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#confirm-cancel').onclick = () => overlay.remove();
+  overlay.querySelector('#confirm-ok').onclick     = () => { overlay.remove(); onConfirm(); };
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
 
 function toggleAlert(id) {
