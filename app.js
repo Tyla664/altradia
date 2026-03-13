@@ -96,82 +96,105 @@ const CORS_PROXIES = [
 
 // ── CORS-safe fetch helper ────────────────────────
 // ── SIMULATED BASE PRICES (realistic as of early 2026) ───
-const BASE_PRICES = {
-  // Crypto
-  bitcoin:      { price: 84000,   mcap: '1.66T', vol: '38.2B' },
-  ethereum:     { price: 2100,    mcap: '252B',  vol: '14.1B' },
-  solana:       { price: 133,     mcap: '68B',   vol: '4.2B'  },
-  ripple:       { price: 2.45,    mcap: '142B',  vol: '5.8B'  },
-  binancecoin:  { price: 580,     mcap: '84B',   vol: '1.9B'  },
-  // Stocks
-  AAPL:         { price: 256,     mcap: '—',     vol: '41.2M' },
-  TSLA:         { price: 248,     mcap: '—',     vol: '88.4M' },
-  NVDA:         { price: 112,     mcap: '—',     vol: '210M'  },
-  MSFT:         { price: 388,     mcap: '—',     vol: '22.1M' },
-  // Forex
-  'EUR/USD':    { price: 1.1518,  mcap: '—',     vol: '—'     },
-  'GBP/USD':    { price: 1.2942,  mcap: '—',     vol: '—'     },
-  'USD/JPY':    { price: 148.22,  mcap: '—',     vol: '—'     },
-  'AUD/USD':    { price: 0.6341,  mcap: '—',     vol: '—'     },
-  // Commodities
-  'XAU/USD':    { price: 2980,    mcap: '—',     vol: '—'     },
-  'XAG/USD':    { price: 33.45,   mcap: '—',     vol: '—'     },
-  'WTI/USD':    { price: 68.40,   mcap: '—',     vol: '—'     },
-  'XNG/USD':    { price: 4.12,    mcap: '—',     vol: '—'     },
-  // Indices
-  SPX:          { price: 5632,    mcap: '—',     vol: '—'     },
-  IXIC:         { price: 17480,   mcap: '—',     vol: '—'     },
-  DJI:          { price: 41800,   mcap: '—',     vol: '—'     },
-  FTSE:         { price: 8420,    mcap: '—',     vol: '—'     },
+// ── REAL PRICE FETCHING ───────────────────────────
+// Crypto  → CoinGecko (free, no key)
+// Stocks/Forex/Commodities → Twelve Data (free key)
+// Indices → simulated only (Twelve Data blocks on free tier)
+
+// Fallback seed prices for indices only (kept in sync manually)
+const INDEX_SEEDS = {
+  SPX:  { price: 5632,  open: 5600 },
+  IXIC: { price: 17480, open: 17300 },
+  DJI:  { price: 41800, open: 41500 },
+  FTSE: { price: 8420,  open: 8380 },
 };
+const indexSim = {};
 
-// Track simulated current prices so they drift consistently
-const simPrices = {};
-
-function getSimPrice(id) {
-  if (!simPrices[id]) {
-    const base = BASE_PRICES[id];
-    if (!base) return null;
-    simPrices[id] = {
-      price:  base.price,
-      open:   base.price,
-      high:   base.price * 1.005,
-      low:    base.price * 0.995,
-    };
+function getIndexSim(id) {
+  if (!indexSim[id]) {
+    const s = INDEX_SEEDS[id] || { price: 1000, open: 1000 };
+    indexSim[id] = { price: s.price, open: s.open, high: s.price * 1.003, low: s.price * 0.997 };
   }
-  // Small random tick each call (±0.08%)
-  const drift = (Math.random() - 0.5) * 0.0016;
-  simPrices[id].price = simPrices[id].price * (1 + drift);
-  simPrices[id].high  = Math.max(simPrices[id].high, simPrices[id].price);
-  simPrices[id].low   = Math.min(simPrices[id].low,  simPrices[id].price);
-  return simPrices[id];
+  const drift = (Math.random() - 0.5) * 0.0008;
+  indexSim[id].price *= (1 + drift);
+  indexSim[id].high = Math.max(indexSim[id].high, indexSim[id].price);
+  indexSim[id].low  = Math.min(indexSim[id].low,  indexSim[id].price);
+  return indexSim[id];
 }
 
-// ── SIMULATED FETCH — all assets ─────────────────
+// CoinGecko — batch fetch all crypto
+async function fetchCryptoPrices(assets) {
+  const ids = assets.map(a => a.id).join(',');
+  try {
+    const res  = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`);
+    const data = await res.json();
+    data.forEach(coin => {
+      const prev = priceData[coin.id]?.price || coin.current_price;
+      priceData[coin.id] = {
+        price:  coin.current_price,
+        change: coin.price_change_percentage_24h?.toFixed(2) || '0.00',
+        high:   coin.high_24h,
+        low:    coin.low_24h,
+        vol:    coin.total_volume  ? formatVol(coin.total_volume)  : '—',
+        mcap:   coin.market_cap    ? formatVol(coin.market_cap)    : '—',
+        live:   true,
+      };
+      prices[coin.id] = coin.current_price;
+    });
+    return true;
+  } catch(e) { console.warn('CoinGecko fetch failed', e); return false; }
+}
+
+// Twelve Data — single symbol quote
+async function fetchTDQuote(symbol) {
+  try {
+    const res  = await fetch(`https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbol)}&apikey=${TD_KEY}`);
+    const d    = await res.json();
+    if (d.status === 'error' || !d.close) return null;
+    const price  = parseFloat(d.close);
+    const open   = parseFloat(d.open  || d.close);
+    const high   = parseFloat(d.high  || d.close);
+    const low    = parseFloat(d.low   || d.close);
+    const change = (((price - open) / open) * 100).toFixed(2);
+    return { price, change, high, low, vol: d.volume || '—', mcap: '—', live: true };
+  } catch(e) { return null; }
+}
+
+function formatVol(n) {
+  if (n >= 1e12) return (n/1e12).toFixed(2) + 'T';
+  if (n >= 1e9)  return (n/1e9).toFixed(1)  + 'B';
+  if (n >= 1e6)  return (n/1e6).toFixed(1)  + 'M';
+  return n.toLocaleString();
+}
+
+// ── Main fetch — all asset categories ────────────
 async function fetchAllPrices() {
-  const allAssets = [
-    ...(ASSETS.crypto      || []),
+  const cryptoAssets = (ASSETS.crypto || []).filter(a => a.source === 'CoinGecko');
+  const tdAssets     = [
     ...(ASSETS.stocks      || []),
     ...(ASSETS.forex       || []),
     ...(ASSETS.commodities || []),
-    ...(ASSETS.indices     || []),
   ];
+  const indexAssets  = (ASSETS.indices || []);
 
-  allAssets.forEach(asset => {
-    const sim = getSimPrice(asset.id);
-    if (!sim) return;
-    const base   = BASE_PRICES[asset.id];
+  // Crypto — one batch call
+  if (cryptoAssets.length) await fetchCryptoPrices(cryptoAssets);
+
+  // Stocks / Forex / Commodities — parallel TD calls
+  await Promise.all(tdAssets.map(async asset => {
+    const sym = asset.tdSymbol || asset.id;
+    const d   = await fetchTDQuote(sym);
+    if (!d) return;
+    priceData[asset.id] = d;
+    prices[asset.id]    = d.price;
+  }));
+
+  // Indices — simulated drift (TD free tier blocks these)
+  indexAssets.forEach(asset => {
+    const sim    = getIndexSim(asset.id);
     const change = (((sim.price - sim.open) / sim.open) * 100).toFixed(2);
-    priceData[asset.id] = {
-      price:  sim.price,
-      change,
-      high:   sim.high,
-      low:    sim.low,
-      vol:    base.vol,
-      mcap:   base.mcap,
-      live:   true,
-    };
-    prices[asset.id] = sim.price;
+    priceData[asset.id] = { price: sim.price, change, high: sim.high, low: sim.low, vol: '—', mcap: '—', live: false };
+    prices[asset.id]    = sim.price;
   });
 
   renderHotList();
@@ -181,25 +204,29 @@ async function fetchAllPrices() {
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 }
 
-// Keep old name as alias so existing call sites still work
+// Keep alias for any legacy call sites
 const fetchAllTwelveData = fetchAllPrices;
 
-// ── Single asset refresh (uses same sim data) ─────
+// ── Single asset refresh ──────────────────────────
 async function fetchSingleAsset(asset) {
-  const sim = getSimPrice(asset.id);
-  if (!sim) return false;
-  const base   = BASE_PRICES[asset.id];
-  const change = (((sim.price - sim.open) / sim.open) * 100).toFixed(2);
-  priceData[asset.id] = {
-    price:  sim.price,
-    change,
-    high:   sim.high,
-    low:    sim.low,
-    vol:    base.vol,
-    mcap:   base.mcap,
-    live:   true,
-  };
-  prices[asset.id] = sim.price;
+  if (asset.source === 'CoinGecko') {
+    return await fetchCryptoPrices([asset]);
+  }
+  if (INDEX_SEEDS[asset.id]) {
+    const sim = getIndexSim(asset.id);
+    priceData[asset.id] = {
+      price:  sim.price,
+      change: (((sim.price - sim.open) / sim.open) * 100).toFixed(2),
+      high: sim.high, low: sim.low, vol: '—', mcap: '—', live: false,
+    };
+    prices[asset.id] = sim.price;
+    return true;
+  }
+  const sym = asset.tdSymbol || asset.id;
+  const d   = await fetchTDQuote(sym);
+  if (!d) return false;
+  priceData[asset.id] = d;
+  prices[asset.id]    = d.price;
   return true;
 }
 
@@ -2250,10 +2277,10 @@ setInterval(() => {
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 }, 8000);
 
-// Polygon REST refresh every 5 minutes — keeps OHLCV data fresh
+// Real price refresh every 60 seconds
 setInterval(() => {
   fetchAllPrices();
-}, 5 * 60 * 1000);
+}, 60 * 1000);
 
 // ═══════════════════════════════════════════════
 // INIT
@@ -2272,20 +2299,14 @@ async function init() {
     if (!prefs?.telegram_chat_id) {
       savePreferencesDB({ telegram_chat_id: telegramChatId, telegram_enabled: true, sound_enabled: soundEnabled });
     }
-    // Show connection toast
-    setTimeout(() => {
-      const name = telegramUserName ? ` ${telegramUserName}` : '';
-      showTgToast(`🔔 Hey${name}, you're connected!<br><small style="opacity:0.75">Send a test message to confirm alerts are working.</small>`);
-    }, 1200);
-  } else if (prefs) {
-    telegramChatId  = prefs.telegram_chat_id || localStorage.getItem('tg_chat_id') || '';
-    telegramEnabled = prefs.telegram_enabled ?? (localStorage.getItem('tg_enabled') === 'true');
-    soundEnabled    = prefs.sound_enabled ?? true;
+    // Silent connection — no nag toast
   } else {
-    telegramChatId  = localStorage.getItem('tg_chat_id') || '';
-    telegramEnabled = localStorage.getItem('tg_enabled') === 'true';
+    // Not inside Telegram — show blocking connect prompt
+    soundEnabled = prefs?.sound_enabled ?? true;
+    showTgConnectPrompt();
+    return; // halt init until user opens via bot
   }
-  if (telegramChatId) updateTgBtn();
+  updateTgBtn();
 
   const dbAlerts = await loadAlertsFromDB();
   if (dbAlerts !== null) alerts = dbAlerts;
@@ -2346,6 +2367,44 @@ document.addEventListener('visibilitychange', () => {
     connectAllPolyWs();
   }
 });
+
+// ── TELEGRAM CONNECT PROMPT (blocks app if not in Telegram) ──
+function showTgConnectPrompt() {
+  // Hide the main app content
+  document.querySelector('.app').style.display = 'none';
+
+  // Build and show a full-screen connect gate
+  const gate = document.createElement('div');
+  gate.id = 'tg-gate';
+  gate.style.cssText = `
+    position:fixed;inset:0;z-index:99999;
+    background:var(--bg);
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    padding:32px;text-align:center;
+  `;
+  gate.innerHTML = `
+    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" style="margin-bottom:24px;opacity:0.9">
+      <circle cx="28" cy="28" r="27" stroke="#2AABEE" stroke-width="2"/>
+      <path d="M38 18L18 25l7 3 2 7 3-4 6 4 2-17z" stroke="#2AABEE" stroke-width="2" stroke-linejoin="round" fill="none"/>
+      <line x1="25" y1="28" x2="30" y2="26" stroke="#2AABEE" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    <div style="font-size:1.2rem;font-weight:700;letter-spacing:0.08em;margin-bottom:10px;color:var(--text)">CONNECT TELEGRAM</div>
+    <div style="font-size:0.85rem;color:var(--muted);line-height:1.6;max-width:280px;margin-bottom:28px">
+      TradeWatch delivers alerts directly to your Telegram.<br><br>
+      To continue, open the app through the bot so your account can be linked automatically.
+    </div>
+    <a href="https://t.me/tradewatchalert_bot" target="_blank"
+       style="display:inline-flex;align-items:center;gap:8px;background:#2AABEE;color:#fff;font-weight:700;font-size:0.9rem;letter-spacing:0.06em;padding:14px 28px;border-radius:10px;text-decoration:none;">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 2L2 6.5l4 1.5 1.5 4 2-3 3.5 2.5L14 2z" stroke="white" stroke-width="1.3" stroke-linejoin="round" fill="none"/></svg>
+      OPEN @tradewatchalert_bot
+    </a>
+    <div style="margin-top:16px;font-size:0.72rem;color:var(--muted);opacity:0.6">
+      Tap the bot → tap START → open the app link
+    </div>
+  `;
+  document.body.appendChild(gate);
+}
 
 // ── TELEGRAM CONNECTION TOAST ─────────────────────
 function showTgToast(msg) {
