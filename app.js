@@ -1676,75 +1676,65 @@ async function sendTelegram(message) {
 }
 
 // Format a rich alert message for Telegram
+// Build a monospace-aligned detail block for Telegram
+// Labels are left-padded to a fixed width so values line up cleanly
+function tgRow(label, value) {
+  return `<code>${label.padEnd(16)}</code>${value}`;
+}
+
 function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval) {
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
   const time    = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const tfLabel = timeframe ? ` (${timeframe})` : '';
 
-  let lines = [];
+  let header, subtitle, rows = [];
 
   if (isZone) {
-    lines = [
-      `📍 <b>ZONE ALERT TRIGGERED</b>`,
-      ``,
-      `<b>${symbol}</b> entered your price zone${tfLabel}`,
-      ``,
-      `📊 Zone:          <b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`,
-      `💰 Current price: <b>${formatPrice(currentPrice, assetId)}</b>`,
-    ];
-    if (repeatInterval && repeatInterval > 0) {
-      lines.push(`🔁 Repeating every <b>${repeatInterval} min</b> while price stays in zone`);
-    }
+    header   = `📍 <b>ZONE ALERT — ${symbol}</b>`;
+    subtitle = `Price has entered your zone`;
+    rows.push(tgRow('Zone',          `<b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`));
+    rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
+    if (timeframe)                            rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
+    if (repeatInterval && repeatInterval > 0) rows.push(tgRow('Repeat',    `<b>Every ${repeatInterval} min</b>`));
   } else {
     const emoji   = isAbove ? '🚀' : '📉';
     const dirWord = isAbove ? 'broke above' : 'dropped below';
-    const arrow   = isAbove ? '⬆️' : '⬇️';
-    lines = [
-      `${emoji} <b>ALERT TRIGGERED</b>`,
-      ``,
-      `<b>${symbol}</b> ${dirWord} your target${tfLabel}`,
-      ``,
-      `🎯 Target:         <b>${formatPrice(targetPrice, assetId)}</b>`,
-      `${arrow} Current price: <b>${formatPrice(currentPrice, assetId)}</b>`,
-    ];
+    header   = `${emoji} <b>ALERT TRIGGERED — ${symbol}</b>`;
+    subtitle = `Price ${dirWord} your target`;
+    rows.push(tgRow('Target',        `<b>${formatPrice(targetPrice, assetId)}</b>`));
+    rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
+    if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
   }
 
-  if (note) lines.push(`📝 Note: <i>${note}</i>`);
-  lines.push(``, `⏰ ${time}`, ``, `<i>Tap to open TradeWatch</i>`);
-  return lines.join('\n');
+  if (note) rows.push(tgRow('Note', `<i>${note}</i>`));
+
+  return [header, ``, subtitle, ``, ...rows, ``, `⏰ ${time}`, ``, `<i>Tap to open TradeWatch</i>`].join('\n');
 }
 
 function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval) {
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
-  const tfLabel = timeframe ? ` · <b>${timeframe}</b>` : '';
 
-  let lines = [];
+  let header, subtitle, rows = [];
+
   if (isZone) {
-    lines = [
-      `📍 <b>Zone Alert Set — ${symbol}</b>`,
-      ``,
-      `You'll be notified when <b>${symbol}</b> enters the zone${tfLabel}`,
-      `📊 Zone: <b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`,
-    ];
-    if (repeatInterval && repeatInterval > 0) {
-      lines.push(`🔁 Repeats every <b>${repeatInterval} min</b> while price stays in zone`);
-    }
+    header   = `📍 <b>Zone Alert Set — ${symbol}</b>`;
+    subtitle = `You'll be notified when <b>${symbol}</b> enters the zone`;
+    rows.push(tgRow('Zone',      `<b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`));
+    if (timeframe)                            rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
+    if (repeatInterval && repeatInterval > 0) rows.push(tgRow('Repeat',   `<b>Every ${repeatInterval} min</b>`));
   } else {
-    const emoji   = isZone ? '📍' : isAbove ? '🟢' : '🔴';
+    const emoji   = isAbove ? '🟢' : '🔴';
     const dirWord = isAbove ? 'rises above' : 'falls below';
-    lines = [
-      `${emoji} <b>Alert Set — ${symbol}</b>`,
-      ``,
-      `You'll be notified when <b>${symbol}</b> ${dirWord}${tfLabel}`,
-      `🎯 <b>${formatPrice(targetPrice, assetId)}</b>`,
-    ];
+    header   = `${emoji} <b>Alert Set — ${symbol}</b>`;
+    subtitle = `You'll be notified when <b>${symbol}</b> ${dirWord}`;
+    rows.push(tgRow('Target',    `<b>${formatPrice(targetPrice, assetId)}</b>`));
+    if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
   }
 
-  if (note) lines.push(`📝 Note: <i>${note}</i>`);
-  lines.push(``, `<i>Watching the markets for you 👀</i>`);
-  return lines.filter(l => l !== null).join('\n');
+  if (note) rows.push(tgRow('Note', `<i>${note}</i>`));
+
+  return [header, ``, subtitle, ``, ...rows, ``, `<i>Watching the markets for you 👀</i>`].join('\n');
 }
 
 // ═══════════════════════════════════════════════
