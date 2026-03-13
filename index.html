@@ -279,6 +279,8 @@
       <div class="form-title">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:inline-block;vertical-align:middle;margin-right:6px;margin-bottom:2px"><polygon points="7,1 8.5,5.5 13,5.5 9.5,8.5 10.5,13 7,10.5 3.5,13 4.5,8.5 1,5.5 5.5,5.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor" opacity="0.9"/></svg>
         CREATE PRICE ALERT</div>
+
+      <!-- Row 1: Asset + Condition -->
       <div class="form-row">
         <div class="form-group">
           <label>ASSET</label>
@@ -286,13 +288,16 @@
         </div>
         <div class="form-group">
           <label>CONDITION</label>
-          <select id="alert-condition">
+          <select id="alert-condition" onchange="onConditionChange()">
             <option value="above">Price rises ABOVE</option>
             <option value="below">Price falls BELOW</option>
+            <option value="zone">Price enters ZONE</option>
           </select>
         </div>
       </div>
-      <div class="form-row">
+
+      <!-- Row 2a: Single target price (above/below) -->
+      <div id="alert-single-row" class="form-row">
         <div class="form-group">
           <label>TARGET PRICE</label>
           <input type="number" id="alert-price" placeholder="e.g. 50000" step="any" oninput="this.dataset.userEdited='1'" onchange="this.dataset.userEdited='1'">
@@ -302,9 +307,55 @@
           <input type="text" id="alert-note" placeholder="e.g. Key resistance level">
         </div>
       </div>
-      <div class="form-note" id="current-price-note">Select an asset to see current price</div>
-      <div style="margin-bottom:14px;">
-        <div class="form-group" style="margin-bottom:6px;">
+
+      <!-- Row 2b: Zone prices (hidden unless zone selected) -->
+      <div id="alert-zone-row" style="display:none;">
+        <div class="form-row">
+          <div class="form-group">
+            <label>ZONE LOW</label>
+            <input type="number" id="alert-zone-low" placeholder="e.g. 48000" step="any">
+          </div>
+          <div class="form-group">
+            <label>ZONE HIGH</label>
+            <input type="number" id="alert-zone-high" placeholder="e.g. 52000" step="any">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>REPEAT ALERT EVERY</label>
+            <select id="alert-repeat">
+              <option value="0">Once (no repeat)</option>
+              <option value="5">Every 5 minutes</option>
+              <option value="10">Every 10 minutes</option>
+              <option value="15">Every 15 minutes</option>
+              <option value="30">Every 30 minutes</option>
+              <option value="60">Every 1 hour</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>NOTE (OPTIONAL)</label>
+            <input type="text" id="alert-note-zone" placeholder="e.g. Consolidation zone">
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Timeframe -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>TIMEFRAME</label>
+          <select id="alert-timeframe">
+            <option value="">— Any —</option>
+            <option value="1m">1 Minute</option>
+            <option value="5m">5 Minutes</option>
+            <option value="15m">15 Minutes</option>
+            <option value="30m">30 Minutes</option>
+            <option value="1h">1 Hour</option>
+            <option value="4h">4 Hours</option>
+            <option value="1D">Daily</option>
+            <option value="1W">Weekly</option>
+          </select>
+        </div>
+        <div class="form-group" id="alert-sound-group">
           <label>ALERT SOUND</label>
           <div class="sound-selector">
             <button class="sound-opt active" onclick="selectSound('chime',this)">
@@ -320,6 +371,9 @@
           </div>
         </div>
       </div>
+
+      <div class="form-note" id="current-price-note">Select an asset to see current price</div>
+
       <button class="create-btn" onclick="createAlert()">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:inline-block;vertical-align:middle;margin-right:6px;margin-bottom:1px"><polygon points="6.5,1 8,5.5 13,5.5 9,8.5 10.5,13 6.5,10 2.5,13 4,8.5 0,5.5 5,5.5" fill="currentColor"/></svg>
         SET ALERT</button>
