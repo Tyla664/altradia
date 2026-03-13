@@ -151,19 +151,54 @@ async function fetchTwelveDataBatch(assets) {
   }
 }
 
-// ── MASTER REFRESH — CoinGecko crypto + Twelve Data everything else ──
+// ── YAHOO FINANCE — indices (free, no key needed) ─
+async function fetchYahooIndices(assets) {
+  if (!assets.length) return false;
+  await Promise.all(assets.map(async asset => {
+    try {
+      const yahooMap = {
+        'SPX':  '%5EGSPC',
+        'IXIC': '%5EIXIC',
+        'DJI':  '%5EDJI',
+        'FTSE': '%5EFTSE',
+      };
+      const ticker = yahooMap[asset.id];
+      if (!ticker) return;
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+      const res  = await fetch(url);
+      const data = await res.json();
+      const meta = data?.chart?.result?.[0]?.meta;
+      if (!meta) return;
+      const price  = meta.regularMarketPrice || 0;
+      const open   = meta.chartPreviousClose || price;
+      const high   = meta.regularMarketDayHigh  || price;
+      const low    = meta.regularMarketDayLow   || price;
+      const vol    = meta.regularMarketVolume   || 0;
+      const change = open ? (((price - open) / open) * 100).toFixed(2) : '0.00';
+      if (!price) return;
+      priceData[asset.id] = { price, change, high, low, vol: vol ? formatLarge(vol) : '—', mcap: '—', live: true };
+      prices[asset.id] = price;
+    } catch(e) {
+      console.warn(`Yahoo fetch failed for ${asset.id}:`, e.message);
+    }
+  }));
+  return true;
+}
+
+// ── MASTER REFRESH — CoinGecko + Twelve Data + Yahoo ──
 async function fetchAllPrices() {
-  const cryptoAssets = (ASSETS.crypto      || []);
-  const nonCrypto    = [
+  const cryptoAssets  = (ASSETS.crypto      || []);
+  const nonCrypto     = [
     ...(ASSETS.stocks      || []),
     ...(ASSETS.forex       || []),
     ...(ASSETS.commodities || []),
-    ...(ASSETS.indices     || []),
   ];
+  const indexAssets   = (ASSETS.indices || []);
 
   await Promise.all([
     fetchCoinGeckoBatch(cryptoAssets),
     fetchTwelveDataBatch(nonCrypto),
+    fetchYahooIndices(indexAssets),
   ]);
 
   renderHotList();
@@ -178,7 +213,8 @@ const fetchAllTwelveData = fetchAllPrices;
 
 // ── Initial REST load for a single asset ──────────
 async function fetchSingleAsset(asset) {
-  if (asset.cat === 'crypto') return fetchCoinGeckoBatch([asset]);
+  if (asset.cat === 'crypto')  return fetchCoinGeckoBatch([asset]);
+  if (asset.cat === 'indices') return fetchYahooIndices([asset]);
   return fetchTwelveDataBatch([asset]);
 }
 
