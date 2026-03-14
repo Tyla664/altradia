@@ -707,12 +707,16 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     padding: 10px 24px;
-    display: flex; gap: 24px; align-items: center;
+    display: flex; gap: 16px; align-items: center;
     font-family: var(--mono); font-size: 0.68rem;
-    overflow-x: auto; white-space: nowrap;
+    overflow: hidden; white-space: nowrap;
   }
-  .summary-item { display: flex; gap: 8px; align-items: center; color: var(--muted); flex-shrink: 0; }
-  .summary-item strong { color: var(--text); }
+  .summary-item {
+    display: flex; gap: 6px; align-items: center;
+    color: var(--muted); flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .summary-item strong { color: var(--text); flex-shrink: 0; }
   .divider { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; }
 
   /* ── MOBILE BOTTOM NAV ── */
@@ -788,27 +792,30 @@
       z-index: 1;
     }
 
-    /* ── Summary bar — single scrollable ticker ── */
+    /* ── Summary bar — always fits device width ── */
     .summary-bar {
       display: flex;
-      padding: 0 16px;
-      gap: 20px;
-      font-size: 0.62rem;
+      padding: 0 12px;
+      gap: 0;
+      font-size: 0.6rem;
       height: 36px;
       min-height: 36px;
       border-bottom: 1px solid var(--border);
       position: relative;
       z-index: 2;
       flex-shrink: 0;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      align-items: center;
+      overflow: hidden;
       background: var(--surface);
+      align-items: center;
     }
-    .summary-bar::-webkit-scrollbar { display: none; }
-    .summary-bar .summary-item:last-child { display: none; }
-    .divider { width: 1px; height: 12px; }
+    .summary-item {
+      flex: 1; min-width: 0;
+      display: flex; gap: 4px; align-items: center;
+      justify-content: center;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .summary-item:last-child { display: none; }
+    .divider { width: 1px; height: 12px; flex-shrink: 0; }
 
     /* ── Pull to refresh ── */
     .ptr-indicator {
