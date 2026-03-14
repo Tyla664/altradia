@@ -300,7 +300,7 @@ async function fetchAllPrices() {
 
   // Update alert engine only — no price display
   checkAlerts();
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 }
 
 // Keep alias for legacy call sites
@@ -800,8 +800,10 @@ function setTF() {}
 function onConditionChange() {
   const condition = document.getElementById('alert-condition').value;
   const isZone = condition === 'zone';
+  const isTap  = condition === 'tap';
   document.getElementById('alert-single-row').style.display = isZone ? 'none' : '';
   document.getElementById('alert-zone-row').style.display   = isZone ? '' : 'none';
+  document.getElementById('alert-tap-row').style.display    = isTap  ? '' : 'none';
   // Re-fill with current price for the newly selected condition type
   refreshSelectedAssetPanel();
 }
@@ -1758,7 +1760,7 @@ function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, asse
   }
 
   if (note) rows.push(tgRow('Note', `<i>${note}</i>`));
-  return [header, ``, subtitle, ``, ...rows, ``, `⏰ ${time}`, ``, `<a href="https://t.me/tradewatchalert_bot/assistant">Dismiss in TradeWatch →</a>`].join('\n');
+  return [header, ``, subtitle, ``, ...rows, ``, `<a href="https://t.me/tradewatchalert_bot/assistant">Dismiss in TradeWatch →</a>`].join('\n');
 }
 
 function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance) {
@@ -2290,7 +2292,7 @@ async function refreshAll() {
   renderWatchlist();
   refreshSelectedAssetPanel();
   checkAlerts();
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 }
 
 // Auto-tick every 8 seconds — picks up WS price updates
@@ -2299,7 +2301,7 @@ setInterval(() => {
   renderWatchlist();
   refreshSelectedAssetPanel();
   checkAlerts();
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 }, 8000);
 
 // Real price refresh every 60 seconds
@@ -2393,7 +2395,7 @@ async function init() {
   renderHotList();
   renderWatchlist();
   renderAlerts();
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
   // Initial REST fetch — all assets
   await fetchAllPrices();
