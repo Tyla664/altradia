@@ -805,9 +805,10 @@ async function createAlert() {
   const assetId    = selectedAsset.id;
   const condition  = document.getElementById('alert-condition').value;
   const timeframe  = document.getElementById('alert-timeframe').value;
-  const isZone     = condition === 'zone';
+  const isZone  = condition === 'zone';
+  const isTap   = condition === 'tap';
 
-  let targetPrice = 0, zoneLow = 0, zoneHigh = 0, note = '', repeatInterval = 0;
+  let targetPrice = 0, zoneLow = 0, zoneHigh = 0, note = '', repeatInterval = 0, tapTolerance = 0.2;
 
   if (isZone) {
     zoneLow  = parseFloat(document.getElementById('alert-zone-low').value);
@@ -819,6 +820,15 @@ async function createAlert() {
     if (zoneLow >= zoneHigh)
       return showToast('Invalid Zone', 'Zone low must be less than zone high.', 'error');
     targetPrice = zoneLow;
+  } else if (isTap) {
+    targetPrice = parseFloat(document.getElementById('alert-price').value);
+    note        = document.getElementById('alert-note').value.trim();
+    if (isNaN(targetPrice) || targetPrice <= 0)
+      return showToast('Invalid Price', 'Enter a valid target price.', 'error');
+    const tolSel = document.getElementById('alert-tap-tolerance').value;
+    tapTolerance = tolSel === 'custom'
+      ? parseFloat(document.getElementById('alert-tap-custom').value) || 0.2
+      : parseFloat(tolSel);
   } else {
     targetPrice = parseFloat(document.getElementById('alert-price').value);
     note        = document.getElementById('alert-note').value.trim();
@@ -1699,16 +1709,13 @@ function tgRow(label, value) {
 }
 
 function tgTime() {
+  // Use the same timezone the mini app is running in — no offset label
   const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const now    = new Date();
-  const str    = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: userTz });
-  const offset = -now.getTimezoneOffset();
-  const sign   = offset >= 0 ? '+' : '-';
-  const abs    = Math.abs(offset);
-  return `${str} (UTC${sign}${String(Math.floor(abs/60)).padStart(2,'0')}:${String(abs%60).padStart(2,'0')})`;
+  return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: userTz });
 }
 
-function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance, proximityPct) {
+function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance) {
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
   const isTap   = condition === 'tap';
@@ -1730,15 +1737,6 @@ function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, asse
     rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
     rows.push(tgRow('Tolerance',     `<b>±${tapTolerance}%</b>`));
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
-  } else if (isProximity) {
-    const distPct = (Math.abs(currentPrice - targetPrice) / targetPrice * 100).toFixed(2);
-    header   = `⚠️ <b>APPROACHING — ${symbol}</b>`;
-    subtitle = `Price is getting close to your target`;
-    rows.push(tgRow('Target',        `<b>${formatPrice(targetPrice, assetId)}</b>`));
-    rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
-    rows.push(tgRow('Distance',      `<b>${distPct}% away</b>`));
-    if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
-    if (repeatInterval) rows.push(tgRow('Repeating', `<b>Every ${repeatInterval} min</b>`));
   } else {
     const emoji   = isAbove ? '🚀' : '📉';
     const dirWord = isAbove ? 'broke above' : 'dropped below';
@@ -1750,8 +1748,7 @@ function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, asse
   }
 
   if (note) rows.push(tgRow('Note', `<i>${note}</i>`));
-  const appLink = `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch to dismiss →</a>`;
-  return [header, ``, subtitle, ``, ...rows, ``, `⏰ ${time}`, ``, appLink].join('\n');
+  return [header, ``, subtitle, ``, ...rows, ``, `⏰ ${time}`, ``, `<a href="https://t.me/tradewatchalert_bot/assistant">Dismiss in TradeWatch →</a>`].join('\n');
 }
 
 function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance) {
