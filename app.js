@@ -1041,9 +1041,16 @@ function renderAlerts() {
     }
 
     let badgeClass, badgeLabel;
+    const isRepeatingZone = alert.condition === 'zone' && (alert.repeatInterval || 0) > 0;
+    const zoneInProgress  = isRepeatingZone && alert.zoneTriggeredOnce;
+
     if (isTriggered) {
       badgeClass = alert.condition === 'zone' ? 'badge-triggered-below' : `badge-triggered-${dir}`;
       badgeLabel = alert.condition === 'zone' ? '◈ TRIGGERED' : (dir === 'above' ? '▲ TRIGGERED' : '▼ TRIGGERED');
+    } else if (zoneInProgress) {
+      // Repeating zone that has fired at least once — show pulsing IN ZONE badge
+      badgeClass = 'badge-zone-active';
+      badgeLabel = '● IN ZONE';
     } else if (alert.status === 'paused') {
       badgeClass = 'badge-inactive'; badgeLabel = 'PAUSED';
     } else {
@@ -1054,12 +1061,16 @@ function renderAlerts() {
       ? `<span style="color:${dir === 'above' ? 'var(--green)' : 'var(--red)'}">
            Hit ${formatPrice(alert.triggeredPrice, alert.assetId)} at ${alert.triggeredAt}
          </span><br>`
-      : '';
+      : zoneInProgress
+        ? `<span style="color:var(--accent);font-size:0.78rem;">
+             Price inside zone · repeating every ${alert.repeatInterval}m
+           </span><br>`
+        : '';
 
     // Detail line — zone vs above/below
     const isZoneAlert = alert.condition === 'zone';
     const detailLine = isZoneAlert
-      ? `<strong>◈ ZONE</strong> ${formatPrice(alert.zoneLow, alert.assetId)} – ${formatPrice(alert.zoneHigh, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}${alert.repeatInterval ? ` <span style="opacity:0.6;font-size:0.75em">· repeats ${alert.repeatInterval}m</span>` : ''}`
+      ? `<strong>◈ ZONE</strong> ${formatPrice(alert.zoneLow, alert.assetId)} – ${formatPrice(alert.zoneHigh, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}${alert.repeatInterval ? ` <span style="opacity:0.6;font-size:0.75em">· every ${alert.repeatInterval}m</span>` : ''}`
       : `<strong>${alert.condition === 'above'
           ? '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="1,7 5,3 9,7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>ABOVE'
           : '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="1,3 5,7 9,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>BELOW'
@@ -1345,7 +1356,10 @@ function checkAlerts() {
     showToast(`ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
     playAlertSound(alert.sound || selectedAlertSound);
     sendBrowserNotification(`${alert.symbol} Alert Triggered`, msg);
-    if (telegramEnabled) {
+    // For repeating zone alerts, Telegram is handled exclusively by the Edge Function
+    // to avoid duplicate messages when the app is open at the same time.
+    const isRepeatingZone = isZone && (alert.repeatInterval || 0) > 0;
+    if (telegramEnabled && !isRepeatingZone) {
       sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition,
         alert.targetPrice, currentPrice, alert.assetId,
         alert.note, alert.timeframe, alert.zoneLow, alert.zoneHigh, alert.repeatInterval));
@@ -1643,9 +1657,14 @@ function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, asse
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
   // Auto-detect user's timezone for timestamp
-  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const time   = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: userTz })
-               + ' ' + (userTz.split('/')[1] || userTz).replace(/_/g,' ');
+  const userTz   = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const now      = new Date();
+  const timeStr  = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: userTz });
+  const offset   = -now.getTimezoneOffset();
+  const sign     = offset >= 0 ? '+' : '-';
+  const absOff   = Math.abs(offset);
+  const offStr   = `UTC${sign}${String(Math.floor(absOff/60)).padStart(2,'0')}:${String(absOff%60).padStart(2,'0')}`;
+  const time     = `${timeStr} (${offStr})`;
 
   let header, subtitle, rows = [];
 
