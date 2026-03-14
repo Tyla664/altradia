@@ -348,13 +348,45 @@ function formatPrice(p, id) {
 function refreshSelectedAssetPanel() {
   if (!selectedAsset) return;
   const asset = selectedAsset;
-  // Update asset header identity only — no price display
+
   document.getElementById('sel-symbol').textContent = asset.symbol;
   document.getElementById('sel-name').textContent   = asset.name;
 
-  // Keep alert form note neutral
-  const noteEl = document.getElementById('current-price-note');
-  if (noteEl) noteEl.textContent = 'Enter your target price below';
+  const d     = priceData[asset.id];
+  const price = d?.price || null;
+
+  // ── Pre-fill alert form with current price ────────
+  const condition = document.getElementById('alert-condition')?.value || 'above';
+  const isZone    = condition === 'zone';
+
+  if (price) {
+    // Round to appropriate precision
+    const decimals = price >= 1000 ? 2 : price >= 1 ? 4 : 6;
+    const rounded  = parseFloat(price.toFixed(decimals));
+
+    // Above/below — only pre-fill if user hasn't already typed something
+    const priceInput = document.getElementById('alert-price');
+    if (priceInput && !priceInput.dataset.userEdited) {
+      priceInput.value = rounded;
+    }
+
+    // Zone — pre-fill with ±0.3% band around current price (editable)
+    const zoneLowEl  = document.getElementById('alert-zone-low');
+    const zoneHighEl = document.getElementById('alert-zone-high');
+    if (zoneLowEl && !zoneLowEl.dataset.userEdited) {
+      zoneLowEl.value  = parseFloat((price * 0.997).toFixed(decimals));
+    }
+    if (zoneHighEl && !zoneHighEl.dataset.userEdited) {
+      zoneHighEl.value = parseFloat((price * 1.003).toFixed(decimals));
+    }
+
+    // Show current price as helper note
+    const noteEl = document.getElementById('current-price-note');
+    if (noteEl) noteEl.textContent = `Current price: ${formatPrice(price, asset.id)} — edit to set your target`;
+  } else {
+    const noteEl = document.getElementById('current-price-note');
+    if (noteEl) noteEl.textContent = 'Price loading… enter your target manually';
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -763,6 +795,8 @@ function onConditionChange() {
   const isZone = condition === 'zone';
   document.getElementById('alert-single-row').style.display = isZone ? 'none' : '';
   document.getElementById('alert-zone-row').style.display   = isZone ? '' : 'none';
+  // Re-fill with current price for the newly selected condition type
+  refreshSelectedAssetPanel();
 }
 
 async function createAlert() {
@@ -848,6 +882,8 @@ async function createAlert() {
   document.getElementById('alert-timeframe').value = '';
   document.getElementById('alert-repeat').value    = '0';
   delete document.getElementById('alert-price').dataset.userEdited;
+  delete document.getElementById('alert-zone-low').dataset.userEdited;
+  delete document.getElementById('alert-zone-high').dataset.userEdited;
 
   const tfLabel = timeframe ? ` · ${timeframe}` : '';
   if (isZone) {
