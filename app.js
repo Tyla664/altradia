@@ -1226,10 +1226,36 @@ function toggleHistoryGroup(assetId) {
   historyExpandedAsset = historyExpandedAsset === assetId ? null : assetId;
   renderHistory();
 }
+// ── Market hours helpers (client-side mirror of Edge Function logic) ──────────
+function isForexOpen(now) {
+  const day = now.getUTCDay(), hour = now.getUTCHours();
+  if (day === 6) return false;
+  if (day === 0 && hour < 21) return false;
+  return true;
+}
+function isStockOpen(now) {
+  const day = now.getUTCDay();
+  if (day === 0 || day === 6) return false;
+  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
+  return mins >= 870 && mins < 1260;
+}
+function isMarketOpenForAsset(assetId, now) {
+  if (['bitcoin','ethereum','solana','ripple','binancecoin',
+       'dogecoin','cardano','avalanche-2','chainlink','litecoin'].includes(assetId)) return true;
+  if (['XAU/USD','XAG/USD','WTI/USD','XNG/USD'].includes(assetId)) return isForexOpen(now);
+  if (assetId.includes('/')) return isForexOpen(now);
+  return isStockOpen(now); // stocks
+}
+
 function checkAlerts() {
   const now = Date.now();
+  const nowDate = new Date(now);
   alerts.forEach(alert => {
     if (alert.status !== 'active') return;
+
+    // Don't fire on stale weekend/after-hours prices
+    if (!isMarketOpenForAsset(alert.assetId, nowDate)) return;
+
     const currentPrice = priceData[alert.assetId]?.price || prices[alert.assetId];
     if (!currentPrice) return;
 
