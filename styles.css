@@ -707,17 +707,19 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     padding: 10px 24px;
-    display: flex; gap: 16px; align-items: center;
+    display: flex; gap: 0; align-items: center;
     font-family: var(--mono); font-size: 0.68rem;
     overflow: hidden; white-space: nowrap;
   }
   .summary-item {
     display: flex; gap: 6px; align-items: center;
     color: var(--muted); flex: 1; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis;
+    justify-content: center;
   }
+  .summary-item:first-child { justify-content: flex-start; }
+  .summary-item:last-child  { justify-content: flex-end; }
   .summary-item strong { color: var(--text); flex-shrink: 0; }
-  .divider { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; }
+  .divider { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
 
   /* ── MOBILE BOTTOM NAV ── */
   .mobile-nav {
@@ -795,9 +797,9 @@
     /* ── Summary bar — always fits device width ── */
     .summary-bar {
       display: flex;
-      padding: 0 12px;
+      padding: 0 10px;
       gap: 0;
-      font-size: 0.6rem;
+      font-size: 0.58rem;
       height: 36px;
       min-height: 36px;
       border-bottom: 1px solid var(--border);
@@ -810,12 +812,12 @@
     }
     .summary-item {
       flex: 1; min-width: 0;
-      display: flex; gap: 4px; align-items: center;
+      display: flex; gap: 3px; align-items: center;
       justify-content: center;
-      overflow: hidden; text-overflow: ellipsis;
     }
-    .summary-item:last-child { display: none; }
-    .divider { width: 1px; height: 12px; flex-shrink: 0; }
+    .summary-item:first-child { justify-content: flex-start; }
+    .summary-item:last-child  { display: none; }
+    .divider { width: 1px; height: 12px; flex-shrink: 0; margin: 0 2px; }
 
     /* ── Pull to refresh ── */
     .ptr-indicator {
