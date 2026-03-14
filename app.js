@@ -1031,6 +1031,12 @@ const ALERT_ICONS = {
   active:    `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:3px"><circle cx="5" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><circle cx="5" cy="5" r="1" fill="currentColor"/></svg>`,
 };
 
+// ── Button SVG icons for alert actions ───────────────────────────────────────
+const SVG_DELETE  = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:4px"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const SVG_DISMISS = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:4px"><polyline points="1,5 3.5,7.5 9,2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SVG_RESUME  = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:4px"><polygon points="1,1 9,5 1,9" fill="currentColor"/></svg>';
+const SVG_PAUSE   = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:4px"><rect x="1.5" y="1" width="2.5" height="8" rx="1" fill="currentColor"/><rect x="6" y="1" width="2.5" height="8" rx="1" fill="currentColor"/></svg>';
+
 function renderAlerts() {
   const container = document.getElementById('alerts-list');
   const active = alerts.filter(a => a.status === 'active').length;
@@ -1744,7 +1750,7 @@ function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, asse
   }
 
   if (note) rows.push(tgRow('Note', `<i>${note}</i>`));
-  const appLink = `<a href="https://t.me/tradewatchalert_bot/alerts">Open TradeWatch to dismiss →</a>`;
+  const appLink = `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch to dismiss →</a>`;
   return [header, ``, subtitle, ``, ...rows, ``, `⏰ ${time}`, ``, appLink].join('\n');
 }
 
@@ -2440,7 +2446,7 @@ function showTgConnectPrompt() {
       TradeWatch delivers alerts directly to your Telegram.<br><br>
       To continue, open the app through the bot so your account can be linked automatically.
     </div>
-    <a href="https://t.me/tradewatchalert_bot" target="_blank"
+    <a href="https://t.me/tradewatchalert_bot/assistant" target="_blank"
        style="display:inline-flex;align-items:center;gap:8px;background:#2AABEE;color:#fff;font-weight:700;font-size:0.9rem;letter-spacing:0.06em;padding:14px 28px;border-radius:10px;text-decoration:none;">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 2L2 6.5l4 1.5 1.5 4 2-3 3.5 2.5L14 2z" stroke="white" stroke-width="1.3" stroke-linejoin="round" fill="none"/></svg>
       OPEN @tradewatchalert_bot
