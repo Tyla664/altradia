@@ -1116,18 +1116,19 @@ function renderAlerts() {
       detailLine = `<strong>${alert.condition === 'above' ? ALERT_ICONS.above + 'ABOVE' : ALERT_ICONS.below + 'BELOW'}</strong> ${formatPrice(alert.targetPrice, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}`;
     }
 
-    const isRepeat = (alert.condition === 'zone' || alert.condition === 'tap') && (alert.repeatInterval || 0) > 0;
-    const btnDelete  = `<button class="alert-action-btn delete" onclick="deleteAlert('${alert.id}')">${SVG_DELETE}DELETE</button>`;
-    const btnDismiss = `<button class="alert-action-btn dismiss" onclick="dismissAlert('${alert.id}')">${SVG_DISMISS}DISMISS</button>`;
-    const btnPause   = alert.status === 'paused'
+    const isRepeat      = (alert.condition === 'zone' || alert.condition === 'tap') && (alert.repeatInterval || 0) > 0;
+    const hasEverFired  = !!alert.zoneTriggeredOnce || !!alert.tapTriggeredOnce || alert.status === 'triggered';
+    const btnDelete     = `<button class="alert-action-btn delete" onclick="deleteAlert('${alert.id}')">${SVG_DELETE}DELETE</button>`;
+    const btnDismiss    = `<button class="alert-action-btn dismiss" onclick="dismissAlert('${alert.id}')">${SVG_DISMISS}DISMISS</button>`;
+    const btnPause      = alert.status === 'paused'
       ? `<button class="alert-action-btn toggle" onclick="toggleAlert('${alert.id}')">${SVG_RESUME}RESUME</button>`
       : `<button class="alert-action-btn toggle" onclick="toggleAlert('${alert.id}')">${SVG_PAUSE}PAUSE</button>`;
 
-    const actions = isTriggered
+    // PAUSE: shown on any active alert that has never fired yet
+    // DISMISS: shown once alert has triggered at least once (repeating or not)
+    const actions = isTriggered || (isRepeat && hasEverFired)
       ? btnDismiss + btnDelete
-      : isRepeat
-        ? btnDismiss + btnDelete
-        : btnPause   + btnDelete;
+      : btnPause   + btnDelete;
 
         div.innerHTML = `
       <div class="alert-header-row">
