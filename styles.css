@@ -397,6 +397,10 @@
     background: rgba(74,106,128,0.15); color: var(--muted);
     border: 1px solid var(--border);
   }
+  .badge-zone-exited {
+    background: rgba(255,61,90,0.08); color: var(--red);
+    border: 1px solid rgba(255,61,90,0.25);
+  }
   @keyframes zonePulse {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,212,255,0.3); }
     50%       { opacity: 0.8; box-shadow: 0 0 0 4px rgba(0,212,255,0); }
