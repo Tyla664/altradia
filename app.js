@@ -846,7 +846,7 @@ function selectAsset(asset) {
   } else {
     renderHotList();
     renderWatchlist();
-    loadTVChart(asset);
+    setTimeout(() => loadTVChart(asset), 50);
   }
 }
 
@@ -896,7 +896,7 @@ function mobileTab(tab, pushState = true) {
     panel.classList.add('mobile-active');
     panel.scrollTop = 0;
     document.getElementById('mnav-chart').classList.add('active');
-    setTimeout(() => { if (selectedAsset) loadTVChart(selectedAsset); }, 60);
+    setTimeout(() => { if (selectedAsset) loadTVChart(selectedAsset); }, 150);
   } else if (tab === 'alerts') {
     if (fab) fab.classList.remove('visible');
     const panel = document.getElementById('panel-alerts');
@@ -980,9 +980,11 @@ function ensureLWChart() {
   if (!container) return false;
 
   if (!lwChart) {
+    const w = container.clientWidth  || container.offsetWidth  || 400;
+    const h = container.clientHeight || container.offsetHeight || 480;
     lwChart = LightweightCharts.createChart(container, {
-      width:  container.clientWidth,
-      height: container.clientHeight,
+      width:  w,
+      height: h,
       layout: {
         background:  { color: '#080c12' },
         textColor:   '#8899aa',
@@ -1024,11 +1026,10 @@ function ensureLWChart() {
 
     // Resize observer
     const ro = new ResizeObserver(() => {
-      if (lwChart && container.clientWidth > 0) {
-        lwChart.applyOptions({
-          width:  container.clientWidth,
-          height: container.clientHeight,
-        });
+      const w = container.clientWidth  || container.offsetWidth;
+      const h = container.clientHeight || container.offsetHeight;
+      if (lwChart && w > 0 && h > 0) {
+        lwChart.applyOptions({ width: w, height: h });
       }
     });
     ro.observe(container);
@@ -1047,8 +1048,20 @@ async function loadLWChart(asset) {
   if (!asset) return;
   lwCurrentAsset = asset;
 
-  // Clear old alert lines before fetching new data
-  clearAlertLines();
+  const container = document.getElementById('lw-chart');
+  if (!container) return;
+
+  // Make sure container is visible before measuring
+  const tvCont = document.getElementById('tv-container');
+  if (tvCont) tvCont.style.display = '';
+
+  // Destroy and recreate chart to ensure clean state and correct dimensions
+  if (lwChart) {
+    try { lwChart.remove(); } catch(e) {}
+    lwChart  = null;
+    lwSeries = null;
+    lwAlertLines = [];
+  }
 
   if (!ensureLWChart()) return;
   setChartLoading(true);
@@ -1095,107 +1108,145 @@ async function fetchOHLC(asset, tf) {
   return null;
 }
 
-// ── CoinGecko OHLC ───────────────────────────────
-async function fetchCoinGeckoOHLC(asset, cfg) {
-  // CoinGecko /ohlc endpoint returns daily/weekly candles
-  // days param: 1=hourly (up to 2 days), 7-90=daily, max=daily
-  const days = cfg.granularity <= 3600  ? 2
-             : cfg.granularity <= 14400 ? 14
-             : cfg.granularity <= 86400 ? 180
-             : 365;
+// ═══════════════════════════════════════════════
+// OHLC DATA SOURCES
+// Crypto  → Binance REST (no CORS, no key, reliable)
+// Forex   → Deriv WebSocket ticks_history request
+// Stocks  → OANDA REST candles (server-side key)
+// ═══════════════════════════════════════════════
+
+// ── Binance REST OHLC — crypto ───────────────────
+// Binance supports browser CORS, no API key needed
+const BINANCE_SYMBOL = {
+  bitcoin:'BTCUSDT',    ethereum:'ETHUSDT',   solana:'SOLUSDT',
+  ripple:'XRPUSDT',     binancecoin:'BNBUSDT', dogecoin:'DOGEUSDT',
+  cardano:'ADAUSDT',    'avalanche-2':'AVAXUSDT', chainlink:'LINKUSDT',
+  litecoin:'LTCUSDT',   polkadot:'DOTUSDT',   'shiba-inu':'SHIBUSDT',
+  uniswap:'UNIUSDT',    cosmos:'ATOMUSDT',    stellar:'XLMUSDT',
+  monero:'XMRUSDT',     tron:'TRXUSDT',       aave:'AAVEUSDT',
+  near:'NEARUSDT',      aptos:'APTUSDT',      arbitrum:'ARBUSDT',
+  optimism:'OPUSDT',    sui:'SUIUSDT',        toncoin:'TONUSDT',
+  pepe:'PEPEUSDT',      bonk:'BONKUSDT',      maker:'MKRUSDT',
+  kaspa:'KASUSDT',      'render-token':'RENDERUSDT', 'fetch-ai':'FETUSDT',
+  'worldcoin-wld':'WLDUSDT', celestia:'TIAUSDT', starknet:'STRKUSDT',
+  hedera:'HBARUSDT',    vechain:'VETUSDT',    algorand:'ALGOUSDT',
+  'internet-computer':'ICPUSDT', filecoin:'FILUSDT',
+  'injective-protocol':'INJUSDT', 'sei-network':'SEIUSDT',
+  'immutable-x':'IMXUSDT', polygon:'MATICUSDT',
+};
+
+const BINANCE_TF = {
+  '1H':'1h', '4H':'4h', '1D':'1d', '1W':'1w'
+};
+
+async function fetchBinanceOHLC(asset, cfg) {
+  const sym = BINANCE_SYMBOL[asset.id];
+  if (!sym) return null;
+  const interval = BINANCE_TF[lwCurrentTF] || '1d';
   try {
     const res  = await fetch(
-      `https://api.coingecko.com/api/v3/coins/${asset.cgId}/ohlc?vs_currency=usd&days=${days}`
+      `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${cfg.count}`
     );
     const data = await res.json();
     if (!Array.isArray(data) || !data.length) return null;
 
-    // CoinGecko returns [timestamp_ms, open, high, low, close]
-    const candles = data.map(([t, o, h, l, c]) => ({
-      time:  Math.floor(t / 1000),
-      open:  o, high: h, low: l, close: c,
+    // Binance: [openTime, open, high, low, close, volume, ...]
+    const candles = data.map(k => ({
+      time:  Math.floor(k[0] / 1000),
+      open:  parseFloat(k[1]),
+      high:  parseFloat(k[2]),
+      low:   parseFloat(k[3]),
+      close: parseFloat(k[4]),
     }));
-
-    // Deduplicate and sort
     const seen = new Set();
     return candles
       .filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })
       .sort((a, b) => a.time - b.time);
   } catch(e) {
-    console.warn('CoinGecko OHLC failed:', e);
+    console.warn('Binance OHLC failed:', e);
     return null;
   }
 }
 
-// ── Deriv OHLC via ticks_history ─────────────────
-// Deriv's ticks_history endpoint returns OHLC candles
-// when style=candles and granularity is set
+// ── Deriv OHLC via WebSocket ─────────────────────
+// ticks_history with style=candles over the same WS
 async function fetchDerivOHLC(asset, cfg) {
-  try {
-    const end   = Math.floor(Date.now() / 1000);
-    const start = end - cfg.granularity * cfg.count;
+  return new Promise((resolve) => {
+    // Use a one-shot WebSocket request for OHLC
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    let done = false;
+    const timeout = setTimeout(() => {
+      done = true;
+      try { ws.close(); } catch(e) {}
+      resolve(null);
+    }, 10000);
 
-    const body = {
-      ticks_history: asset.derivSym,
-      style:         'candles',
-      granularity:   cfg.granularity,
-      start,
-      end,
-      count:         cfg.count,
-      adjust_start_time: 1,
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        ticks_history: asset.derivSym,
+        style:         'candles',
+        granularity:   cfg.granularity,
+        count:         cfg.count,
+        end:           'latest',
+        adjust_start_time: 1,
+      }));
     };
 
-    const res  = await fetch(
-      `https://api.deriv.com/api/v1/?app_id=${DERIV_APP_ID}`,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
-      }
-    );
-    const data = await res.json();
+    ws.onmessage = (evt) => {
+      if (done) return;
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.msg_type === 'candles' || msg.candles) {
+          done = true;
+          clearTimeout(timeout);
+          ws.close();
+          const raw = msg.candles || [];
+          if (!raw.length) return resolve(null);
+          const candles = raw.map(c => ({
+            time:  c.epoch,
+            open:  parseFloat(c.open),
+            high:  parseFloat(c.high),
+            low:   parseFloat(c.low),
+            close: parseFloat(c.close),
+          }));
+          const seen = new Set();
+          resolve(
+            candles
+              .filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })
+              .sort((a, b) => a.time - b.time)
+          );
+        } else if (msg.error) {
+          done = true;
+          clearTimeout(timeout);
+          ws.close();
+          console.warn('Deriv OHLC WS error:', msg.error.message, asset.derivSym);
+          resolve(null);
+        }
+      } catch(e) { resolve(null); }
+    };
 
-    if (data.error || !data.candles?.length) {
-      console.warn('Deriv OHLC error:', data.error?.message || 'no candles', asset.derivSym);
-      return null;
-    }
-
-    // Deriv returns [{epoch, open, high, low, close}]
-    const candles = data.candles.map(c => ({
-      time:  c.epoch,
-      open:  parseFloat(c.open),
-      high:  parseFloat(c.high),
-      low:   parseFloat(c.low),
-      close: parseFloat(c.close),
-    }));
-
-    const seen = new Set();
-    return candles
-      .filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })
-      .sort((a, b) => a.time - b.time);
-  } catch(e) {
-    console.warn('Deriv OHLC failed:', e);
-    return null;
-  }
+    ws.onerror = () => {
+      if (!done) { done = true; clearTimeout(timeout); resolve(null); }
+    };
+    ws.onclose = () => {
+      if (!done) { done = true; clearTimeout(timeout); resolve(null); }
+    };
+  });
 }
 
-// ── OANDA OHLC for stocks CFD ─────────────────────
+// ── OANDA OHLC — stocks CFD ──────────────────────
 async function fetchOandaOHLC(asset, cfg) {
   if (!OANDA_KEY || !asset.oandaSym) return null;
+  const granMap = { 3600:'H1', 14400:'H4', 86400:'D', 604800:'W' };
+  const gran    = granMap[cfg.granularity] || 'D';
   try {
-    // OANDA granularity mapping
-    const granMap = { 3600: 'H1', 14400: 'H4', 86400: 'D', 604800: 'W' };
-    const gran    = granMap[cfg.granularity] || 'D';
-    const count   = cfg.count;
-
-    const res  = await fetch(
-      `${OANDA_BASE}/instruments/${asset.oandaSym}/candles?granularity=${gran}&count=${count}&price=M`,
+    const res = await fetch(
+      `${OANDA_BASE}/instruments/${asset.oandaSym}/candles?granularity=${gran}&count=${cfg.count}&price=M`,
       { headers: { Authorization: `Bearer ${OANDA_KEY}` } }
     );
+    if (!res.ok) return null;
     const data = await res.json();
-
     if (!data.candles?.length) return null;
-
     const candles = data.candles
       .filter(c => c.complete !== false)
       .map(c => ({
@@ -1205,7 +1256,6 @@ async function fetchOandaOHLC(asset, cfg) {
         low:   parseFloat(c.mid.l),
         close: parseFloat(c.mid.c),
       }));
-
     const seen = new Set();
     return candles
       .filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })
@@ -1216,77 +1266,28 @@ async function fetchOandaOHLC(asset, cfg) {
   }
 }
 
-// ── Alert price lines on chart ────────────────────
-function clearAlertLines() {
-  if (!lwSeries) return;
-  lwAlertLines.forEach(line => {
-    try { lwSeries.removePriceLine(line); } catch(e) {}
-  });
-  lwAlertLines = [];
-}
+// ── Route to correct OHLC source ─────────────────
+async function fetchOHLC(asset, tf) {
+  const cfg = TF_CONFIG[tf] || TF_CONFIG['1D'];
 
-function drawAlertLines(assetId) {
-  if (!lwSeries) return;
-  clearAlertLines();
-
-  const assetAlerts = alerts.filter(a =>
-    a.assetId === assetId && a.status === 'active'
-  );
-
-  assetAlerts.forEach(alert => {
-    const isAbove = alert.condition === 'above';
-    const isZone  = alert.condition === 'zone';
-    const isTap   = alert.condition === 'tap';
-    const color   = isAbove ? '#00e676' : isZone ? '#00d4ff' : isTap ? '#f0b429' : '#ff3d5a';
-
-    if (isZone) {
-      // Draw two lines for zone bounds
-      [
-        { price: alert.zoneLow,  title: `Zone Low${alert.note ? ' · ' + alert.note : ''}` },
-        { price: alert.zoneHigh, title: `Zone High${alert.note ? ' · ' + alert.note : ''}` },
-      ].forEach(({ price, title }) => {
-        const line = lwSeries.createPriceLine({
-          price,
-          color,
-          lineWidth:   1,
-          lineStyle:   LightweightCharts.LineStyle.Dashed,
-          axisLabelVisible: true,
-          title,
-        });
-        lwAlertLines.push(line);
-      });
-    } else {
-      const price = alert.targetPrice;
-      const label = (isAbove ? '▲ ' : isTap ? '◎ ' : '▼ ') +
-                    formatPrice(price, assetId) +
-                    (alert.note ? ' · ' + alert.note : '');
-      const line = lwSeries.createPriceLine({
-        price,
-        color,
-        lineWidth:   1,
-        lineStyle:   LightweightCharts.LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: label,
-      });
-      lwAlertLines.push(line);
-    }
-  });
-}
-
-function showChartError(msg) {
-  const container = document.getElementById('lw-chart');
-  if (!container) return;
-  // Overlay message without destroying the chart instance
-  let errEl = document.getElementById('chart-error-msg');
-  if (!errEl) {
-    errEl = document.createElement('div');
-    errEl.id = 'chart-error-msg';
-    errEl.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.72rem;font-family:var(--mono);text-align:center;padding:20px;pointer-events:none;z-index:3;background:rgba(8,12,18,0.7)';
-    document.getElementById('tv-container')?.appendChild(errEl);
+  // Crypto: Binance first (no CORS), fall back to CoinGecko
+  if (BINANCE_SYMBOL[asset.id]) {
+    const data = await fetchBinanceOHLC(asset, cfg);
+    if (data?.length) return data;
   }
-  errEl.textContent = msg;
-  errEl.style.display = 'flex';
-  setTimeout(() => { if (errEl) errEl.style.display = 'none'; }, 5000);
+
+  // Deriv WebSocket candles — forex, commodities, synthetics, indices on Deriv
+  if (asset.derivSym) {
+    const data = await fetchDerivOHLC(asset, cfg);
+    if (data?.length) return data;
+  }
+
+  // OANDA for stocks CFD
+  if (OANDA_KEY && asset.oandaSym) {
+    return fetchOandaOHLC(asset, cfg);
+  }
+
+  return null;
 }
 
 // Aliases so existing call sites (selectAsset, mobileTab, etc.) keep working
