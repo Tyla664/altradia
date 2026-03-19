@@ -483,5 +483,3 @@ function getTVSymbol()        { return ''; }
 function generateChartData()  {}
 function drawChart()          {}
 function setTF()              {}
-
-
