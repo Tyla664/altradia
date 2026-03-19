@@ -405,11 +405,20 @@ let derivPending = [];   // assets waiting for subscription after open
 let derivRetryTimer = null;
 
 function getDerivSymbols() {
-  // All assets in the user's watchlist + hot list that have a Deriv symbol
+  // Subscribe to ALL assets with a Deriv symbol that are in watchlist OR hot list
+  // We cast a wide net so prices are ready before user taps an asset
   const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
   const hotIds     = new Set(Object.values(HOT_LIST).flat());
   const allIds     = new Set([...watchedIds, ...hotIds]);
   return ALL_ASSETS.filter(a => a.derivSym && allIds.has(a.id)).map(a => a.derivSym);
+}
+
+function resubscribeAllDeriv() {
+  // Called after watchlist loads from DB — re-subscribes with actual user assets
+  if (!derivReady || !derivWs || derivWs.readyState !== WebSocket.OPEN) return;
+  getDerivSymbols().forEach(sym => {
+    derivWs.send(JSON.stringify({ ticks: sym, subscribe: 1 }));
+  });
 }
 
 function connectDeriv() {
@@ -566,7 +575,9 @@ async function fetchAllPrices() {
 
   // Partition by source — skip 'unavailable' assets entirely
   const cryptoAssets = allNeeded.filter(a => a.sources?.includes('coingecko'));
-  const oandaAssets  = allNeeded.filter(a => OANDA_KEY && a.oandaSym && !a.sources?.includes('deriv') && a.cat !== 'crypto');
+  // OANDA: fetch for ALL assets with oandaSym (including deriv+oanda) for initial price
+  // Deriv WS will take over with ticks once connected; OANDA gives us the first snapshot
+  const oandaAssets  = allNeeded.filter(a => OANDA_KEY && a.oandaSym && a.cat !== 'crypto');
   // Note: Deriv assets are handled by the persistent WebSocket (connectDeriv)
   // This REST call only handles CoinGecko + OANDA initial snapshots
 
@@ -2046,21 +2057,10 @@ function tgRow(label, value) {
   return `<code>${label.padEnd(16)}</code>${value}`;
 }
 
-function tgTime() {
-  // Use exact UTC offset from the device clock — avoids DST/locale string mismatches
-  const now        = new Date();
-  const offsetMins = -now.getTimezoneOffset(); // e.g. +60 for UTC+1
-  const adjusted   = new Date(now.getTime() + (offsetMins - now.getTimezoneOffset() * -1) * 60000);
-  // Simpler: just format with the device's own locale — guaranteed to match what user sees
-  return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
 function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance) {
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
   const isTap   = condition === 'tap';
-  const time    = tgTime();
-
   let header, subtitle, rows = [];
 
   if (isZone) {
@@ -2377,15 +2377,11 @@ setInterval(() => {
 // Deriv WebSocket handles intraday ticks; REST fills OHLC + catches up after reconnects
 setInterval(() => {
   fetchAllPrices();
-  // Re-subscribe to any assets added since last connect
-  if (derivReady) {
-    getDerivSymbols().forEach(sym => {
-      if (derivWs?.readyState === WebSocket.OPEN) {
-        derivWs.send(JSON.stringify({ ticks: sym, subscribe: 1 }));
-      }
-    });
+  // Reconnect / re-subscribe Deriv on every REST cycle to catch any dropped ticks
+  if (derivWs?.readyState === WebSocket.OPEN) {
+    resubscribeAllDeriv();
   } else {
-    connectDeriv(); // attempt reconnect if ws dropped
+    connectDeriv(); // reconnect if ws dropped
   }
 }, 60 * 1000);
 
@@ -2477,12 +2473,17 @@ async function init() {
   renderAlerts();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
-  // Connect Deriv WebSocket for real-time ticks (forex, commodities, synthetics)
+  // Connect Deriv WebSocket — connects and subscribes to all watchlist + hot list assets
   connectDeriv();
+  // Re-subscribe after a short delay to ensure WS is open before sending subscribe requests
+  setTimeout(resubscribeAllDeriv, 3000);
 
   // Initial REST fetch — CoinGecko + OANDA snapshot (Deriv WS already running)
   await fetchAllPrices();
   setStatusPill(true);
+
+  // Re-subscribe Deriv with confirmed symbols now that ASSETS is fully populated
+  resubscribeAllDeriv();
 
   renderHotList();
   renderWatchlist();
