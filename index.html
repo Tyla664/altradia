@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TradeWatch — Personal Alert Dashboard</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -241,7 +241,8 @@
     </div>
     <div class="tv-container" id="tv-container">
       <div id="lw-chart"></div>
-      <div id="chart-loading" style="display:none;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-family:var(--mono);font-size:0.72rem;letter-spacing:1px;background:var(--surface);">LOADING CHART...</div>
+      <div id="chart-loading">LOADING CHART...</div>
+      <div id="chart-msg" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:var(--muted);font-size:0.75rem;font-family:var(--mono);text-align:center;padding:20px;z-index:3;background:var(--surface)"></div>
     </div>
 
     <!-- Alert Form -->
