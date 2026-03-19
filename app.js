@@ -846,6 +846,19 @@ async function fetchSingleAsset(asset) {
   // unavailable: no live price source — price stays blank
 }
 
+// Format a triggeredAt value (ISO string, timestamp, or locale string) → readable time
+function formatTriggeredAt(val) {
+  if (!val || val === 'null') return '—';
+  // Already a locale time string (e.g. "11:02 AM")
+  if (typeof val === 'string' && !val.includes('T') && !val.includes('-')) return val;
+  // ISO string or timestamp
+  try {
+    const d = new Date(typeof val === 'number' ? val : val);
+    if (!isNaN(d)) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch(e) {}
+  return String(val);
+}
+
 function formatPrice(p, id) {
   if (!p) return '';
   if (p < 0.01) return '$' + p.toFixed(6);
@@ -1987,7 +2000,7 @@ function renderAlerts() {
 
     const triggeredLine = isTriggered
       ? `<span style="color:${dir === 'above' || alert.condition === 'tap' ? 'var(--green)' : 'var(--red)'}">
-           Hit ${formatPrice(alert.triggeredPrice, alert.assetId)} at ${alert.triggeredAt}
+           Hit ${formatPrice(alert.triggeredPrice, alert.assetId)} at ${formatTriggeredAt(alert.triggeredAt)}
          </span><br>`
       : (zoneInProgress && isCurrentlyInZone)
         ? `<span style="color:var(--accent);font-size:0.78rem;">Price inside zone · alerting every ${alert.repeatInterval}m</span><br>`
@@ -2301,14 +2314,14 @@ function checkAlerts() {
     }
 
     alert.triggeredDirection = alert.condition;
-    alert.triggeredAt    = new Date().toLocaleTimeString();
+    alert.triggeredAt    = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     alert.triggeredPrice = currentPrice;
     triggeredToday++;
 
     if (!isZone || (alert.repeatInterval || 0) === 0) {
       updateAlert(alert.id, {
         status:          'triggered',
-        triggered_at:    alert.triggeredAt,
+        triggered_at:    new Date().toISOString(),
         triggered_price: currentPrice,
         triggered_direction: alert.condition,
       });
