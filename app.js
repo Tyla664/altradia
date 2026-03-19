@@ -1,415 +1,601 @@
 // ═══════════════════════════════════════════════
-// API KEYS
+// TradeWatch — app.js
+// Price Architecture (broker-only, no free APIs):
+//   Crypto spot     → CoinGecko (free, no key needed)
+//   Forex / Metals  → Deriv WebSocket (real-time ticks, registered App ID)
+//   Commodities     → Deriv WebSocket
+//   Stock Indices   → Deriv WebSocket (US500, US30, USTEC, UK100, DE40, FR40, JP225, HK33, AUS200)
+//   Synth Indices   → Deriv WebSocket (24/7: Volatility, Boom, Crash, Jump)
+//   Stocks CFD      → OANDA REST (plug key in when ready)
+//   Fallback chain  → Deriv WS → OANDA REST → stale cache
+//
+// Indices NOT on Deriv/OANDA are listed in the library but
+// marked unavailable until a supporting broker is added.
 // ═══════════════════════════════════════════════
-const TD_KEY   = '6d7175c59a1546a28e37b0b23c402ec5'; // Twelve Data (indices fallback only)
+
+// ── Broker credentials ────────────────────────
+const DERIV_APP_ID  = '3FgUMWdvlyFOxPW'; // Registered Deriv App ID
+const OANDA_KEY     = 'bc279adfd3ef94ce554a110a9e555d05-7e712cb0ac8809392b3f4bfca9768b8b';
+const OANDA_ACCOUNT = '101-001-38834231-001';
+const OANDA_BASE    = 'https://api-fxpractice.oanda.com/v3';
 
 // ═══════════════════════════════════════════════
-// DATA DEFINITIONS
-// source: CoinGecko    = fetched via CoinGecko API
-//         Twelve Data  = fetched via TD batch /price
-//         Yahoo Finance = indices via Yahoo Finance API (free, no key)
+// ASSET DEFINITIONS — Cross-referenced from:
+//   OANDA v20 practice instruments
+//   Deriv active_symbols (forex, commodities, crypto CFD, indices)
+//   CoinGecko (crypto spot)
+//
+// source priority: first in sources[] array is tried first.
+// 'deriv'  = Deriv WebSocket tick subscription
+// 'oanda'  = OANDA v20 /pricing/snapshot REST
+// 'coingecko' = CoinGecko /coins/markets
+// 'unavailable' = no broker support yet — listed but no live price
 // ═══════════════════════════════════════════════
+
 const ASSETS = {
-  crypto: [
-    { id: 'bitcoin',     symbol: 'BTC',     name: 'Bitcoin',            tdSymbol: 'BTC/USD',   source: 'CoinGecko' },
-    { id: 'ethereum',    symbol: 'ETH',     name: 'Ethereum',           tdSymbol: 'ETH/USD',   source: 'CoinGecko' },
-    { id: 'solana',      symbol: 'SOL',     name: 'Solana',             tdSymbol: 'SOL/USD',   source: 'CoinGecko' },
-    { id: 'ripple',      symbol: 'XRP',     name: 'XRP',                tdSymbol: 'XRP/USD',   source: 'CoinGecko' },
-    { id: 'binancecoin', symbol: 'BNB',     name: 'BNB',                tdSymbol: 'BNB/USD',   source: 'CoinGecko' },
-  ],
-  stocks: [
-    { id: 'AAPL', symbol: 'AAPL', name: 'Apple Inc.',      tdSymbol: 'AAPL', source: 'Twelve Data' },
-    { id: 'TSLA', symbol: 'TSLA', name: 'Tesla Inc.',      tdSymbol: 'TSLA', source: 'Twelve Data' },
-    { id: 'NVDA', symbol: 'NVDA', name: 'NVIDIA Corp.',    tdSymbol: 'NVDA', source: 'Twelve Data' },
-    { id: 'MSFT', symbol: 'MSFT', name: 'Microsoft Corp.', tdSymbol: 'MSFT', source: 'Twelve Data' },
-  ],
-  forex: [
-    { id: 'EUR/USD', symbol: 'EUR/USD', name: 'Euro / US Dollar',       tdSymbol: 'EUR/USD', source: 'Twelve Data' },
-    { id: 'GBP/USD', symbol: 'GBP/USD', name: 'Pound / US Dollar',      tdSymbol: 'GBP/USD', source: 'Twelve Data' },
-    { id: 'USD/JPY', symbol: 'USD/JPY', name: 'Dollar / Japanese Yen',  tdSymbol: 'USD/JPY', source: 'Twelve Data' },
-    { id: 'AUD/USD', symbol: 'AUD/USD', name: 'Australian / US Dollar', tdSymbol: 'AUD/USD', source: 'Twelve Data' },
-  ],
-  commodities: [
-    { id: 'XAU/USD', symbol: 'XAU/USD', name: 'Gold Spot',     tdSymbol: 'XAU/USD', source: 'Twelve Data' },
-    { id: 'XAG/USD', symbol: 'XAG/USD', name: 'Silver Spot',   tdSymbol: 'XAG/USD', source: 'Twelve Data' },
-    { id: 'WTI/USD', symbol: 'WTI/USD', name: 'WTI Crude Oil', tdSymbol: 'WTI/USD', source: 'Twelve Data' },
-    { id: 'XNG/USD', symbol: 'XNG/USD', name: 'Natural Gas',   tdSymbol: 'XNG/USD', source: 'Twelve Data' },
-  ],
-  indices: [
-    // US
-    { id: 'SPX',   symbol: 'S&P 500',  name: 'S&P 500',              source: 'Yahoo Finance' },
-    { id: 'IXIC',  symbol: 'NASDAQ',   name: 'NASDAQ Composite',     source: 'Yahoo Finance' },
-    { id: 'DJI',   symbol: 'DOW',      name: 'Dow Jones Industrial', source: 'Yahoo Finance' },
-    { id: 'NDX',   symbol: 'NDX 100',  name: 'NASDAQ 100',           source: 'Yahoo Finance' },
-    { id: 'RUT',   symbol: 'Russell',  name: 'Russell 2000',         source: 'Yahoo Finance' },
-    { id: 'VIX',   symbol: 'VIX',      name: 'CBOE Volatility',      source: 'Yahoo Finance' },
-    { id: 'DXY',   symbol: 'DXY',      name: 'US Dollar Index',      source: 'Yahoo Finance' },
-  ]
+  crypto:      [],
+  forex:       [],
+  commodities: [],
+  indices:     [],
+  stocks:      [],
 };
 
-// ── Master asset catalogue — all assets with category tag ──
-// Used to restore full metadata when rebuilding watchlist from DB.
-// ASSETS above is the user's live watchlist (populated from DB on load).
+// ── Master asset catalogue ────────────────────
+// Every tradeable instrument across all 4 brokers, deduplicated.
+// derivSym  = Deriv symbol  (e.g. 'frxEURUSD')
+// oandaSym  = OANDA symbol  (e.g. 'EUR_USD')
+// cgId      = CoinGecko id  (e.g. 'bitcoin')
 const ALL_ASSETS = [
-  // Crypto
-  { id: 'bitcoin',     symbol: 'BTC',     name: 'Bitcoin',            tdSymbol: 'BTC/USD',   source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'ethereum',    symbol: 'ETH',     name: 'Ethereum',           tdSymbol: 'ETH/USD',   source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'solana',      symbol: 'SOL',     name: 'Solana',             tdSymbol: 'SOL/USD',   source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'ripple',      symbol: 'XRP',     name: 'XRP',                tdSymbol: 'XRP/USD',   source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'binancecoin', symbol: 'BNB',     name: 'BNB',                tdSymbol: 'BNB/USD',   source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'dogecoin',    symbol: 'DOGE',    name: 'Dogecoin',           tdSymbol: 'DOGE/USD',  source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'cardano',     symbol: 'ADA',     name: 'Cardano',            tdSymbol: 'ADA/USD',   source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'avalanche-2', symbol: 'AVAX',    name: 'Avalanche',          tdSymbol: 'AVAX/USD',  source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'chainlink',   symbol: 'LINK',    name: 'Chainlink',          tdSymbol: 'LINK/USD',  source: 'CoinGecko',   cat: 'crypto' },
-  { id: 'litecoin',    symbol: 'LTC',     name: 'Litecoin',           tdSymbol: 'LTC/USD',   source: 'CoinGecko',   cat: 'crypto' },
-  // Stocks
-  { id: 'AAPL', symbol: 'AAPL', name: 'Apple Inc.',      tdSymbol: 'AAPL', source: 'Twelve Data', cat: 'stocks' },
-  { id: 'TSLA', symbol: 'TSLA', name: 'Tesla Inc.',      tdSymbol: 'TSLA', source: 'Twelve Data', cat: 'stocks' },
-  { id: 'NVDA', symbol: 'NVDA', name: 'NVIDIA Corp.',    tdSymbol: 'NVDA', source: 'Twelve Data', cat: 'stocks' },
-  { id: 'MSFT', symbol: 'MSFT', name: 'Microsoft Corp.', tdSymbol: 'MSFT', source: 'Twelve Data', cat: 'stocks' },
-  { id: 'AMZN', symbol: 'AMZN', name: 'Amazon.com',      tdSymbol: 'AMZN', source: 'Twelve Data', cat: 'stocks' },
-  { id: 'GOOGL',symbol: 'GOOGL',name: 'Alphabet Inc.',   tdSymbol: 'GOOGL',source: 'Twelve Data', cat: 'stocks' },
-  { id: 'META', symbol: 'META', name: 'Meta Platforms',  tdSymbol: 'META', source: 'Twelve Data', cat: 'stocks' },
-  // Forex
-  { id: 'EUR/USD', symbol: 'EUR/USD', name: 'Euro / US Dollar',       tdSymbol: 'EUR/USD', source: 'Twelve Data', cat: 'forex' },
-  { id: 'GBP/USD', symbol: 'GBP/USD', name: 'Pound / US Dollar',      tdSymbol: 'GBP/USD', source: 'Twelve Data', cat: 'forex' },
-  { id: 'USD/JPY', symbol: 'USD/JPY', name: 'Dollar / Japanese Yen',  tdSymbol: 'USD/JPY', source: 'Twelve Data', cat: 'forex' },
-  { id: 'AUD/USD', symbol: 'AUD/USD', name: 'Australian / US Dollar', tdSymbol: 'AUD/USD', source: 'Twelve Data', cat: 'forex' },
-  { id: 'USD/CAD', symbol: 'USD/CAD', name: 'Dollar / Canadian Dollar',tdSymbol: 'USD/CAD', source: 'Twelve Data', cat: 'forex' },
-  { id: 'USD/CHF', symbol: 'USD/CHF', name: 'Dollar / Swiss Franc',   tdSymbol: 'USD/CHF', source: 'Twelve Data', cat: 'forex' },
-  // Commodities
-  { id: 'XAU/USD', symbol: 'XAU/USD', name: 'Gold Spot',     tdSymbol: 'XAU/USD', source: 'Twelve Data', cat: 'commodities' },
-  { id: 'XAG/USD', symbol: 'XAG/USD', name: 'Silver Spot',   tdSymbol: 'XAG/USD', source: 'Twelve Data', cat: 'commodities' },
-  { id: 'WTI/USD', symbol: 'WTI/USD', name: 'WTI Crude Oil', tdSymbol: 'WTI/USD', source: 'Twelve Data', cat: 'commodities' },
-  { id: 'XNG/USD', symbol: 'XNG/USD', name: 'Natural Gas',   tdSymbol: 'XNG/USD', source: 'Twelve Data', cat: 'commodities' },
-  // Indices
-  // ── US Indices ──
-  { id:'SPX',    symbol:'S&P 500',   name:'S&P 500',               source:'Yahoo Finance', cat:'indices' },
-  { id:'IXIC',   symbol:'NASDAQ',    name:'NASDAQ Composite',      source:'Yahoo Finance', cat:'indices' },
-  { id:'DJI',    symbol:'DOW',       name:'Dow Jones Industrial',  source:'Yahoo Finance', cat:'indices' },
-  { id:'NDX',    symbol:'NDX 100',   name:'NASDAQ 100',            source:'Yahoo Finance', cat:'indices' },
-  { id:'RUT',    symbol:'Russell',   name:'Russell 2000',          source:'Yahoo Finance', cat:'indices' },
-  { id:'VIX',    symbol:'VIX',       name:'CBOE Volatility Index', source:'Yahoo Finance', cat:'indices' },
-  { id:'DXY',    symbol:'DXY',       name:'US Dollar Index',       source:'Yahoo Finance', cat:'indices' },
-  { id:'TNX',    symbol:'US10Y',     name:'US 10-Year Treasury',   source:'Yahoo Finance', cat:'indices' },
-  { id:'TYX',    symbol:'US30Y',     name:'US 30-Year Treasury',   source:'Yahoo Finance', cat:'indices' },
-  // ── European Indices ──
-  { id:'FTSE',   symbol:'FTSE 100',  name:'FTSE 100 (UK)',         source:'Yahoo Finance', cat:'indices' },
-  { id:'FTMC',   symbol:'FTSE 250',  name:'FTSE 250 (UK)',         source:'Yahoo Finance', cat:'indices' },
-  { id:'DAX',    symbol:'DAX 40',    name:'DAX 40 (Germany)',      source:'Yahoo Finance', cat:'indices' },
-  { id:'CAC',    symbol:'CAC 40',    name:'CAC 40 (France)',       source:'Yahoo Finance', cat:'indices' },
-  { id:'IBEX',   symbol:'IBEX 35',   name:'IBEX 35 (Spain)',       source:'Yahoo Finance', cat:'indices' },
-  { id:'FTSEMIB',symbol:'FTSE MIB',  name:'FTSE MIB (Italy)',      source:'Yahoo Finance', cat:'indices' },
-  { id:'SMI',    symbol:'SMI',       name:'SMI (Switzerland)',     source:'Yahoo Finance', cat:'indices' },
-  { id:'AEX',    symbol:'AEX',       name:'AEX (Netherlands)',     source:'Yahoo Finance', cat:'indices' },
-  { id:'BEL20',  symbol:'BEL 20',    name:'BEL 20 (Belgium)',      source:'Yahoo Finance', cat:'indices' },
-  { id:'STOXX50',symbol:'STOXX 50',  name:'EURO STOXX 50',         source:'Yahoo Finance', cat:'indices' },
-  { id:'OMX',    symbol:'OMXS30',    name:'OMX Stockholm 30',      source:'Yahoo Finance', cat:'indices' },
-  { id:'ATX',    symbol:'ATX',       name:'ATX (Austria)',         source:'Yahoo Finance', cat:'indices' },
-  { id:'WIG20',  symbol:'WIG20',     name:'WIG 20 (Poland)',       source:'Yahoo Finance', cat:'indices' },
-  { id:'MOEX',   symbol:'MOEX',      name:'MOEX (Russia)',         source:'Yahoo Finance', cat:'indices' },
-  { id:'ISE100', symbol:'BIST 100',  name:'BIST 100 (Turkey)',     source:'Yahoo Finance', cat:'indices' },
-  // ── Americas ──
-  { id:'GSPTSE', symbol:'TSX',       name:'S&P/TSX Composite',    source:'Yahoo Finance', cat:'indices' },
-  { id:'BVSP',   symbol:'BOVESPA',   name:'IBOVESPA (Brazil)',     source:'Yahoo Finance', cat:'indices' },
-  { id:'MXX',    symbol:'IPC',       name:'IPC Mexico',            source:'Yahoo Finance', cat:'indices' },
-  { id:'MERVAL', symbol:'MERVAL',    name:'MERVAL (Argentina)',    source:'Yahoo Finance', cat:'indices' },
-  // ── Asia-Pacific ──
-  { id:'N225',   symbol:'Nikkei',    name:'Nikkei 225 (Japan)',    source:'Yahoo Finance', cat:'indices' },
-  { id:'TOPIX',  symbol:'TOPIX',     name:'TOPIX (Japan)',         source:'Yahoo Finance', cat:'indices' },
-  { id:'HSI',    symbol:'Hang Seng', name:'Hang Seng (HK)',        source:'Yahoo Finance', cat:'indices' },
-  { id:'SHCOMP', symbol:'SSE',       name:'Shanghai Composite',    source:'Yahoo Finance', cat:'indices' },
-  { id:'CSI300', symbol:'CSI 300',   name:'CSI 300 (China)',       source:'Yahoo Finance', cat:'indices' },
-  { id:'SENSEX', symbol:'SENSEX',    name:'SENSEX (India)',        source:'Yahoo Finance', cat:'indices' },
-  { id:'NIFTY',  symbol:'NIFTY 50',  name:'Nifty 50 (India)',     source:'Yahoo Finance', cat:'indices' },
-  { id:'KOSPI',  symbol:'KOSPI',     name:'KOSPI (South Korea)',   source:'Yahoo Finance', cat:'indices' },
-  { id:'ASX200', symbol:'ASX 200',   name:'ASX 200 (Australia)',   source:'Yahoo Finance', cat:'indices' },
-  { id:'STI',    symbol:'STI',       name:'Straits Times (SG)',    source:'Yahoo Finance', cat:'indices' },
-  { id:'TWII',   symbol:'TAIEX',     name:'Taiwan Weighted',       source:'Yahoo Finance', cat:'indices' },
-  { id:'JCI',    symbol:'IDX',       name:'IDX Composite (ID)',    source:'Yahoo Finance', cat:'indices' },
-  { id:'NZ50',   symbol:'NZX 50',    name:'NZX 50 (New Zealand)',  source:'Yahoo Finance', cat:'indices' },
-  { id:'KLCI',   symbol:'KLCI',      name:'KLCI (Malaysia)',       source:'Yahoo Finance', cat:'indices' },
-  // ── Middle East & Africa ──
-  { id:'TADAWUL',symbol:'TASI',      name:'Tadawul (Saudi Arabia)',source:'Yahoo Finance', cat:'indices' },
-  { id:'EGX30',  symbol:'EGX 30',    name:'EGX 30 (Egypt)',        source:'Yahoo Finance', cat:'indices' },
-  { id:'JSE',    symbol:'JSE TOP40', name:'JSE Top 40 (S. Africa)',source:'Yahoo Finance', cat:'indices' },
+
+  // ════════════════════════════════════════════
+  // CRYPTO — CoinGecko primary (spot prices)
+  //          Deriv secondary  (CFD tick)
+  // ════════════════════════════════════════════
+  { id:'bitcoin',       symbol:'BTC',    name:'Bitcoin',           cat:'crypto', sources:['coingecko','deriv'], cgId:'bitcoin',       derivSym:'cryBTCUSD'  },
+  { id:'ethereum',      symbol:'ETH',    name:'Ethereum',          cat:'crypto', sources:['coingecko','deriv'], cgId:'ethereum',      derivSym:'cryETHUSD'  },
+  { id:'solana',        symbol:'SOL',    name:'Solana',            cat:'crypto', sources:['coingecko','deriv'], cgId:'solana',        derivSym:'crySOLUSD'  },
+  { id:'ripple',        symbol:'XRP',    name:'XRP',               cat:'crypto', sources:['coingecko','deriv'], cgId:'ripple',        derivSym:'cryXRPUSD'  },
+  { id:'binancecoin',   symbol:'BNB',    name:'BNB',               cat:'crypto', sources:['coingecko'],        cgId:'binancecoin'                          },
+  { id:'dogecoin',      symbol:'DOGE',   name:'Dogecoin',          cat:'crypto', sources:['coingecko','deriv'], cgId:'dogecoin',      derivSym:'cryDOGEUSD' },
+  { id:'cardano',       symbol:'ADA',    name:'Cardano',           cat:'crypto', sources:['coingecko','deriv'], cgId:'cardano',       derivSym:'cryADAUSD'  },
+  { id:'avalanche-2',   symbol:'AVAX',   name:'Avalanche',         cat:'crypto', sources:['coingecko'],        cgId:'avalanche-2'                          },
+  { id:'chainlink',     symbol:'LINK',   name:'Chainlink',         cat:'crypto', sources:['coingecko'],        cgId:'chainlink'                            },
+  { id:'litecoin',      symbol:'LTC',    name:'Litecoin',          cat:'crypto', sources:['coingecko','deriv'], cgId:'litecoin',      derivSym:'cryLTCUSD'  },
+  { id:'polkadot',      symbol:'DOT',    name:'Polkadot',          cat:'crypto', sources:['coingecko'],        cgId:'polkadot'                             },
+  { id:'shiba-inu',     symbol:'SHIB',   name:'Shiba Inu',         cat:'crypto', sources:['coingecko'],        cgId:'shiba-inu'                            },
+  { id:'uniswap',       symbol:'UNI',    name:'Uniswap',           cat:'crypto', sources:['coingecko'],        cgId:'uniswap'                              },
+  { id:'cosmos',        symbol:'ATOM',   name:'Cosmos',            cat:'crypto', sources:['coingecko'],        cgId:'cosmos'                               },
+  { id:'stellar',       symbol:'XLM',    name:'Stellar',           cat:'crypto', sources:['coingecko'],        cgId:'stellar'                              },
+  { id:'monero',        symbol:'XMR',    name:'Monero',            cat:'crypto', sources:['coingecko'],        cgId:'monero'                               },
+  { id:'tron',          symbol:'TRX',    name:'TRON',              cat:'crypto', sources:['coingecko'],        cgId:'tron'                                 },
+  { id:'aave',          symbol:'AAVE',   name:'Aave',              cat:'crypto', sources:['coingecko'],        cgId:'aave'                                 },
+  { id:'near',          symbol:'NEAR',   name:'NEAR Protocol',     cat:'crypto', sources:['coingecko'],        cgId:'near'                                 },
+  { id:'aptos',         symbol:'APT',    name:'Aptos',             cat:'crypto', sources:['coingecko'],        cgId:'aptos'                                },
+  { id:'arbitrum',      symbol:'ARB',    name:'Arbitrum',          cat:'crypto', sources:['coingecko'],        cgId:'arbitrum'                             },
+  { id:'optimism',      symbol:'OP',     name:'Optimism',          cat:'crypto', sources:['coingecko'],        cgId:'optimism'                             },
+  { id:'sui',           symbol:'SUI',    name:'Sui',               cat:'crypto', sources:['coingecko'],        cgId:'sui'                                  },
+  { id:'toncoin',       symbol:'TON',    name:'Toncoin',           cat:'crypto', sources:['coingecko'],        cgId:'toncoin'                              },
+  { id:'pepe',          symbol:'PEPE',   name:'Pepe',              cat:'crypto', sources:['coingecko'],        cgId:'pepe'                                 },
+  { id:'bonk',          symbol:'BONK',   name:'Bonk',              cat:'crypto', sources:['coingecko'],        cgId:'bonk'                                 },
+  { id:'maker',         symbol:'MKR',    name:'MakerDAO',          cat:'crypto', sources:['coingecko'],        cgId:'maker'                                },
+  { id:'kaspa',         symbol:'KAS',    name:'Kaspa',             cat:'crypto', sources:['coingecko'],        cgId:'kaspa'                                },
+  { id:'render-token',  symbol:'RENDER', name:'Render',            cat:'crypto', sources:['coingecko'],        cgId:'render-token'                         },
+  { id:'fetch-ai',      symbol:'FET',    name:'Fetch.AI',          cat:'crypto', sources:['coingecko'],        cgId:'fetch-ai'                             },
+  { id:'worldcoin-wld', symbol:'WLD',    name:'Worldcoin',         cat:'crypto', sources:['coingecko'],        cgId:'worldcoin-wld'                        },
+  { id:'celestia',      symbol:'TIA',    name:'Celestia',          cat:'crypto', sources:['coingecko'],        cgId:'celestia'                             },
+  { id:'starknet',      symbol:'STRK',   name:'Starknet',          cat:'crypto', sources:['coingecko'],        cgId:'starknet'                             },
+  { id:'hedera',        symbol:'HBAR',   name:'Hedera',            cat:'crypto', sources:['coingecko'],        cgId:'hedera-hashgraph'                     },
+  { id:'vechain',       symbol:'VET',    name:'VeChain',           cat:'crypto', sources:['coingecko'],        cgId:'vechain'                              },
+  { id:'algorand',      symbol:'ALGO',   name:'Algorand',          cat:'crypto', sources:['coingecko'],        cgId:'algorand'                             },
+  { id:'internet-computer', symbol:'ICP',name:'ICP',              cat:'crypto', sources:['coingecko'],        cgId:'internet-computer'                    },
+  { id:'filecoin',      symbol:'FIL',    name:'Filecoin',          cat:'crypto', sources:['coingecko'],        cgId:'filecoin'                             },
+  { id:'injective-protocol',symbol:'INJ',name:'Injective',        cat:'crypto', sources:['coingecko'],        cgId:'injective-protocol'                   },
+  { id:'sei-network',   symbol:'SEI',    name:'Sei',               cat:'crypto', sources:['coingecko'],        cgId:'sei-network'                          },
+  { id:'immutable-x',   symbol:'IMX',   name:'Immutable X',       cat:'crypto', sources:['coingecko'],        cgId:'immutable-x'                          },
+  { id:'polygon',       symbol:'MATIC',  name:'Polygon',           cat:'crypto', sources:['coingecko'],        cgId:'matic-network'                        },
+
+  // ════════════════════════════════════════════
+  // FOREX — Deriv primary + OANDA secondary
+  // Available on: OANDA ✓  Deriv ✓  FXCM ✓  IG ✓
+  // ════════════════════════════════════════════
+
+  // ── Major Pairs ──────────────────────────────
+  { id:'EUR/USD', symbol:'EUR/USD', name:'Euro / US Dollar',             cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURUSD', oandaSym:'EUR_USD' },
+  { id:'GBP/USD', symbol:'GBP/USD', name:'British Pound / US Dollar',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPUSD', oandaSym:'GBP_USD' },
+  { id:'USD/JPY', symbol:'USD/JPY', name:'US Dollar / Japanese Yen',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDJPY', oandaSym:'USD_JPY' },
+  { id:'AUD/USD', symbol:'AUD/USD', name:'Australian Dollar / USD',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDUSD', oandaSym:'AUD_USD' },
+  { id:'USD/CAD', symbol:'USD/CAD', name:'US Dollar / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCAD', oandaSym:'USD_CAD' },
+  { id:'USD/CHF', symbol:'USD/CHF', name:'US Dollar / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCHF', oandaSym:'USD_CHF' },
+  { id:'NZD/USD', symbol:'NZD/USD', name:'New Zealand Dollar / USD',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDUSD', oandaSym:'NZD_USD' },
+
+  // ── Euro Crosses ──────────────────────────────
+  { id:'EUR/GBP', symbol:'EUR/GBP', name:'Euro / British Pound',         cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURGBP', oandaSym:'EUR_GBP' },
+  { id:'EUR/JPY', symbol:'EUR/JPY', name:'Euro / Japanese Yen',          cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURJPY', oandaSym:'EUR_JPY' },
+  { id:'EUR/CHF', symbol:'EUR/CHF', name:'Euro / Swiss Franc',           cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURCHF', oandaSym:'EUR_CHF' },
+  { id:'EUR/CAD', symbol:'EUR/CAD', name:'Euro / Canadian Dollar',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURCAD', oandaSym:'EUR_CAD' },
+  { id:'EUR/AUD', symbol:'EUR/AUD', name:'Euro / Australian Dollar',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURAUD', oandaSym:'EUR_AUD' },
+  { id:'EUR/NZD', symbol:'EUR/NZD', name:'Euro / New Zealand Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURNZD', oandaSym:'EUR_NZD' },
+  { id:'EUR/SEK', symbol:'EUR/SEK', name:'Euro / Swedish Krona',         cat:'forex', sources:['oanda'],                              oandaSym:'EUR_SEK' },
+  { id:'EUR/NOK', symbol:'EUR/NOK', name:'Euro / Norwegian Krone',       cat:'forex', sources:['oanda'],                              oandaSym:'EUR_NOK' },
+  { id:'EUR/DKK', symbol:'EUR/DKK', name:'Euro / Danish Krone',          cat:'forex', sources:['oanda'],                              oandaSym:'EUR_DKK' },
+  { id:'EUR/PLN', symbol:'EUR/PLN', name:'Euro / Polish Zloty',          cat:'forex', sources:['oanda'],                              oandaSym:'EUR_PLN' },
+  { id:'EUR/HUF', symbol:'EUR/HUF', name:'Euro / Hungarian Forint',      cat:'forex', sources:['oanda'],                              oandaSym:'EUR_HUF' },
+  { id:'EUR/CZK', symbol:'EUR/CZK', name:'Euro / Czech Koruna',          cat:'forex', sources:['oanda'],                              oandaSym:'EUR_CZK' },
+  { id:'EUR/SGD', symbol:'EUR/SGD', name:'Euro / Singapore Dollar',      cat:'forex', sources:['oanda'],                              oandaSym:'EUR_SGD' },
+  { id:'EUR/HKD', symbol:'EUR/HKD', name:'Euro / Hong Kong Dollar',      cat:'forex', sources:['oanda'],                              oandaSym:'EUR_HKD' },
+  { id:'EUR/TRY', symbol:'EUR/TRY', name:'Euro / Turkish Lira',          cat:'forex', sources:['oanda'],                              oandaSym:'EUR_TRY' },
+  { id:'EUR/ZAR', symbol:'EUR/ZAR', name:'Euro / South African Rand',    cat:'forex', sources:['oanda'],                              oandaSym:'EUR_ZAR' },
+
+  // ── GBP Crosses ──────────────────────────────
+  { id:'GBP/JPY', symbol:'GBP/JPY', name:'British Pound / Japanese Yen',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPJPY', oandaSym:'GBP_JPY' },
+  { id:'GBP/CHF', symbol:'GBP/CHF', name:'British Pound / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPCHF', oandaSym:'GBP_CHF' },
+  { id:'GBP/CAD', symbol:'GBP/CAD', name:'British Pound / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPCAD', oandaSym:'GBP_CAD' },
+  { id:'GBP/AUD', symbol:'GBP/AUD', name:'British Pound / Australian Dollar',cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPAUD', oandaSym:'GBP_AUD' },
+  { id:'GBP/NZD', symbol:'GBP/NZD', name:'British Pound / New Zealand Dollar',cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPNZD', oandaSym:'GBP_NZD' },
+  { id:'GBP/SGD', symbol:'GBP/SGD', name:'British Pound / Singapore Dollar', cat:'forex', sources:['oanda'],                               oandaSym:'GBP_SGD' },
+
+  // ── AUD Crosses ──────────────────────────────
+  { id:'AUD/JPY', symbol:'AUD/JPY', name:'Australian Dollar / Japanese Yen',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDJPY', oandaSym:'AUD_JPY' },
+  { id:'AUD/CAD', symbol:'AUD/CAD', name:'Australian Dollar / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDCAD', oandaSym:'AUD_CAD' },
+  { id:'AUD/CHF', symbol:'AUD/CHF', name:'Australian Dollar / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDCHF', oandaSym:'AUD_CHF' },
+  { id:'AUD/NZD', symbol:'AUD/NZD', name:'Australian Dollar / New Zealand Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDNZD', oandaSym:'AUD_NZD' },
+  { id:'AUD/SGD', symbol:'AUD/SGD', name:'Australian Dollar / Singapore Dollar',cat:'forex', sources:['oanda'],                              oandaSym:'AUD_SGD' },
+
+  // ── NZD Crosses ──────────────────────────────
+  { id:'NZD/JPY', symbol:'NZD/JPY', name:'New Zealand Dollar / Japanese Yen',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDJPY', oandaSym:'NZD_JPY' },
+  { id:'NZD/CAD', symbol:'NZD/CAD', name:'New Zealand Dollar / Canadian Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDCAD', oandaSym:'NZD_CAD' },
+  { id:'NZD/CHF', symbol:'NZD/CHF', name:'New Zealand Dollar / Swiss Franc',        cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDCHF', oandaSym:'NZD_CHF' },
+  { id:'NZD/SGD', symbol:'NZD/SGD', name:'New Zealand Dollar / Singapore Dollar',   cat:'forex', sources:['oanda'],                              oandaSym:'NZD_SGD' },
+
+  // ── CAD Crosses ──────────────────────────────
+  { id:'CAD/JPY', symbol:'CAD/JPY', name:'Canadian Dollar / Japanese Yen',  cat:'forex', sources:['deriv','oanda'], derivSym:'frxCADJPY', oandaSym:'CAD_JPY' },
+  { id:'CAD/CHF', symbol:'CAD/CHF', name:'Canadian Dollar / Swiss Franc',   cat:'forex', sources:['oanda'],                              oandaSym:'CAD_CHF' },
+  { id:'CAD/SGD', symbol:'CAD/SGD', name:'Canadian Dollar / Singapore Dollar', cat:'forex', sources:['oanda'],                           oandaSym:'CAD_SGD' },
+
+  // ── CHF Crosses ──────────────────────────────
+  { id:'CHF/JPY', symbol:'CHF/JPY', name:'Swiss Franc / Japanese Yen',      cat:'forex', sources:['oanda'],         oandaSym:'CHF_JPY' },
+  { id:'CHF/SGD', symbol:'CHF/SGD', name:'Swiss Franc / Singapore Dollar',  cat:'forex', sources:['oanda'],         oandaSym:'CHF_SGD' },
+  { id:'CHF/HKD', symbol:'CHF/HKD', name:'Swiss Franc / Hong Kong Dollar',  cat:'forex', sources:['oanda'],         oandaSym:'CHF_HKD' },
+
+  // ── JPY Crosses ──────────────────────────────
+  { id:'SGD/JPY', symbol:'SGD/JPY', name:'Singapore Dollar / Japanese Yen', cat:'forex', sources:['oanda'],         oandaSym:'SGD_JPY' },
+  { id:'HKD/JPY', symbol:'HKD/JPY', name:'Hong Kong Dollar / Japanese Yen', cat:'forex', sources:['oanda'],        oandaSym:'HKD_JPY' },
+
+  // ── USD Emerging & Exotics ────────────────────
+  { id:'USD/SGD', symbol:'USD/SGD', name:'US Dollar / Singapore Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDSGD', oandaSym:'USD_SGD' },
+  { id:'USD/HKD', symbol:'USD/HKD', name:'US Dollar / Hong Kong Dollar',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDHKD', oandaSym:'USD_HKD' },
+  { id:'USD/MXN', symbol:'USD/MXN', name:'US Dollar / Mexican Peso',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDMXN', oandaSym:'USD_MXN' },
+  { id:'USD/ZAR', symbol:'USD/ZAR', name:'US Dollar / South African Rand', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDZAR', oandaSym:'USD_ZAR' },
+  { id:'USD/TRY', symbol:'USD/TRY', name:'US Dollar / Turkish Lira',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDTRY', oandaSym:'USD_TRY' },
+  { id:'USD/SEK', symbol:'USD/SEK', name:'US Dollar / Swedish Krona',      cat:'forex', sources:['oanda'],                              oandaSym:'USD_SEK' },
+  { id:'USD/NOK', symbol:'USD/NOK', name:'US Dollar / Norwegian Krone',    cat:'forex', sources:['oanda'],                              oandaSym:'USD_NOK' },
+  { id:'USD/DKK', symbol:'USD/DKK', name:'US Dollar / Danish Krone',       cat:'forex', sources:['oanda'],                              oandaSym:'USD_DKK' },
+  { id:'USD/INR', symbol:'USD/INR', name:'US Dollar / Indian Rupee',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDINR', oandaSym:'USD_INR' },
+  { id:'USD/CNH', symbol:'USD/CNH', name:'US Dollar / Offshore Chinese Yuan', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCNH', oandaSym:'USD_CNH' },
+  { id:'USD/BRL', symbol:'USD/BRL', name:'US Dollar / Brazilian Real',     cat:'forex', sources:['oanda'],                              oandaSym:'USD_BRL' },
+  { id:'USD/KRW', symbol:'USD/KRW', name:'US Dollar / South Korean Won',   cat:'forex', sources:['oanda'],                              oandaSym:'USD_KRW' },
+  { id:'USD/IDR', symbol:'USD/IDR', name:'US Dollar / Indonesian Rupiah',  cat:'forex', sources:['oanda'],                              oandaSym:'USD_IDR' },
+  { id:'USD/MYR', symbol:'USD/MYR', name:'US Dollar / Malaysian Ringgit',  cat:'forex', sources:['oanda'],                              oandaSym:'USD_MYR' },
+  { id:'USD/PHP', symbol:'USD/PHP', name:'US Dollar / Philippine Peso',    cat:'forex', sources:['oanda'],                              oandaSym:'USD_PHP' },
+  { id:'USD/THB', symbol:'USD/THB', name:'US Dollar / Thai Baht',          cat:'forex', sources:['oanda'],                              oandaSym:'USD_THB' },
+  { id:'USD/PLN', symbol:'USD/PLN', name:'US Dollar / Polish Zloty',       cat:'forex', sources:['oanda'],                              oandaSym:'USD_PLN' },
+  { id:'USD/HUF', symbol:'USD/HUF', name:'US Dollar / Hungarian Forint',   cat:'forex', sources:['oanda'],                              oandaSym:'USD_HUF' },
+  { id:'USD/CZK', symbol:'USD/CZK', name:'US Dollar / Czech Koruna',       cat:'forex', sources:['oanda'],                              oandaSym:'USD_CZK' },
+  { id:'USD/ILS', symbol:'USD/ILS', name:'US Dollar / Israeli Shekel',     cat:'forex', sources:['oanda'],                              oandaSym:'USD_ILS' },
+  { id:'USD/AED', symbol:'USD/AED', name:'US Dollar / UAE Dirham',         cat:'forex', sources:['oanda'],                              oandaSym:'USD_AED' },
+  { id:'USD/SAR', symbol:'USD/SAR', name:'US Dollar / Saudi Riyal',        cat:'forex', sources:['oanda'],                              oandaSym:'USD_SAR' },
+  { id:'USD/NGN', symbol:'USD/NGN', name:'US Dollar / Nigerian Naira',     cat:'forex', sources:['deriv'],          derivSym:'frxUSDNGN'                   },
+  { id:'USD/GHS', symbol:'USD/GHS', name:'US Dollar / Ghanaian Cedi',      cat:'forex', sources:['deriv'],          derivSym:'frxUSDGHS'                   },
+  { id:'USD/KES', symbol:'USD/KES', name:'US Dollar / Kenyan Shilling',    cat:'forex', sources:['deriv'],          derivSym:'frxUSDKES'                   },
+  { id:'USD/EGP', symbol:'USD/EGP', name:'US Dollar / Egyptian Pound',     cat:'forex', sources:['deriv'],          derivSym:'frxUSDEGP'                   },
+  { id:'USD/PKR', symbol:'USD/PKR', name:'US Dollar / Pakistani Rupee',    cat:'forex', sources:['deriv'],          derivSym:'frxUSDPKR'                   },
+  { id:'USD/BDT', symbol:'USD/BDT', name:'US Dollar / Bangladeshi Taka',   cat:'forex', sources:['deriv'],          derivSym:'frxUSDBDT'                   },
+  { id:'USD/UAH', symbol:'USD/UAH', name:'US Dollar / Ukrainian Hryvnia',  cat:'forex', sources:['deriv'],          derivSym:'frxUSDUAH'                   },
+  { id:'USD/VND', symbol:'USD/VND', name:'US Dollar / Vietnamese Dong',    cat:'forex', sources:['deriv'],          derivSym:'frxUSDVND'                   },
+  { id:'USD/ARS', symbol:'USD/ARS', name:'US Dollar / Argentine Peso',     cat:'forex', sources:['oanda'],                              oandaSym:'USD_ARS' },
+  { id:'USD/CLP', symbol:'USD/CLP', name:'US Dollar / Chilean Peso',       cat:'forex', sources:['oanda'],                              oandaSym:'USD_CLP' },
+  { id:'USD/COP', symbol:'USD/COP', name:'US Dollar / Colombian Peso',     cat:'forex', sources:['oanda'],                              oandaSym:'USD_COP' },
+  { id:'USD/RUB', symbol:'USD/RUB', name:'US Dollar / Russian Ruble',      cat:'forex', sources:['deriv'],          derivSym:'frxUSDRUB'                   },
+
+  // ── XAG/XAU treated as Forex on brokers ──────
+  { id:'XAU/USD', symbol:'XAU/USD', name:'Gold Spot',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxXAUUSD', oandaSym:'XAU_USD' },
+  { id:'XAG/USD', symbol:'XAG/USD', name:'Silver Spot',  cat:'forex', sources:['deriv','oanda'], derivSym:'frxXAGUSD', oandaSym:'XAG_USD' },
+  { id:'XPD/USD', symbol:'XPD/USD', name:'Palladium Spot', cat:'forex', sources:['oanda'],       oandaSym:'XPD_USD' },
+  { id:'XPT/USD', symbol:'XPT/USD', name:'Platinum Spot',  cat:'forex', sources:['oanda'],       oandaSym:'XPT_USD' },
+
+  // ════════════════════════════════════════════
+  // COMMODITIES — Deriv primary, OANDA secondary
+  // ════════════════════════════════════════════
+  { id:'WTI/USD',   symbol:'WTI/USD',  name:'WTI Crude Oil',        cat:'commodities', sources:['deriv','oanda'], derivSym:'WTIUSD',   oandaSym:'WTICO_USD'  },
+  { id:'BRENT/USD', symbol:'BCO/USD',  name:'Brent Crude Oil',      cat:'commodities', sources:['deriv','oanda'], derivSym:'BCOUSD',   oandaSym:'BCO_USD'    },
+  { id:'XNG/USD',   symbol:'XNG/USD',  name:'Natural Gas',          cat:'commodities', sources:['deriv'],         derivSym:'NATGASUSD'                       },
+  { id:'COPPER',    symbol:'XCU/USD',  name:'Copper',               cat:'commodities', sources:['deriv','oanda'], derivSym:'XCUUSD',   oandaSym:'XCU_USD'    },
+  { id:'WHEAT',     symbol:'WHEAT',    name:'Wheat',                cat:'commodities', sources:['deriv'],         derivSym:'WHEATUSD'                        },
+  { id:'CORN',      symbol:'CORN',     name:'Corn',                 cat:'commodities', sources:['deriv'],         derivSym:'CORNUSD'                         },
+  { id:'SOYBEAN',   symbol:'SOYBEAN',  name:'Soybeans',             cat:'commodities', sources:['deriv'],         derivSym:'SOYBEANUSD'                      },
+  { id:'SUGAR',     symbol:'SUGAR',    name:'Sugar',                cat:'commodities', sources:['deriv'],         derivSym:'SUGARUSD'                        },
+  { id:'COFFEE',    symbol:'COFFEE',   name:'Coffee',               cat:'commodities', sources:['deriv'],         derivSym:'COFFEEUSD'                       },
+  { id:'COTTON',    symbol:'COTTON',   name:'Cotton',               cat:'commodities', sources:['deriv'],         derivSym:'COTTONUSD'                       },
+
+  // ════════════════════════════════════════════
+  // INDICES — Deriv WebSocket primary for major indices
+  //           OANDA REST for additional CFDs
+  //           'unavailable' = no broker support yet (shown in library, no live price)
+  // ════════════════════════════════════════════
+
+  // ── US Indices (Deriv covers the main 3 + DXY) ───────────────────────────
+  { id:'SPX',    symbol:'S&P 500',  name:'S&P 500',              cat:'indices', sources:['deriv','oanda'], derivSym:'US500',    oandaSym:'SPX500_USD' },
+  { id:'DJI',    symbol:'DOW',      name:'Dow Jones Industrial', cat:'indices', sources:['deriv','oanda'], derivSym:'US30',     oandaSym:'US30_USD'   },
+  { id:'NDX',    symbol:'NDX 100',  name:'NASDAQ 100',           cat:'indices', sources:['deriv','oanda'], derivSym:'USTEC',    oandaSym:'NAS100_USD' },
+  { id:'DXY',    symbol:'DXY',      name:'US Dollar Index',      cat:'indices', sources:['deriv'],         derivSym:'DXY'                            },
+  { id:'IXIC',   symbol:'NASDAQ',   name:'NASDAQ Composite',     cat:'indices', sources:['unavailable']                                              },
+  { id:'RUT',    symbol:'Russell',  name:'Russell 2000',         cat:'indices', sources:['unavailable']                                              },
+  { id:'VIX',    symbol:'VIX',      name:'CBOE Volatility',      cat:'indices', sources:['unavailable']                                              },
+  { id:'TNX',    symbol:'US10Y',    name:'US 10-Year Treasury',  cat:'indices', sources:['unavailable']                                              },
+  { id:'TYX',    symbol:'US30Y',    name:'US 30-Year Treasury',  cat:'indices', sources:['unavailable']                                              },
+
+  // ── European Indices ──────────────────────────
+  { id:'FTSE',    symbol:'FTSE 100', name:'FTSE 100 (UK)',        cat:'indices', sources:['deriv','oanda'], derivSym:'UK100',    oandaSym:'UK100_GBP' },
+  { id:'DAX',     symbol:'DAX 40',   name:'DAX 40 (Germany)',     cat:'indices', sources:['deriv','oanda'], derivSym:'DE40',     oandaSym:'DE30_EUR'  },
+  { id:'CAC',     symbol:'CAC 40',   name:'CAC 40 (France)',      cat:'indices', sources:['deriv','oanda'], derivSym:'FR40',     oandaSym:'FR40_EUR'  },
+  { id:'IBEX',    symbol:'IBEX 35',  name:'IBEX 35 (Spain)',      cat:'indices', sources:['oanda'],                              oandaSym:'ES35_EUR'  },
+  { id:'FTSEMIB', symbol:'FTSE MIB', name:'FTSE MIB (Italy)',    cat:'indices', sources:['oanda'],                              oandaSym:'IT40_EUR'  },
+  { id:'AEX',     symbol:'AEX',      name:'AEX (Netherlands)',    cat:'indices', sources:['oanda'],                              oandaSym:'NL25_EUR'  },
+  { id:'STOXX50', symbol:'STOXX 50', name:'EURO STOXX 50',       cat:'indices', sources:['oanda'],                              oandaSym:'EU50_EUR'  },
+  { id:'FTMC',    symbol:'FTSE 250', name:'FTSE 250 (UK)',        cat:'indices', sources:['unavailable']                                             },
+  { id:'SMI',     symbol:'SMI',      name:'SMI (Switzerland)',    cat:'indices', sources:['unavailable']                                             },
+  { id:'BEL20',   symbol:'BEL 20',   name:'BEL 20 (Belgium)',    cat:'indices', sources:['unavailable']                                             },
+  { id:'OMX',     symbol:'OMXS30',   name:'OMX Stockholm 30',    cat:'indices', sources:['unavailable']                                             },
+  { id:'ATX',     symbol:'ATX',      name:'ATX (Austria)',        cat:'indices', sources:['unavailable']                                             },
+  { id:'WIG20',   symbol:'WIG20',    name:'WIG 20 (Poland)',      cat:'indices', sources:['unavailable']                                             },
+  { id:'MOEX',    symbol:'MOEX',     name:'MOEX (Russia)',        cat:'indices', sources:['unavailable']                                             },
+  { id:'ISE100',  symbol:'BIST 100', name:'BIST 100 (Turkey)',    cat:'indices', sources:['unavailable']                                             },
+  { id:'PSI20',   symbol:'PSI 20',   name:'PSI 20 (Portugal)',    cat:'indices', sources:['unavailable']                                             },
+  { id:'BUX',     symbol:'BUX',      name:'BUX (Hungary)',        cat:'indices', sources:['unavailable']                                             },
+  { id:'TA35',    symbol:'TA-35',    name:'Tel Aviv 35 (Israel)', cat:'indices', sources:['unavailable']                                             },
+
+  // ── Americas ──────────────────────────────────
+  { id:'GSPTSE',  symbol:'TSX',      name:'S&P/TSX Composite',   cat:'indices', sources:['unavailable']                                             },
+  { id:'BVSP',    symbol:'BOVESPA',  name:'IBOVESPA (Brazil)',   cat:'indices', sources:['unavailable']                                             },
+  { id:'MXX',     symbol:'IPC',      name:'IPC Mexico',           cat:'indices', sources:['unavailable']                                             },
+  { id:'MERVAL',  symbol:'MERVAL',   name:'MERVAL (Argentina)',   cat:'indices', sources:['unavailable']                                             },
+  { id:'IPSA',    symbol:'IPSA',     name:'IPSA (Chile)',          cat:'indices', sources:['unavailable']                                             },
+
+  // ── Asia-Pacific ──────────────────────────────
+  { id:'N225',    symbol:'Nikkei',    name:'Nikkei 225 (Japan)',     cat:'indices', sources:['deriv','oanda'], derivSym:'JP225',   oandaSym:'JP225_USD' },
+  { id:'HSI',     symbol:'Hang Seng', name:'Hang Seng (HK)',         cat:'indices', sources:['deriv','oanda'], derivSym:'HK33',    oandaSym:'HK33_HKD'  },
+  { id:'ASX200',  symbol:'ASX 200',   name:'ASX 200 (Australia)',    cat:'indices', sources:['deriv','oanda'], derivSym:'AUS200',  oandaSym:'AU200_AUD' },
+  { id:'TOPIX',   symbol:'TOPIX',     name:'TOPIX (Japan)',           cat:'indices', sources:['unavailable']                                             },
+  { id:'SHCOMP',  symbol:'SSE',       name:'Shanghai Composite',     cat:'indices', sources:['unavailable']                                             },
+  { id:'CSI300',  symbol:'CSI 300',   name:'CSI 300 (China)',        cat:'indices', sources:['unavailable']                                             },
+  { id:'SENSEX',  symbol:'SENSEX',    name:'SENSEX (India)',         cat:'indices', sources:['unavailable']                                             },
+  { id:'NIFTY',   symbol:'NIFTY 50',  name:'Nifty 50 (India)',       cat:'indices', sources:['unavailable']                                             },
+  { id:'KOSPI',   symbol:'KOSPI',     name:'KOSPI (South Korea)',     cat:'indices', sources:['unavailable']                                             },
+  { id:'STI',     symbol:'STI',       name:'Straits Times (SG)',     cat:'indices', sources:['unavailable']                                             },
+  { id:'TWII',    symbol:'TAIEX',     name:'Taiwan Weighted',        cat:'indices', sources:['unavailable']                                             },
+  { id:'JCI',     symbol:'IDX',       name:'IDX Composite (ID)',     cat:'indices', sources:['unavailable']                                             },
+  { id:'NZ50',    symbol:'NZX 50',    name:'NZX 50 (New Zealand)',   cat:'indices', sources:['unavailable']                                             },
+  { id:'KLCI',    symbol:'KLCI',      name:'KLCI (Malaysia)',        cat:'indices', sources:['unavailable']                                             },
+  { id:'SET',     symbol:'SET',       name:'SET (Thailand)',         cat:'indices', sources:['unavailable']                                             },
+  { id:'PSEi',    symbol:'PSEi',      name:'PSEi (Philippines)',     cat:'indices', sources:['unavailable']                                             },
+
+  // ── Middle East & Africa ──────────────────────
+  { id:'TADAWUL', symbol:'TASI',      name:'Tadawul (Saudi Arabia)', cat:'indices', sources:['unavailable']                                             },
+  { id:'ADX',     symbol:'ADX',       name:'ADX (Abu Dhabi)',        cat:'indices', sources:['unavailable']                                             },
+  { id:'DFM',     symbol:'DFM',       name:'DFM (Dubai)',            cat:'indices', sources:['unavailable']                                             },
+  { id:'EGX30',   symbol:'EGX 30',    name:'EGX 30 (Egypt)',         cat:'indices', sources:['unavailable']                                             },
+  { id:'JSE',     symbol:'JSE TOP40', name:'JSE Top 40 (S. Africa)', cat:'indices', sources:['unavailable']                                             },
+  { id:'NSE',     symbol:'NGX 30',    name:'NGX 30 (Nigeria)',       cat:'indices', sources:['unavailable']                                             },
+
+  // ── Deriv Synthetic Indices (unique to Deriv, 24/7) ──
+  { id:'R_10',    symbol:'Volatility 10', name:'Volatility 10 Index',   cat:'indices', sources:['deriv'], derivSym:'R_10' },
+  { id:'R_25',    symbol:'Volatility 25', name:'Volatility 25 Index',   cat:'indices', sources:['deriv'], derivSym:'R_25' },
+  { id:'R_50',    symbol:'Volatility 50', name:'Volatility 50 Index',   cat:'indices', sources:['deriv'], derivSym:'R_50' },
+  { id:'R_75',    symbol:'Volatility 75', name:'Volatility 75 Index',   cat:'indices', sources:['deriv'], derivSym:'R_75' },
+  { id:'R_100',   symbol:'Volatility 100',name:'Volatility 100 Index',  cat:'indices', sources:['deriv'], derivSym:'R_100' },
+  { id:'BOOM500', symbol:'Boom 500',  name:'Boom 500 Index',            cat:'indices', sources:['deriv'], derivSym:'BOOM500' },
+  { id:'BOOM1000',symbol:'Boom 1000', name:'Boom 1000 Index',           cat:'indices', sources:['deriv'], derivSym:'BOOM1000' },
+  { id:'CRASH500',symbol:'Crash 500', name:'Crash 500 Index',           cat:'indices', sources:['deriv'], derivSym:'CRASH500' },
+  { id:'CRASH1000',symbol:'Crash 1000',name:'Crash 1000 Index',         cat:'indices', sources:['deriv'], derivSym:'CRASH1000' },
+  { id:'STPFALL', symbol:'Step Down', name:'Step Index',                 cat:'indices', sources:['deriv'], derivSym:'stpRNG' },
+  { id:'JUMP10',  symbol:'Jump 10',   name:'Jump 10 Index',             cat:'indices', sources:['deriv'], derivSym:'JD10' },
+  { id:'JUMP25',  symbol:'Jump 25',   name:'Jump 25 Index',             cat:'indices', sources:['deriv'], derivSym:'JD25' },
+  { id:'JUMP50',  symbol:'Jump 50',   name:'Jump 50 Index',             cat:'indices', sources:['deriv'], derivSym:'JD50' },
+  { id:'JUMP75',  symbol:'Jump 75',   name:'Jump 75 Index',             cat:'indices', sources:['deriv'], derivSym:'JD75' },
+  { id:'JUMP100', symbol:'Jump 100',  name:'Jump 100 Index',            cat:'indices', sources:['deriv'], derivSym:'JD100' },
+  { id:'DEX900UP',symbol:'DEX 900',   name:'Daily Exp. 900 Up',         cat:'indices', sources:['deriv'], derivSym:'DEX900UP' },
+  { id:'DEX900DN',symbol:'DEX 900 DN',name:'Daily Exp. 900 Down',       cat:'indices', sources:['deriv'], derivSym:'DEX900DN' },
+
+  // ════════════════════════════════════════════
+  // STOCKS CFD — OANDA primary (US/EU/Asia listed)
+  // ════════════════════════════════════════════
+  // US Tech
+  { id:'AAPL',  symbol:'AAPL',  name:'Apple Inc.',       cat:'stocks', sources:['oanda'], oandaSym:'AAPL_USD' },
+  { id:'MSFT',  symbol:'MSFT',  name:'Microsoft Corp.',  cat:'stocks', sources:['oanda'], oandaSym:'MSFT_USD' },
+  { id:'NVDA',  symbol:'NVDA',  name:'NVIDIA Corp.',     cat:'stocks', sources:['oanda'], oandaSym:'NVDA_USD' },
+  { id:'GOOGL', symbol:'GOOGL', name:'Alphabet Inc.',    cat:'stocks', sources:['oanda'], oandaSym:'GOOGL_USD' },
+  { id:'AMZN',  symbol:'AMZN',  name:'Amazon.com',       cat:'stocks', sources:['oanda'], oandaSym:'AMZN_USD' },
+  { id:'META',  symbol:'META',  name:'Meta Platforms',   cat:'stocks', sources:['oanda'], oandaSym:'META_USD' },
+  { id:'TSLA',  symbol:'TSLA',  name:'Tesla Inc.',       cat:'stocks', sources:['oanda'], oandaSym:'TSLA_USD' },
+  { id:'NFLX',  symbol:'NFLX',  name:'Netflix Inc.',     cat:'stocks', sources:['oanda'], oandaSym:'NFLX_USD' },
+  { id:'AMD',   symbol:'AMD',   name:'AMD',              cat:'stocks', sources:['oanda'], oandaSym:'AMD_USD'  },
+  { id:'INTC',  symbol:'INTC',  name:'Intel Corp.',      cat:'stocks', sources:['oanda'], oandaSym:'INTC_USD' },
+  { id:'CRM',   symbol:'CRM',   name:'Salesforce',       cat:'stocks', sources:['oanda'], oandaSym:'CRM_USD'  },
+  { id:'ORCL',  symbol:'ORCL',  name:'Oracle Corp.',     cat:'stocks', sources:['oanda'], oandaSym:'ORCL_USD' },
+  { id:'PYPL',  symbol:'PYPL',  name:'PayPal Holdings',  cat:'stocks', sources:['oanda'], oandaSym:'PYPL_USD' },
+  { id:'ADBE',  symbol:'ADBE',  name:'Adobe Inc.',       cat:'stocks', sources:['oanda'], oandaSym:'ADBE_USD' },
+  { id:'QCOM',  symbol:'QCOM',  name:'Qualcomm',         cat:'stocks', sources:['oanda'], oandaSym:'QCOM_USD' },
+  // US Finance
+  { id:'JPM',   symbol:'JPM',   name:'JPMorgan Chase',   cat:'stocks', sources:['oanda'], oandaSym:'JPM_USD'  },
+  { id:'BAC',   symbol:'BAC',   name:'Bank of America',  cat:'stocks', sources:['oanda'], oandaSym:'BAC_USD'  },
+  { id:'GS',    symbol:'GS',    name:'Goldman Sachs',    cat:'stocks', sources:['oanda'], oandaSym:'GS_USD'   },
+  { id:'MS',    symbol:'MS',    name:'Morgan Stanley',   cat:'stocks', sources:['oanda'], oandaSym:'MS_USD'   },
+  { id:'V',     symbol:'V',     name:'Visa Inc.',        cat:'stocks', sources:['oanda'], oandaSym:'V_USD'    },
+  { id:'MA',    symbol:'MA',    name:'Mastercard',       cat:'stocks', sources:['oanda'], oandaSym:'MA_USD'   },
+  // US Healthcare
+  { id:'JNJ',   symbol:'JNJ',   name:'Johnson & Johnson',cat:'stocks', sources:['oanda'], oandaSym:'JNJ_USD'  },
+  { id:'PFE',   symbol:'PFE',   name:'Pfizer Inc.',      cat:'stocks', sources:['oanda'], oandaSym:'PFE_USD'  },
+  { id:'MRNA',  symbol:'MRNA',  name:'Moderna Inc.',     cat:'stocks', sources:['oanda'], oandaSym:'MRNA_USD' },
+  { id:'LLY',   symbol:'LLY',   name:'Eli Lilly',        cat:'stocks', sources:['oanda'], oandaSym:'LLY_USD'  },
+  // US Consumer/Energy
+  { id:'WMT',   symbol:'WMT',   name:'Walmart Inc.',     cat:'stocks', sources:['oanda'], oandaSym:'WMT_USD'  },
+  { id:'XOM',   symbol:'XOM',   name:'ExxonMobil',       cat:'stocks', sources:['oanda'], oandaSym:'XOM_USD'  },
+  { id:'CVX',   symbol:'CVX',   name:'Chevron Corp.',    cat:'stocks', sources:['oanda'], oandaSym:'CVX_USD'  },
+  { id:'KO',    symbol:'KO',    name:'Coca-Cola',        cat:'stocks', sources:['oanda'], oandaSym:'KO_USD'   },
+  { id:'DIS',   symbol:'DIS',   name:'Walt Disney Co.',  cat:'stocks', sources:['oanda'], oandaSym:'DIS_USD'  },
+  { id:'NKE',   symbol:'NKE',   name:'Nike Inc.',        cat:'stocks', sources:['oanda'], oandaSym:'NKE_USD'  },
+  // European Stocks
+  { id:'SHEL',  symbol:'SHEL',  name:'Shell PLC',        cat:'stocks', sources:['oanda'], oandaSym:'SHEL_USD' },
+  { id:'SAP',   symbol:'SAP',   name:'SAP SE',           cat:'stocks', sources:['oanda'], oandaSym:'SAP_USD'  },
+  { id:'NOVO-B',symbol:'NVO',   name:'Novo Nordisk',     cat:'stocks', sources:['oanda'], oandaSym:'NVO_USD'  },
+  { id:'LVMH',  symbol:'MC.PA', name:'LVMH',             cat:'stocks', sources:['oanda'], oandaSym:'LVMH_EUR' },
+  // Asian/Other
+  { id:'BABA',  symbol:'BABA',  name:'Alibaba Group',    cat:'stocks', sources:['oanda'], oandaSym:'BABA_USD' },
+  { id:'BIDU',  symbol:'BIDU',  name:'Baidu Inc.',       cat:'stocks', sources:['oanda'], oandaSym:'BIDU_USD' },
+  { id:'TSM',   symbol:'TSM',   name:'Taiwan Semiconductor',cat:'stocks', sources:['oanda'], oandaSym:'TSM_USD' },
+  { id:'SONY',  symbol:'SONY',  name:'Sony Group',       cat:'stocks', sources:['oanda'], oandaSym:'SONY_USD' },
+  { id:'SPOT',  symbol:'SPOT',  name:'Spotify Technology',cat:'stocks', sources:['oanda'], oandaSym:'SPOT_USD' },
+  { id:'UBER',  symbol:'UBER',  name:'Uber Technologies',cat:'stocks', sources:['oanda'], oandaSym:'UBER_USD' },
+  { id:'COIN',  symbol:'COIN',  name:'Coinbase Global',  cat:'stocks', sources:['oanda'], oandaSym:'COIN_USD' },
+  { id:'HOOD',  symbol:'HOOD',  name:'Robinhood Markets',cat:'stocks', sources:['oanda'], oandaSym:'HOOD_USD' },
 ];
+
+// ── Build fast lookup maps ────────────────────
+const ASSET_BY_ID     = new Map(ALL_ASSETS.map(a => [a.id, a]));
+const ASSET_BY_DERIV  = new Map(ALL_ASSETS.filter(a => a.derivSym).map(a => [a.derivSym, a]));
+const ASSET_BY_OANDA  = new Map(ALL_ASSETS.filter(a => a.oandaSym).map(a => [a.oandaSym, a]));
+const ASSET_BY_CG     = new Map(ALL_ASSETS.filter(a => a.cgId).map(a => [a.cgId, a]));
+
 // ═══════════════════════════════════════════════
-let prices = {};
-let priceData = {};  // { id: { price, change, high, low, vol, mcap } }
-let alerts = [];
-let alertHistory = [];   // { id, symbol, assetId, condition, targetPrice, triggeredAt (timestamp), triggeredPrice, note }
-let alertHistoryFilter = '7d'; // '7d' | '30d' | '3m' | 'custom'
-let historyCustomFrom = null;  // Date object
-let historyCustomTo   = null;  // Date object
-let historyExpandedAsset = null; // assetId currently expanded in history view
-let selectedAsset = null;
+let prices    = {};
+let priceData = {};
+let alerts    = [];
+let alertHistory   = [];
+let alertHistoryFilter = '7d';
+let historyCustomFrom  = null;
+let historyCustomTo    = null;
+let historyExpandedAsset = null;
+let selectedAsset  = null;
 let alertIdCounter = 1;
-let currentTF = '1H';
-let chartData = [];
-let chartCtx = null;
+let currentTF      = '1H';
+let chartData      = [];
+let chartCtx       = null;
 let triggeredToday = 0;
-let currentLibTab = 'ALL';
+let currentLibTab  = 'ALL';
 let libSearchQuery = '';
-let currentWLTab = 'hot'; // 'hot' | 'watchlist'
-// When true, selectAsset will switch to the chart tab on mobile.
-// Set to true only on explicit user taps — never during background refreshes.
+let currentWLTab   = 'hot';
 let navigateToChartOnSelect = false;
 
 // ═══════════════════════════════════════════════
-// HOT LIST — seed + dynamic rankings
+// HOT LIST
 // ═══════════════════════════════════════════════
-
-// Seed: shown before DB has enough data, and used to fill gaps
-// Hot list seed — major forex pairs shown by default.
-// As user clicks accumulate in the DB, real rankings replace these.
 const HOT_LIST_SEED = {
-  forex: ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF'],
+  forex: ['EUR/USD','GBP/USD','USD/JPY','AUD/USD','USD/CAD','USD/CHF'],
 };
-
-// Live hot list — starts as seed, gets replaced by DB click rankings on load
 let HOT_LIST = { ...HOT_LIST_SEED };
 
 // ═══════════════════════════════════════════════
-// FETCH HELPERS — CORS proxy chain
-// Tries direct → allorigins proxy → corsproxy.io
+// DERIV WEBSOCKET — real-time price ticks
+// Connects once, subscribes to all active assets.
+// Falls back gracefully if unavailable.
 // ═══════════════════════════════════════════════
+let derivWs     = null;
+let derivReady  = false;
+let derivPending = [];   // assets waiting for subscription after open
+let derivRetryTimer = null;
 
-// CORS proxy wrappers
-const CORS_PROXIES = [
-  url => url,
-  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
+function getDerivSymbols() {
+  // All assets in the user's watchlist + hot list that have a Deriv symbol
+  const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
+  const hotIds     = new Set(Object.values(HOT_LIST).flat());
+  const allIds     = new Set([...watchedIds, ...hotIds]);
+  return ALL_ASSETS.filter(a => a.derivSym && allIds.has(a.id)).map(a => a.derivSym);
+}
 
-// ── CORS-safe fetch helper ────────────────────────
-// ── SIMULATED BASE PRICES (realistic as of early 2026) ───
-// ── REAL PRICE FETCHING ───────────────────────────
-// Crypto  → CoinGecko (free, no key)
-// Stocks/Forex/Commodities → Twelve Data (free key)
-// ── Yahoo Finance — indices price fetcher ────────────────────────────────────
-// Maps our internal asset id → Yahoo Finance ticker symbol
-const YAHOO_SYMBOLS = {
-  // ── US ──
-  'SPX':'^GSPC',      'IXIC':'^IXIC',      'DJI':'^DJI',        'NDX':'^NDX',
-  'RUT':'^RUT',       'VIX':'^VIX',        'DXY':'DX-Y.NYB',    'TNX':'^TNX',    'TYX':'^TYX',
-  // ── Europe ──
-  'FTSE':'^FTSE',     'FTMC':'^FTMC',      'DAX':'^GDAXI',      'CAC':'^FCHI',
-  'IBEX':'^IBEX',     'FTSEMIB':'^FTSEMIB','SMI':'^SSMI',       'AEX':'^AEX',
-  'BEL20':'^BFX',     'STOXX50':'^STOXX50E',
-  'OMX':'^OMX',       'OMXH25':'^OMXHPI',  'OMXC25':'^OMXC25',  'OBX':'^OBX.OL',
-  'ATX':'^ATX',       'PSI20':'^PSI20',    'WIG20':'^WIG20',    'BUX':'^BUX',
-  'MOEX':'IMOEX.ME',  'ISE100':'^XU100',   'TA35':'^TA125.TA',
-  // ── Americas ──
-  'GSPTSE':'^GSPTSE', 'BVSP':'^BVSP',      'MXX':'^MXX',        'MERVAL':'^MERV', 'IPSA':'^IPSA',
-  // ── Asia-Pacific ──
-  'N225':'^N225',     'TOPIX':'^TOPX',     'HSI':'^HSI',        'HSCEi':'^HSCE',
-  'SHCOMP':'000001.SS','SZCOMP':'399001.SZ','CSI300':'000300.SS',
-  'SENSEX':'^BSESN',  'NIFTY':'^NSEI',     'KOSPI':'^KS11',     'TWII':'^TWII',
-  'ASX200':'^AXJO',   'AORD':'^AORD',      'NZ50':'^NZ50',      'STI':'^STI',
-  'KLCI':'^KLSE',     'JCI':'^JKSE',       'SET':'^SET.BK',     'PSEi':'^PSEi.PS',
-  // ── Middle East & Africa ──
-  'TADAWUL':'^TASI.SR','ADX':'^FTFADGI',   'DFM':'^DFMGI',
-  'EGX30':'^CASE30',  'JSE':'^JN0U.JO',    'NSE':'^NGSEINDX',
-};
+function connectDeriv() {
+  if (derivWs && (derivWs.readyState === WebSocket.CONNECTING || derivWs.readyState === WebSocket.OPEN)) return;
 
-async function fetchYahooIndex(assetId) {
-  const yahooSym = YAHOO_SYMBOLS[assetId];
-  if (!yahooSym) return null;
-  try {
-    // Use allorigins CORS proxy to bypass browser CORS restriction
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1m&range=1d`;
-    const proxied = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const res  = await fetch(proxied);
-    const data = await res.json();
-    const result = data?.chart?.result?.[0];
-    if (!result) return null;
-    const meta   = result.meta;
-    const price  = meta.regularMarketPrice || meta.previousClose;
-    const open   = meta.chartPreviousClose || meta.previousClose || price;
-    const high   = meta.regularMarketDayHigh  || price;
-    const low    = meta.regularMarketDayLow   || price;
-    const change = open > 0 ? (((price - open) / open) * 100).toFixed(2) : '0.00';
-    return { price, change, high, low, vol: '—', mcap: '—', live: true };
-  } catch(e) {
-    console.warn(`Yahoo fetch failed for ${assetId}:`, e);
-    return null;
+  derivWs    = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+  derivReady = false;
+
+  derivWs.onopen = () => {
+    derivReady = true;
+    clearTimeout(derivRetryTimer);
+    // Subscribe to all needed symbols
+    const syms = getDerivSymbols();
+    if (syms.length) {
+      derivWs.send(JSON.stringify({ ticks_history: syms[0], end: 'latest', count: 1 })); // ping
+      syms.forEach(sym => {
+        derivWs.send(JSON.stringify({ ticks: sym, subscribe: 1 }));
+      });
+    }
+    setStatusPill(true);
+  };
+
+  derivWs.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.msg_type === 'tick' && msg.tick) {
+        const sym   = msg.tick.symbol;
+        const asset = ASSET_BY_DERIV.get(sym);
+        if (!asset) return;
+        const newPrice = parseFloat(msg.tick.quote);
+        if (!newPrice) return;
+        const prev = priceData[asset.id];
+        priceData[asset.id] = {
+          price:  newPrice,
+          change: prev?.open ? (((newPrice - prev.open) / prev.open) * 100).toFixed(4) : '0.0000',
+          high:   prev?.high  ? Math.max(prev.high, newPrice)  : newPrice,
+          low:    prev?.low   ? Math.min(prev.low,  newPrice)  : newPrice,
+          open:   prev?.open  || newPrice,
+          vol:    prev?.vol   || '—',
+          mcap:   '—',
+          live:   true,
+          src:    'deriv',
+        };
+        prices[asset.id] = newPrice;
+      }
+    } catch(e) {}
+  };
+
+  derivWs.onclose = (e) => {
+    derivReady = false;
+    if (e.code !== 1000) {
+      derivRetryTimer = setTimeout(connectDeriv, 10000);
+    }
+  };
+
+  derivWs.onerror = () => {
+    derivWs.close();
+  };
+}
+
+function subscribeDerivAsset(asset) {
+  if (!asset.derivSym) return;
+  if (derivReady && derivWs?.readyState === WebSocket.OPEN) {
+    derivWs.send(JSON.stringify({ ticks: asset.derivSym, subscribe: 1 }));
   }
 }
 
-// Batch fetch all indices — fire in parallel with small stagger to avoid rate limits
-async function fetchAllIndices(assets) {
-  await Promise.all(assets.map(async (asset, i) => {
-    // Small stagger: 50ms between each to avoid hammering allorigins
-    await new Promise(r => setTimeout(r, i * 50));
-    const d = await fetchYahooIndex(asset.id);
-    if (!d) return;
-    priceData[asset.id] = d;
-    prices[asset.id]    = d.price;
-  }));
+// ═══════════════════════════════════════════════
+// OANDA REST — snapshot prices (when key provided)
+// Batch call — one request for all OANDA symbols.
+// ═══════════════════════════════════════════════
+async function fetchOandaSnapshot(assets) {
+  if (!OANDA_KEY || !assets.length) return;
+  const instruments = assets.map(a => a.oandaSym).filter(Boolean).join(',');
+  if (!instruments) return;
+  try {
+    const res = await fetch(`${OANDA_BASE}/accounts/${OANDA_ACCOUNT}/pricing?instruments=${instruments}`, {
+      headers: { 'Authorization': `Bearer ${OANDA_KEY}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    (data.prices || []).forEach(p => {
+      const asset = ASSET_BY_OANDA.get(p.instrument);
+      if (!asset) return;
+      const bid   = parseFloat(p.bids?.[0]?.price  || 0);
+      const ask   = parseFloat(p.asks?.[0]?.price  || 0);
+      const price = (bid + ask) / 2;
+      if (!price) return;
+      const prev = priceData[asset.id];
+      priceData[asset.id] = {
+        price,
+        change: prev?.open ? (((price - prev.open) / prev.open) * 100).toFixed(4) : '0.0000',
+        high:   prev?.high  ? Math.max(prev.high, price) : price,
+        low:    prev?.low   ? Math.min(prev.low,  price) : price,
+        open:   prev?.open  || price,
+        vol:    '—', mcap: '—', live: true, src: 'oanda',
+      };
+      prices[asset.id] = price;
+    });
+  } catch(e) { console.warn('OANDA snapshot failed:', e); }
 }
 
+// ═══════════════════════════════════════════════
+// COINGECKO — crypto spot prices (batch)
+// ═══════════════════════════════════════════════
 function formatVol(n) {
   if (n >= 1e12) return (n/1e12).toFixed(2) + 'T';
   if (n >= 1e9)  return (n/1e9).toFixed(1)  + 'B';
   if (n >= 1e6)  return (n/1e6).toFixed(1)  + 'M';
-  return n.toLocaleString();
+  return n?.toLocaleString() || '—';
 }
 
-// ── CoinGecko — one batch call for all crypto ────
 async function fetchCryptoPrices(assets) {
-  const ids = assets.map(a => a.id).join(',');
+  const cgIds = assets.map(a => a.cgId).filter(Boolean).join(',');
+  if (!cgIds) return false;
   try {
     const res  = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}` +
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${cgIds}` +
       `&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
     );
     const data = await res.json();
     if (!Array.isArray(data)) throw new Error('Bad CoinGecko response');
     data.forEach(coin => {
-      priceData[coin.id] = {
-        price:  coin.current_price,
-        change: coin.price_change_percentage_24h?.toFixed(2) || '0.00',
+      const asset = ASSET_BY_CG.get(coin.id);
+      if (!asset) return;
+      const price = coin.current_price;
+      priceData[asset.id] = {
+        price,
+        change: coin.price_change_percentage_24h?.toFixed(4) || '0.0000',
         high:   coin.high_24h,
         low:    coin.low_24h,
+        open:   coin.current_price - (coin.price_change_24h || 0),
         vol:    coin.total_volume ? formatVol(coin.total_volume) : '—',
         mcap:   coin.market_cap   ? formatVol(coin.market_cap)   : '—',
-        live:   true,
+        live:   true, src: 'coingecko',
       };
-      prices[coin.id] = coin.current_price;
+      prices[asset.id] = price;
     });
     return true;
-  } catch(e) { console.warn('CoinGecko fetch failed', e); return false; }
+  } catch(e) { console.warn('CoinGecko failed:', e); return false; }
 }
 
-// ── Twelve Data — ONE batch call for all non-crypto ──
-// Free tier allows 8 req/min — batching all symbols into a single
-// /price?symbol=A,B,C call uses just 1 request.
-async function fetchTDBatch(assets) {
-  if (!assets.length) return;
-  const symbols = assets.map(a => a.tdSymbol || a.id);
-  const symStr  = symbols.join(',');
-
-  // Build a lookup: tdSymbol → assetId
-  const symToId = {};
-  assets.forEach(a => { symToId[a.tdSymbol || a.id] = a.id; });
-
-  try {
-    // Use /price for a lightweight batch (returns just latest close price)
-    const res  = await fetch(
-      `https://api.twelvedata.com/price?symbol=${encodeURIComponent(symStr)}&apikey=${TD_KEY}`
-    );
-    const data = await res.json();
-
-    // Response shape differs: single symbol → { price } ; multiple → { SYM: { price }, ... }
-    const isSingle = symbols.length === 1;
-    const map      = isSingle ? { [symbols[0]]: data } : data;
-
-    symbols.forEach(sym => {
-      const entry  = map[sym];
-      if (!entry || entry.code || !entry.price) return; // rate-limited or error
-      const assetId = symToId[sym];
-      const newPrice = parseFloat(entry.price);
-      const prev     = priceData[assetId];
-
-      // Keep existing OHLC if we already have it; just update close price
-      priceData[assetId] = {
-        price:  newPrice,
-        change: prev ? (((newPrice - (prev.open || newPrice)) / (prev.open || newPrice)) * 100).toFixed(2) : '0.00',
-        high:   prev?.high  || newPrice,
-        low:    prev?.low   || newPrice,
-        open:   prev?.open  || newPrice,
-        vol:    prev?.vol   || '—',
-        mcap:   '—',
-        live:   true,
-      };
-      prices[assetId] = newPrice;
-    });
-
-    // Also fire a single /quote batch on first load to get OHLC data
-    // (only if we don't have it yet — avoids burning extra req/min quota)
-    const needOHLC = assets.filter(a => !priceData[a.id]?.open);
-    if (needOHLC.length) {
-      fetchTDOHLC(needOHLC, symToId).catch(() => {});
-    }
-  } catch(e) { console.warn('TD batch fetch failed', e); }
-}
-
-// Fetch OHLC data once — used to populate high/low/change on first load
-async function fetchTDOHLC(assets, symToId) {
-  const symStr = assets.map(a => a.tdSymbol || a.id).join(',');
-  const res    = await fetch(
-    `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symStr)}&apikey=${TD_KEY}`
-  );
-  const data   = await res.json();
-  const isSingle = assets.length === 1;
-  const map      = isSingle ? { [assets[0].tdSymbol || assets[0].id]: data } : data;
-
-  assets.forEach(a => {
-    const sym   = a.tdSymbol || a.id;
-    const entry = map[sym];
-    if (!entry || entry.status === 'error' || !entry.close) return;
-    const price  = parseFloat(entry.close);
-    const open   = parseFloat(entry.open  || entry.close);
-    const high   = parseFloat(entry.high  || entry.close);
-    const low    = parseFloat(entry.low   || entry.close);
-    const change = (((price - open) / open) * 100).toFixed(2);
-    priceData[a.id] = {
-      price, change, high, low, open,
-      vol:  entry.volume || priceData[a.id]?.vol || '—',
-      mcap: '—', live: true,
-    };
-    prices[a.id] = price;
-  });
-}
-
-// ── Main fetch — all asset categories ────────────
-async function fetchAllPrices() {
-  const cryptoAssets = (ASSETS.crypto || []).filter(a => a.source === 'CoinGecko');
-  const tdAssets     = [
-    ...(ASSETS.stocks      || []),
-    ...(ASSETS.forex       || []),
-    ...(ASSETS.commodities || []),
-  ];
-  const indexAssets  = (ASSETS.indices || []);
-
-  // Fire crypto + TD batch in parallel — just 2 HTTP requests total
-  await Promise.all([
-    cryptoAssets.length ? fetchCryptoPrices(cryptoAssets) : Promise.resolve(),
-    tdAssets.length     ? fetchTDBatch(tdAssets)          : Promise.resolve(),
-  ]);
-
-  // Indices — Yahoo Finance real data
-  if (indexAssets.length) await fetchAllIndices(indexAssets);
-
-  // Update alert engine only — no price display
-  checkAlerts();
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-}
-
-// Keep alias for legacy call sites
-const fetchAllTwelveData = fetchAllPrices;
-
-// ── Single asset refresh ──────────────────────────
-async function fetchSingleAsset(asset) {
-  if (asset.source === 'CoinGecko') {
-    return await fetchCryptoPrices([asset]);
-  }
-  if (asset.source === 'Yahoo Finance' || YAHOO_SYMBOLS[asset.id]) {
-    const d = await fetchYahooIndex(asset.id);
-    if (d) { priceData[asset.id] = d; prices[asset.id] = d.price; return true; }
-    return false;
-  }
-  // Single TD asset — still just 1 request
-  await fetchTDBatch([asset]);
-  return !!priceData[asset.id];
-}
 
 // ═══════════════════════════════════════════════
+// MAIN FETCH — orchestrates all broker sources
+// Deriv WebSocket handles real-time ticks.
+// This REST fetch fills initial prices + OHLC.
+// ═══════════════════════════════════════════════
+async function fetchAllPrices() {
+  // Collect all assets currently needed (watchlist + hot list assets)
+  const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
+  const hotIds     = new Set(Object.values(HOT_LIST).flat());
+  const allNeeded  = [...new Set([...watchedIds, ...hotIds])].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
+
+  // Partition by source — skip 'unavailable' assets entirely
+  const cryptoAssets = allNeeded.filter(a => a.sources?.includes('coingecko'));
+  const oandaAssets  = allNeeded.filter(a => OANDA_KEY && a.oandaSym && !a.sources?.includes('deriv') && a.cat !== 'crypto');
+  // Note: Deriv assets are handled by the persistent WebSocket (connectDeriv)
+  // This REST call only handles CoinGecko + OANDA initial snapshots
+
+  await Promise.all([
+    cryptoAssets.length ? fetchCryptoPrices(cryptoAssets) : Promise.resolve(),
+    oandaAssets.length  ? fetchOandaSnapshot(oandaAssets) : Promise.resolve(),
+  ]);
+
+  checkAlerts();
+  const el = document.getElementById('lastUpdate');
+  if (el) el.textContent = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+}
 
 
-
-
+// ═══════════════════════════════════════════════
+async function fetchSingleAsset(asset) {
+  if (!asset) return;
+  if (asset.sources?.includes('coingecko')) {
+    await fetchCryptoPrices([asset]); return;
+  }
+  if (OANDA_KEY && asset.oandaSym && !asset.sources?.includes('deriv')) {
+    await fetchOandaSnapshot([asset]); return;
+  }
+  // Deriv assets: covered by WebSocket subscription — subscribe if not already
+  if (asset.derivSym) {
+    subscribeDerivAsset(asset);
+  }
+  // unavailable: no live price source — price stays blank
+}
 
 function formatPrice(p, id) {
   if (!p) return '';
@@ -746,85 +932,102 @@ window.addEventListener('popstate', (e) => {
 // Maps our asset IDs to TradingView symbols
 function getTVSymbol(asset) {
   if (!asset) return 'BINANCE:BTCUSDT';
-  const id = asset.id;
+  const id  = asset.id;
   const cat = asset.cat ||
     (Object.entries(ASSETS).find(([, arr]) => arr.find(a => a.id === id)) || [])[0];
 
-  // Crypto — use Binance pairs
+  // ── Crypto — Binance pairs ──────────────────────────────────────────────────
   const cryptoMap = {
-    bitcoin: 'BINANCE:BTCUSDT', ethereum: 'BINANCE:ETHUSDT',
-    solana: 'BINANCE:SOLUSDT', ripple: 'BINANCE:XRPUSDT',
-    binancecoin: 'BINANCE:BNBUSDT', cardano: 'BINANCE:ADAUSDT',
-    dogecoin: 'BINANCE:DOGEUSDT', polkadot: 'BINANCE:DOTUSDT',
-    avalanche: 'BINANCE:AVAXUSDT', chainlink: 'BINANCE:LINKUSDT',
-    litecoin: 'BINANCE:LTCUSDT', uniswap: 'BINANCE:UNIUSDT',
-    stellar: 'BINANCE:XLMUSDT', monero: 'BINANCE:XMRUSDT',
-    tron: 'BINANCE:TRXUSDT', 'shiba-inu': 'BINANCE:SHIBUSDT',
-    'wrapped-bitcoin': 'BINANCE:WBTCUSDT', cosmos: 'BINANCE:ATOMUSDT',
-    filecoin: 'BINANCE:FILUSDT', 'internet-computer': 'BINANCE:ICPUSDT',
-    aptos: 'BINANCE:APTUSDT', arbitrum: 'BINANCE:ARBUSDT',
-    optimism: 'BINANCE:OPUSDT', 'near-protocol': 'BINANCE:NEARUSDT',
-    vechain: 'BINANCE:VETUSDT', algorand: 'BINANCE:ALGOUSDT',
-    hedera: 'BINANCE:HBARUSDT', 'the-graph': 'BINANCE:GRTUSDT',
-    aave: 'BINANCE:AAVEUSDT', maker: 'BINANCE:MKRUSDT',
-    'fetch-ai': 'BINANCE:FETUSDT', injective: 'BINANCE:INJUSDT',
-    sui: 'BINANCE:SUIUSDT', 'sei-network': 'BINANCE:SEIUSDT',
-    'render-token': 'BINANCE:RENDERUSDT', 'stacks': 'BINANCE:STXUSDT',
+    bitcoin:'BINANCE:BTCUSDT',         ethereum:'BINANCE:ETHUSDT',
+    solana:'BINANCE:SOLUSDT',           ripple:'BINANCE:XRPUSDT',
+    binancecoin:'BINANCE:BNBUSDT',      cardano:'BINANCE:ADAUSDT',
+    dogecoin:'BINANCE:DOGEUSDT',        polkadot:'BINANCE:DOTUSDT',
+    'avalanche-2':'BINANCE:AVAXUSDT',   chainlink:'BINANCE:LINKUSDT',
+    litecoin:'BINANCE:LTCUSDT',         uniswap:'BINANCE:UNIUSDT',
+    stellar:'BINANCE:XLMUSDT',          monero:'BINANCE:XMRUSDT',
+    tron:'BINANCE:TRXUSDT',             'shiba-inu':'BINANCE:SHIBUSDT',
+    cosmos:'BINANCE:ATOMUSDT',          filecoin:'BINANCE:FILUSDT',
+    'internet-computer':'BINANCE:ICPUSDT', aptos:'BINANCE:APTUSDT',
+    arbitrum:'BINANCE:ARBUSDT',         optimism:'BINANCE:OPUSDT',
+    near:'BINANCE:NEARUSDT',            vechain:'BINANCE:VETUSDT',
+    algorand:'BINANCE:ALGOUSDT',        hedera:'BINANCE:HBARUSDT',
+    aave:'BINANCE:AAVEUSDT',            maker:'BINANCE:MKRUSDT',
+    'fetch-ai':'BINANCE:FETUSDT',       'injective-protocol':'BINANCE:INJUSDT',
+    sui:'BINANCE:SUIUSDT',              'sei-network':'BINANCE:SEIUSDT',
+    'render-token':'BINANCE:RENDERUSDT',toncoin:'BINANCE:TONUSDT',
+    pepe:'BINANCE:PEPEUSDT',            bonk:'BINANCE:BONKUSDT',
+    kaspa:'BINANCE:KASUSDT',            'worldcoin-wld':'BINANCE:WLDUSDT',
+    celestia:'BINANCE:TIAUSDT',         starknet:'BINANCE:STRKUSDT',
+    'immutable-x':'BINANCE:IMXUSDT',    polygon:'BINANCE:MATICUSDT',
+    'near-protocol':'BINANCE:NEARUSDT', 'fetch-ai':'BINANCE:FETUSDT',
   };
   if (cryptoMap[id]) return cryptoMap[id];
 
-  // Forex — use FX_ prefix
-  if (cat === 'forex' || id.includes('/')) {
+  // ── Forex — FX_ prefix (handles all currency pairs) ────────────────────────
+  if (cat === 'forex' || (id.includes('/') && !['XAU','XAG','XPT','XPD'].some(m => id.startsWith(m)))) {
     const clean = id.replace('/', '');
     return `FX:${clean}`;
   }
 
-  // Commodities
+  // ── Commodities ─────────────────────────────────────────────────────────────
   const commodityMap = {
-    'XAU/USD': 'TVC:GOLD', 'XAG/USD': 'TVC:SILVER',
-    'WTI/USD': 'TVC:USOIL', 'XNG/USD': 'TVC:NGAS',
-    'XPT/USD': 'TVC:PLATINUM', 'XPD/USD': 'TVC:PALLADIUM',
-    'BRENT/USD': 'TVC:UKOIL',
+    'XAU/USD':'TVC:GOLD',    'XAG/USD':'TVC:SILVER',
+    'WTI/USD':'TVC:USOIL',   'BRENT/USD':'TVC:UKOIL',
+    'XNG/USD':'TVC:NGAS',    'XPT/USD':'TVC:PLATINUM',
+    'XPD/USD':'TVC:PALLADIUM','COPPER':'COMEX:HG1!',
+    'WHEAT':'CBOT:ZW1!',     'CORN':'CBOT:ZC1!',
+    'SOYBEAN':'CBOT:ZS1!',   'SUGAR':'ICEUS:SB1!',
+    'COFFEE':'ICEUS:KC1!',   'COTTON':'ICEUS:CT1!',
   };
   if (commodityMap[id]) return commodityMap[id];
 
-  // Indices — TradingView symbol map
+  // ── Indices ──────────────────────────────────────────────────────────────────
   const indexMap = {
     // US
-    'SPX':'SP:SPX', 'IXIC':'NASDAQ:IXIC', 'DJI':'DJ:DJI',
-    'NDX':'NASDAQ:NDX', 'RUT':'TVC:RUT', 'VIX':'TVC:VIX',
-    'DXY':'TVC:DXY', 'TNX':'TVC:TNX', 'TYX':'TVC:TYX',
+    'SPX':'SP:SPX',          'IXIC':'NASDAQ:IXIC',       'DJI':'DJ:DJI',
+    'NDX':'NASDAQ:NDX',      'RUT':'TVC:RUT',             'VIX':'TVC:VIX',
+    'DXY':'TVC:DXY',         'TNX':'TVC:TNX',             'TYX':'TVC:TYX',
     // Europe
-    'FTSE':'TVC:UKX', 'FTMC':'SPREADEX:UK100',
-    'DAX':'XETR:DAX', 'CAC':'EURONEXT:PX1', 'IBEX':'TVC:IBEX',
-    'FTSEMIB':'TVC:FTSEMIB', 'SMI':'TVC:SMI', 'AEX':'TVC:AEX',
-    'BEL20':'TVC:BEL20', 'OMX':'OMXSTO:OMXS30',
-    'OMXH25':'TVC:HEX25', 'OMXC25':'TVC:OMXC25',
-    'OBX':'TVC:OBX', 'ATX':'TVC:ATX', 'PSI20':'TVC:PSI20',
-    'WIG20':'TVC:WIG20', 'BUX':'TVC:BUX', 'PX':'TVC:PX',
-    'MOEX':'MOEX:IMOEX', 'ISE100':'BIST:XU100', 'TA35':'TVC:TA35',
-    'STOXX50':'TVC:SX5E',
+    'FTSE':'TVC:UKX',        'FTMC':'TVC:FTMC',           'DAX':'XETR:DAX',
+    'CAC':'EURONEXT:PX1',    'IBEX':'TVC:IBEX',           'FTSEMIB':'TVC:FTSEMIB',
+    'SMI':'TVC:SMI',         'AEX':'TVC:AEX',             'BEL20':'TVC:BEL20',
+    'STOXX50':'TVC:SX5E',    'OMX':'OMXSTO:OMXS30',       'ATX':'TVC:ATX',
+    'PSI20':'TVC:PSI20',     'WIG20':'TVC:WIG20',         'BUX':'TVC:BUX',
+    'MOEX':'MOEX:IMOEX',     'ISE100':'BIST:XU100',       'TA35':'TVC:TA35',
     // Americas
-    'GSPTSE':'TVC:TSX', 'BVSP':'TVC:IBOV', 'MXX':'TVC:IPC',
-    'MERVAL':'TVC:MERVAL', 'IPSA':'TVC:IPSA',
+    'GSPTSE':'TVC:TSX',      'BVSP':'TVC:IBOV',           'MXX':'TVC:IPC',
+    'MERVAL':'TVC:MERVAL',   'IPSA':'TVC:IPSA',
     // Asia-Pacific
-    'N225':'TVC:NI225', 'TOPIX':'TVC:TOPIX',
-    'HSI':'TVC:HSI', 'HSCEi':'TVC:HSCEI',
-    'SHCOMP':'SSE:000001', 'SZCOMP':'SZSE:399001', 'CSI300':'SSE:000300',
-    'SENSEX':'BSE:SENSEX', 'NIFTY':'NSE:NIFTY',
-    'KOSPI':'KRX:KOSPI', 'TWII':'TWSE:TAIEX',
-    'ASX200':'ASX:XJO', 'AORD':'ASX:XAO', 'NZ50':'NZX:NZ50',
-    'STI':'TVC:STI', 'KLCI':'TVC:KLCI', 'JCI':'IDX:COMPOSITE',
-    'SET':'TVC:SET', 'PSEi':'TVC:PSEi',
+    'N225':'TVC:NI225',      'TOPIX':'TVC:TOPIX',         'HSI':'TVC:HSI',
+    'SHCOMP':'SSE:000001',   'CSI300':'SSE:000300',        'SENSEX':'BSE:SENSEX',
+    'NIFTY':'NSE:NIFTY',     'KOSPI':'KRX:KOSPI',         'TWII':'TWSE:TAIEX',
+    'ASX200':'ASX:XJO',      'STI':'TVC:STI',             'KLCI':'TVC:KLCI',
+    'JCI':'IDX:COMPOSITE',   'SET':'TVC:SET',             'PSEi':'TVC:PSEi',
+    'NZ50':'NZX:NZ50',
     // Middle East & Africa
-    'TADAWUL':'TVC:TASI', 'ADX':'TVC:FTFADGI', 'DFM':'TVC:DFMGI',
-    'EGX30':'TVC:EGX30', 'JSE':'JSE:J200', 'NSE':'TVC:NGXASI',
+    'TADAWUL':'TVC:TASI',    'ADX':'TVC:FTFADGI',         'DFM':'TVC:DFMGI',
+    'EGX30':'TVC:EGX30',     'JSE':'JSE:J200',            'NSE':'TVC:NGXASI',
+    // Deriv Synthetics — use Deriv chart feed where available
+    'R_10':'INDEX:VOLATILITY10', 'R_25':'INDEX:VOLATILITY25',
+    'R_50':'INDEX:VOLATILITY50', 'R_75':'INDEX:VOLATILITY75',
+    'R_100':'INDEX:VOLATILITY100',
   };
   if (indexMap[id]) return indexMap[id];
 
-  // Stocks — use NASDAQ by default, NYSE for known ones
-  const nyse = ['BRK.A','BRK.B','JPM','BAC','WFC','GS','XOM','CVX','JNJ','PG','KO','DIS','WMT','V','MA'];
+  // Deriv synthetic indices without a TV symbol — show a placeholder chart (SPX)
+  const derivSynthetics = ['BOOM500','BOOM1000','CRASH500','CRASH1000',
+    'STPFALL','JUMP10','JUMP25','JUMP50','JUMP75','JUMP100','DEX900UP','DEX900DN'];
+  if (derivSynthetics.includes(id)) return 'SP:SPX'; // best available proxy
+
+  // ── Stocks ────────────────────────────────────────────────────────────────────
+  const nyse = ['JPM','BAC','GS','MS','WMT','XOM','CVX','KO','DIS','NKE','JNJ','PFE','V','MA','LLY'];
   if (nyse.includes(id)) return `NYSE:${id}`;
+  // European stocks
+  if (id === 'LVMH') return 'EURONEXT:MC';
+  if (id === 'SAP')  return 'XETR:SAP';
+  if (id === 'SHEL') return 'LSE:SHEL';
+  if (id === 'NOVO-B') return 'CPH:NOVO_B';
+  // Default NASDAQ
   return `NASDAQ:${id}`;
 }
 
@@ -1437,13 +1640,32 @@ function isStockOpen(now) {
   return mins >= 870 && mins < 1260;
 }
 function isMarketOpenForAsset(assetId, now) {
-  // Yahoo Finance returns null/stale for indices when market closed — safe to check anytime
-  if (YAHOO_SYMBOLS[assetId]) return true;
-  if (['bitcoin','ethereum','solana','ripple','binancecoin',
-       'dogecoin','cardano','avalanche-2','chainlink','litecoin'].includes(assetId)) return true;
-  if (['XAU/USD','XAG/USD','WTI/USD','XNG/USD'].includes(assetId)) return isForexOpen(now);
-  if (assetId.includes('/')) return isForexOpen(now);
-  return isStockOpen(now); // stocks
+  const asset = ASSET_BY_ID.get(assetId);
+  if (!asset) return true; // unknown asset — don't block
+
+  // Deriv synthetic indices trade 24/7 — always open
+  const derivSynthetics = ['R_10','R_25','R_50','R_75','R_100',
+    'BOOM500','BOOM1000','CRASH500','CRASH1000','STPFALL',
+    'JUMP10','JUMP25','JUMP50','JUMP75','JUMP100','DEX900UP','DEX900DN'];
+  if (derivSynthetics.includes(assetId)) return true;
+
+  // Crypto — always open
+  if (asset.cat === 'crypto') return true;
+
+  // Unavailable assets — no live price, don't trigger alerts on them
+  if (asset.sources?.[0] === 'unavailable') return false;
+
+  // Indices via Deriv (US500, UK100 etc) — Deriv runs extended hours / near 24/7
+  if (asset.cat === 'indices' && asset.derivSym) return true;
+
+  // Indices via OANDA only — follow exchange hours (treat as stock hours)
+  if (asset.cat === 'indices' && asset.oandaSym) return isStockOpen(now);
+
+  // Commodities and Forex — follow forex hours (Sun 21:00 UTC → Fri 22:00 UTC)
+  if (asset.cat === 'commodities' || asset.cat === 'forex') return isForexOpen(now);
+
+  // Stocks — US market hours (Mon–Fri 09:30–16:00 ET = 13:30–20:00 UTC)
+  return isStockOpen(now);
 }
 
 function checkAlerts() {
@@ -1931,287 +2153,14 @@ function removeAssetFromWatchlist(assetId, cat, event) {
 // Includes ALL default watchlist assets so removed
 // assets always reappear here for re-adding.
 // ═══════════════════════════════════════════════
-const ASSET_LIBRARY = [
 
-  // ── CRYPTO (50+) ──────────────────────────────
-  { id:'bitcoin',      symbol:'BTC',    name:'Bitcoin',            cat:'crypto', tdSymbol:'BTC/USD',    source:'CoinGecko', base:68400 },
-  { id:'ethereum',     symbol:'ETH',    name:'Ethereum',           cat:'crypto', tdSymbol:'ETH/USD',    source:'CoinGecko', base:3520 },
-  { id:'solana',       symbol:'SOL',    name:'Solana',             cat:'crypto', tdSymbol:'SOL/USD',    source:'CoinGecko', base:148 },
-  { id:'ripple',       symbol:'XRP',    name:'XRP',                cat:'crypto', tdSymbol:'XRP/USD',    source:'CoinGecko', base:0.52 },
-  { id:'binancecoin',  symbol:'BNB',    name:'BNB',                cat:'crypto', tdSymbol:'BNB/USD',    source:'CoinGecko', base:412 },
-  { id:'dogecoin',     symbol:'DOGE',   name:'Dogecoin',           cat:'crypto', tdSymbol:'DOGE/USD',   source:'CoinGecko', base:0.16 },
-  { id:'cardano',      symbol:'ADA',    name:'Cardano',            cat:'crypto', tdSymbol:'ADA/USD',    source:'CoinGecko', base:0.47 },
-  { id:'polkadot',     symbol:'DOT',    name:'Polkadot',           cat:'crypto', tdSymbol:'DOT/USD',    source:'CoinGecko', base:7.8 },
-  { id:'avalanche-2',  symbol:'AVAX',   name:'Avalanche',          cat:'crypto', tdSymbol:'AVAX/USD',   source:'CoinGecko', base:35.4 },
-  { id:'chainlink',    symbol:'LINK',   name:'Chainlink',          cat:'crypto', tdSymbol:'LINK/USD',   source:'CoinGecko', base:14.2 },
-  { id:'shiba-inu',    symbol:'SHIB',   name:'Shiba Inu',          cat:'crypto', tdSymbol:'SHIB/USD',   source:'CoinGecko', base:0.0000095 },
-  { id:'litecoin',     symbol:'LTC',    name:'Litecoin',           cat:'crypto', tdSymbol:'LTC/USD',    source:'CoinGecko', base:82.5 },
-  { id:'uniswap',      symbol:'UNI',    name:'Uniswap',            cat:'crypto', tdSymbol:'UNI/USD',    source:'CoinGecko', base:9.8 },
-  { id:'cosmos',       symbol:'ATOM',   name:'Cosmos',             cat:'crypto', tdSymbol:'ATOM/USD',   source:'CoinGecko', base:8.2 },
-  { id:'stellar',      symbol:'XLM',    name:'Stellar',            cat:'crypto', tdSymbol:'XLM/USD',    source:'CoinGecko', base:0.11 },
-  { id:'monero',       symbol:'XMR',    name:'Monero',             cat:'crypto', tdSymbol:'XMR/USD',    source:'CoinGecko', base:162 },
-  { id:'tron',         symbol:'TRX',    name:'TRON',               cat:'crypto', tdSymbol:'TRX/USD',    source:'CoinGecko', base:0.12 },
-  { id:'aave',         symbol:'AAVE',   name:'Aave',               cat:'crypto', tdSymbol:'AAVE/USD',   source:'CoinGecko', base:92 },
-  { id:'near',         symbol:'NEAR',   name:'NEAR Protocol',      cat:'crypto', tdSymbol:'NEAR/USD',   source:'CoinGecko', base:6.5 },
-  { id:'aptos',        symbol:'APT',    name:'Aptos',              cat:'crypto', tdSymbol:'APT/USD',    source:'CoinGecko', base:8.9 },
-  { id:'arbitrum',     symbol:'ARB',    name:'Arbitrum',           cat:'crypto', tdSymbol:'ARB/USD',    source:'CoinGecko', base:0.92 },
-  { id:'optimism',     symbol:'OP',     name:'Optimism',           cat:'crypto', tdSymbol:'OP/USD',     source:'CoinGecko', base:1.8 },
-  { id:'sui',          symbol:'SUI',    name:'Sui',                cat:'crypto', tdSymbol:'SUI/USD',    source:'CoinGecko', base:1.35 },
-  { id:'toncoin',      symbol:'TON',    name:'Toncoin',            cat:'crypto', tdSymbol:'TON/USD',    source:'CoinGecko', base:5.6 },
-  { id:'pepe',         symbol:'PEPE',   name:'Pepe',               cat:'crypto', tdSymbol:'PEPE/USD',   source:'CoinGecko', base:0.0000115 },
-  { id:'bonk',         symbol:'BONK',   name:'Bonk',               cat:'crypto', tdSymbol:'BONK/USD',   source:'CoinGecko', base:0.000022 },
-  { id:'maker',        symbol:'MKR',    name:'MakerDAO',           cat:'crypto', tdSymbol:'MKR/USD',    source:'CoinGecko', base:1850 },
-  { id:'injective-protocol',symbol:'INJ',name:'Injective',        cat:'crypto', tdSymbol:'INJ/USD',    source:'CoinGecko', base:25 },
-  { id:'kaspa',        symbol:'KAS',    name:'Kaspa',              cat:'crypto', tdSymbol:'KAS/USD',    source:'CoinGecko', base:0.115 },
-  { id:'render-token', symbol:'RENDER', name:'Render',             cat:'crypto', tdSymbol:'RENDER/USD', source:'CoinGecko', base:6.8 },
-  { id:'fetch-ai',     symbol:'FET',    name:'Fetch.AI',           cat:'crypto', tdSymbol:'FET/USD',    source:'CoinGecko', base:1.5 },
-  { id:'worldcoin-wld',symbol:'WLD',    name:'Worldcoin',          cat:'crypto', tdSymbol:'WLD/USD',    source:'CoinGecko', base:2.4 },
-  { id:'celestia',     symbol:'TIA',    name:'Celestia',           cat:'crypto', tdSymbol:'TIA/USD',    source:'CoinGecko', base:6.2 },
-  { id:'starknet',     symbol:'STRK',   name:'Starknet',           cat:'crypto', tdSymbol:'STRK/USD',   source:'CoinGecko', base:0.88 },
-  { id:'immutable-x',  symbol:'IMX',   name:'Immutable X',        cat:'crypto', tdSymbol:'IMX/USD',    source:'CoinGecko', base:1.6 },
-  { id:'hedera',       symbol:'HBAR',   name:'Hedera',             cat:'crypto', tdSymbol:'HBAR/USD',   source:'CoinGecko', base:0.09 },
-  { id:'vechain',      symbol:'VET',    name:'VeChain',            cat:'crypto', tdSymbol:'VET/USD',    source:'CoinGecko', base:0.035 },
-  { id:'algorand',     symbol:'ALGO',   name:'Algorand',           cat:'crypto', tdSymbol:'ALGO/USD',   source:'CoinGecko', base:0.18 },
-  { id:'filecoin',     symbol:'FIL',    name:'Filecoin',           cat:'crypto', tdSymbol:'FIL/USD',    source:'CoinGecko', base:5.8 },
-  { id:'the-graph',    symbol:'GRT',    name:'The Graph',          cat:'crypto', tdSymbol:'GRT/USD',    source:'CoinGecko', base:0.18 },
-  { id:'curve-dao-token',symbol:'CRV',  name:'Curve DAO',          cat:'crypto', tdSymbol:'CRV/USD',    source:'CoinGecko', base:0.42 },
-  { id:'floki',        symbol:'FLOKI',  name:'Floki',              cat:'crypto', tdSymbol:'FLOKI/USD',  source:'CoinGecko', base:0.000175 },
+// ═══════════════════════════════════════════════
+// ASSET LIBRARY — derived from ALL_ASSETS master catalogue
+// Used by the "Add Asset" modal browser.
+// This replaces the old static ASSET_LIBRARY.
+// ═══════════════════════════════════════════════
+const ASSET_LIBRARY = ALL_ASSETS;
 
-  // ── STOCKS — US Tech ──────────────────────────
-  { id:'AAPL', symbol:'AAPL', name:'Apple Inc.',         cat:'stocks', tdSymbol:'AAPL', source:'Twelve Data', base:189.4 },
-  { id:'TSLA', symbol:'TSLA', name:'Tesla Inc.',         cat:'stocks', tdSymbol:'TSLA', source:'Twelve Data', base:175.2 },
-  { id:'NVDA', symbol:'NVDA', name:'NVIDIA Corp.',       cat:'stocks', tdSymbol:'NVDA', source:'Twelve Data', base:875.3 },
-  { id:'MSFT', symbol:'MSFT', name:'Microsoft Corp.',    cat:'stocks', tdSymbol:'MSFT', source:'Twelve Data', base:418.7 },
-  { id:'AMZN', symbol:'AMZN', name:'Amazon',             cat:'stocks', tdSymbol:'AMZN', source:'Twelve Data', base:185.2 },
-  { id:'GOOGL',symbol:'GOOGL',name:'Alphabet (Google)',  cat:'stocks', tdSymbol:'GOOGL',source:'Twelve Data', base:175.8 },
-  { id:'META', symbol:'META', name:'Meta Platforms',     cat:'stocks', tdSymbol:'META', source:'Twelve Data', base:510.3 },
-  { id:'NFLX', symbol:'NFLX', name:'Netflix',            cat:'stocks', tdSymbol:'NFLX', source:'Twelve Data', base:625.7 },
-  { id:'AMD',  symbol:'AMD',  name:'AMD',                cat:'stocks', tdSymbol:'AMD',  source:'Twelve Data', base:172.4 },
-  { id:'INTC', symbol:'INTC', name:'Intel',              cat:'stocks', tdSymbol:'INTC', source:'Twelve Data', base:31.2 },
-  { id:'QCOM', symbol:'QCOM', name:'Qualcomm',           cat:'stocks', tdSymbol:'QCOM', source:'Twelve Data', base:168.5 },
-  { id:'CRM',  symbol:'CRM',  name:'Salesforce',         cat:'stocks', tdSymbol:'CRM',  source:'Twelve Data', base:285 },
-  { id:'ORCL', symbol:'ORCL', name:'Oracle',             cat:'stocks', tdSymbol:'ORCL', source:'Twelve Data', base:122 },
-  { id:'ADBE', symbol:'ADBE', name:'Adobe',              cat:'stocks', tdSymbol:'ADBE', source:'Twelve Data', base:460 },
-  { id:'NOW',  symbol:'NOW',  name:'ServiceNow',         cat:'stocks', tdSymbol:'NOW',  source:'Twelve Data', base:780 },
-  { id:'SNOW', symbol:'SNOW', name:'Snowflake',          cat:'stocks', tdSymbol:'SNOW', source:'Twelve Data', base:148 },
-  { id:'PLTR', symbol:'PLTR', name:'Palantir',           cat:'stocks', tdSymbol:'PLTR', source:'Twelve Data', base:22.5 },
-  { id:'COIN', symbol:'COIN', name:'Coinbase',           cat:'stocks', tdSymbol:'COIN', source:'Twelve Data', base:195 },
-  { id:'UBER', symbol:'UBER', name:'Uber',               cat:'stocks', tdSymbol:'UBER', source:'Twelve Data', base:72 },
-  { id:'ABNB', symbol:'ABNB', name:'Airbnb',             cat:'stocks', tdSymbol:'ABNB', source:'Twelve Data', base:142 },
-  { id:'SPOT', symbol:'SPOT', name:'Spotify',            cat:'stocks', tdSymbol:'SPOT', source:'Twelve Data', base:320 },
-  { id:'SQ',   symbol:'SQ',   name:'Block (Square)',     cat:'stocks', tdSymbol:'SQ',   source:'Twelve Data', base:68 },
-  { id:'PYPL', symbol:'PYPL', name:'PayPal',             cat:'stocks', tdSymbol:'PYPL', source:'Twelve Data', base:62 },
-  // Finance
-  { id:'JPM',  symbol:'JPM',  name:'JPMorgan Chase',     cat:'stocks', tdSymbol:'JPM',  source:'Twelve Data', base:198.5 },
-  { id:'GS',   symbol:'GS',   name:'Goldman Sachs',      cat:'stocks', tdSymbol:'GS',   source:'Twelve Data', base:463.2 },
-  { id:'BAC',  symbol:'BAC',  name:'Bank of America',    cat:'stocks', tdSymbol:'BAC',  source:'Twelve Data', base:38.7 },
-  { id:'MS',   symbol:'MS',   name:'Morgan Stanley',     cat:'stocks', tdSymbol:'MS',   source:'Twelve Data', base:92 },
-  { id:'WFC',  symbol:'WFC',  name:'Wells Fargo',        cat:'stocks', tdSymbol:'WFC',  source:'Twelve Data', base:55.8 },
-  { id:'V',    symbol:'V',    name:'Visa',               cat:'stocks', tdSymbol:'V',    source:'Twelve Data', base:275 },
-  { id:'MA',   symbol:'MA',   name:'Mastercard',         cat:'stocks', tdSymbol:'MA',   source:'Twelve Data', base:465 },
-  // Healthcare
-  { id:'JNJ',  symbol:'JNJ',  name:'Johnson & Johnson',  cat:'stocks', tdSymbol:'JNJ',  source:'Twelve Data', base:156 },
-  { id:'PFE',  symbol:'PFE',  name:'Pfizer',             cat:'stocks', tdSymbol:'PFE',  source:'Twelve Data', base:27.5 },
-  { id:'MRNA', symbol:'MRNA', name:'Moderna',            cat:'stocks', tdSymbol:'MRNA', source:'Twelve Data', base:82 },
-  { id:'LLY',  symbol:'LLY',  name:'Eli Lilly',          cat:'stocks', tdSymbol:'LLY',  source:'Twelve Data', base:758 },
-  { id:'UNH',  symbol:'UNH',  name:'UnitedHealth',       cat:'stocks', tdSymbol:'UNH',  source:'Twelve Data', base:492 },
-  // Consumer / Energy
-  { id:'WMT',  symbol:'WMT',  name:'Walmart',            cat:'stocks', tdSymbol:'WMT',  source:'Twelve Data', base:172 },
-  { id:'COST', symbol:'COST', name:'Costco',             cat:'stocks', tdSymbol:'COST', source:'Twelve Data', base:730 },
-  { id:'NKE',  symbol:'NKE',  name:'Nike',               cat:'stocks', tdSymbol:'NKE',  source:'Twelve Data', base:92 },
-  { id:'DIS',  symbol:'DIS',  name:'Walt Disney',        cat:'stocks', tdSymbol:'DIS',  source:'Twelve Data', base:95 },
-  { id:'XOM',  symbol:'XOM',  name:'ExxonMobil',         cat:'stocks', tdSymbol:'XOM',  source:'Twelve Data', base:112 },
-  { id:'CVX',  symbol:'CVX',  name:'Chevron',            cat:'stocks', tdSymbol:'CVX',  source:'Twelve Data', base:155 },
-
-  // ── FOREX — Majors ────────────────────────────
-  { id:'EUR/USD', symbol:'EUR/USD', name:'Euro / US Dollar',              cat:'forex', tdSymbol:'EUR/USD', source:'Twelve Data', base:1.0842 },
-  { id:'GBP/USD', symbol:'GBP/USD', name:'British Pound / US Dollar',    cat:'forex', tdSymbol:'GBP/USD', source:'Twelve Data', base:1.2645 },
-  { id:'USD/JPY', symbol:'USD/JPY', name:'US Dollar / Japanese Yen',     cat:'forex', tdSymbol:'USD/JPY', source:'Twelve Data', base:149.32 },
-  { id:'AUD/USD', symbol:'AUD/USD', name:'Australian Dollar / USD',      cat:'forex', tdSymbol:'AUD/USD', source:'Twelve Data', base:0.6531 },
-  { id:'USD/CHF', symbol:'USD/CHF', name:'US Dollar / Swiss Franc',      cat:'forex', tdSymbol:'USD/CHF', source:'Twelve Data', base:0.8932 },
-  { id:'USD/CAD', symbol:'USD/CAD', name:'US Dollar / Canadian Dollar',  cat:'forex', tdSymbol:'USD/CAD', source:'Twelve Data', base:1.3612 },
-  { id:'NZD/USD', symbol:'NZD/USD', name:'New Zealand Dollar / USD',     cat:'forex', tdSymbol:'NZD/USD', source:'Twelve Data', base:0.6082 },
-  // Crosses — EUR
-  { id:'EUR/GBP', symbol:'EUR/GBP', name:'Euro / British Pound',         cat:'forex', tdSymbol:'EUR/GBP', source:'Twelve Data', base:0.8542 },
-  { id:'EUR/JPY', symbol:'EUR/JPY', name:'Euro / Japanese Yen',          cat:'forex', tdSymbol:'EUR/JPY', source:'Twelve Data', base:162.5 },
-  { id:'EUR/CHF', symbol:'EUR/CHF', name:'Euro / Swiss Franc',           cat:'forex', tdSymbol:'EUR/CHF', source:'Twelve Data', base:0.967 },
-  { id:'EUR/CAD', symbol:'EUR/CAD', name:'Euro / Canadian Dollar',       cat:'forex', tdSymbol:'EUR/CAD', source:'Twelve Data', base:1.475 },
-  { id:'EUR/AUD', symbol:'EUR/AUD', name:'Euro / Australian Dollar',     cat:'forex', tdSymbol:'EUR/AUD', source:'Twelve Data', base:1.659 },
-  { id:'EUR/NZD', symbol:'EUR/NZD', name:'Euro / New Zealand Dollar',    cat:'forex', tdSymbol:'EUR/NZD', source:'Twelve Data', base:1.782 },
-  { id:'EUR/SEK', symbol:'EUR/SEK', name:'Euro / Swedish Krona',         cat:'forex', tdSymbol:'EUR/SEK', source:'Twelve Data', base:11.32 },
-  { id:'EUR/NOK', symbol:'EUR/NOK', name:'Euro / Norwegian Krone',       cat:'forex', tdSymbol:'EUR/NOK', source:'Twelve Data', base:11.65 },
-  { id:'EUR/DKK', symbol:'EUR/DKK', name:'Euro / Danish Krone',          cat:'forex', tdSymbol:'EUR/DKK', source:'Twelve Data', base:7.462 },
-  { id:'EUR/PLN', symbol:'EUR/PLN', name:'Euro / Polish Zloty',          cat:'forex', tdSymbol:'EUR/PLN', source:'Twelve Data', base:4.26 },
-  { id:'EUR/HUF', symbol:'EUR/HUF', name:'Euro / Hungarian Forint',      cat:'forex', tdSymbol:'EUR/HUF', source:'Twelve Data', base:392 },
-  { id:'EUR/CZK', symbol:'EUR/CZK', name:'Euro / Czech Koruna',          cat:'forex', tdSymbol:'EUR/CZK', source:'Twelve Data', base:25.1 },
-  { id:'EUR/RON', symbol:'EUR/RON', name:'Euro / Romanian Leu',          cat:'forex', tdSymbol:'EUR/RON', source:'Twelve Data', base:4.97 },
-  { id:'EUR/TRY', symbol:'EUR/TRY', name:'Euro / Turkish Lira',          cat:'forex', tdSymbol:'EUR/TRY', source:'Twelve Data', base:35.1 },
-  { id:'EUR/ZAR', symbol:'EUR/ZAR', name:'Euro / South African Rand',    cat:'forex', tdSymbol:'EUR/ZAR', source:'Twelve Data', base:20.3 },
-  // Crosses — GBP
-  { id:'GBP/JPY', symbol:'GBP/JPY', name:'British Pound / Japanese Yen',cat:'forex', tdSymbol:'GBP/JPY', source:'Twelve Data', base:188.9 },
-  { id:'GBP/CHF', symbol:'GBP/CHF', name:'British Pound / Swiss Franc',  cat:'forex', tdSymbol:'GBP/CHF', source:'Twelve Data', base:1.128 },
-  { id:'GBP/CAD', symbol:'GBP/CAD', name:'British Pound / Canadian Dollar',cat:'forex',tdSymbol:'GBP/CAD',source:'Twelve Data',base:1.712 },
-  { id:'GBP/AUD', symbol:'GBP/AUD', name:'British Pound / Australian Dollar',cat:'forex',tdSymbol:'GBP/AUD',source:'Twelve Data',base:1.939 },
-  { id:'GBP/NZD', symbol:'GBP/NZD', name:'British Pound / New Zealand Dollar',cat:'forex',tdSymbol:'GBP/NZD',source:'Twelve Data',base:2.074 },
-  // Crosses — AUD
-  { id:'AUD/JPY', symbol:'AUD/JPY', name:'Australian Dollar / Japanese Yen',cat:'forex',tdSymbol:'AUD/JPY',source:'Twelve Data',base:97.5 },
-  { id:'AUD/CAD', symbol:'AUD/CAD', name:'Australian Dollar / Canadian Dollar',cat:'forex',tdSymbol:'AUD/CAD',source:'Twelve Data',base:0.897 },
-  { id:'AUD/CHF', symbol:'AUD/CHF', name:'Australian Dollar / Swiss Franc',cat:'forex',tdSymbol:'AUD/CHF',source:'Twelve Data',base:0.584 },
-  { id:'AUD/NZD', symbol:'AUD/NZD', name:'Australian Dollar / New Zealand Dollar',cat:'forex',tdSymbol:'AUD/NZD',source:'Twelve Data',base:1.074 },
-  // Crosses — NZD
-  { id:'NZD/JPY', symbol:'NZD/JPY', name:'New Zealand Dollar / Japanese Yen',cat:'forex',tdSymbol:'NZD/JPY',source:'Twelve Data',base:90.8 },
-  { id:'NZD/CAD', symbol:'NZD/CAD', name:'New Zealand Dollar / Canadian Dollar',cat:'forex',tdSymbol:'NZD/CAD',source:'Twelve Data',base:0.835 },
-  { id:'NZD/CHF', symbol:'NZD/CHF', name:'New Zealand Dollar / Swiss Franc',cat:'forex',tdSymbol:'NZD/CHF',source:'Twelve Data',base:0.544 },
-  // Crosses — CAD
-  { id:'CAD/JPY', symbol:'CAD/JPY', name:'Canadian Dollar / Japanese Yen',cat:'forex',tdSymbol:'CAD/JPY',source:'Twelve Data',base:109.7 },
-  { id:'CAD/CHF', symbol:'CAD/CHF', name:'Canadian Dollar / Swiss Franc',cat:'forex',tdSymbol:'CAD/CHF',source:'Twelve Data',base:0.656 },
-  // Crosses — CHF
-  { id:'CHF/JPY', symbol:'CHF/JPY', name:'Swiss Franc / Japanese Yen',  cat:'forex', tdSymbol:'CHF/JPY', source:'Twelve Data', base:167.2 },
-  // USD EM & Exotics
-  { id:'USD/SGD', symbol:'USD/SGD', name:'US Dollar / Singapore Dollar', cat:'forex', tdSymbol:'USD/SGD', source:'Twelve Data', base:1.342 },
-  { id:'USD/HKD', symbol:'USD/HKD', name:'US Dollar / Hong Kong Dollar', cat:'forex', tdSymbol:'USD/HKD', source:'Twelve Data', base:7.824 },
-  { id:'USD/MXN', symbol:'USD/MXN', name:'US Dollar / Mexican Peso',    cat:'forex', tdSymbol:'USD/MXN', source:'Twelve Data', base:17.15 },
-  { id:'USD/ZAR', symbol:'USD/ZAR', name:'US Dollar / South African Rand',cat:'forex',tdSymbol:'USD/ZAR',source:'Twelve Data',base:18.72 },
-  { id:'USD/TRY', symbol:'USD/TRY', name:'US Dollar / Turkish Lira',    cat:'forex', tdSymbol:'USD/TRY', source:'Twelve Data', base:32.45 },
-  { id:'USD/SEK', symbol:'USD/SEK', name:'US Dollar / Swedish Krona',   cat:'forex', tdSymbol:'USD/SEK', source:'Twelve Data', base:10.42 },
-  { id:'USD/NOK', symbol:'USD/NOK', name:'US Dollar / Norwegian Krone', cat:'forex', tdSymbol:'USD/NOK', source:'Twelve Data', base:10.58 },
-  { id:'USD/DKK', symbol:'USD/DKK', name:'US Dollar / Danish Krone',    cat:'forex', tdSymbol:'USD/DKK', source:'Twelve Data', base:6.88 },
-  { id:'USD/INR', symbol:'USD/INR', name:'US Dollar / Indian Rupee',    cat:'forex', tdSymbol:'USD/INR', source:'Twelve Data', base:83.2 },
-  { id:'USD/CNY', symbol:'USD/CNY', name:'US Dollar / Chinese Yuan',    cat:'forex', tdSymbol:'USD/CNY', source:'Twelve Data', base:7.24 },
-  { id:'USD/CNH', symbol:'USD/CNH', name:'US Dollar / Offshore CNY',    cat:'forex', tdSymbol:'USD/CNH', source:'Twelve Data', base:7.26 },
-  { id:'USD/KRW', symbol:'USD/KRW', name:'US Dollar / South Korean Won',cat:'forex', tdSymbol:'USD/KRW', source:'Twelve Data', base:1322 },
-  { id:'USD/BRL', symbol:'USD/BRL', name:'US Dollar / Brazilian Real',  cat:'forex', tdSymbol:'USD/BRL', source:'Twelve Data', base:4.97 },
-  { id:'USD/IDR', symbol:'USD/IDR', name:'US Dollar / Indonesian Rupiah',cat:'forex',tdSymbol:'USD/IDR', source:'Twelve Data', base:15850 },
-  { id:'USD/MYR', symbol:'USD/MYR', name:'US Dollar / Malaysian Ringgit',cat:'forex',tdSymbol:'USD/MYR', source:'Twelve Data', base:4.72 },
-  { id:'USD/PHP', symbol:'USD/PHP', name:'US Dollar / Philippine Peso', cat:'forex', tdSymbol:'USD/PHP', source:'Twelve Data', base:56.4 },
-  { id:'USD/THB', symbol:'USD/THB', name:'US Dollar / Thai Baht',       cat:'forex', tdSymbol:'USD/THB', source:'Twelve Data', base:35.8 },
-  { id:'USD/TWD', symbol:'USD/TWD', name:'US Dollar / Taiwan Dollar',   cat:'forex', tdSymbol:'USD/TWD', source:'Twelve Data', base:31.9 },
-  { id:'USD/PLN', symbol:'USD/PLN', name:'US Dollar / Polish Zloty',    cat:'forex', tdSymbol:'USD/PLN', source:'Twelve Data', base:3.94 },
-  { id:'USD/HUF', symbol:'USD/HUF', name:'US Dollar / Hungarian Forint',cat:'forex', tdSymbol:'USD/HUF', source:'Twelve Data', base:362 },
-  { id:'USD/CZK', symbol:'USD/CZK', name:'US Dollar / Czech Koruna',    cat:'forex', tdSymbol:'USD/CZK', source:'Twelve Data', base:23.2 },
-  { id:'USD/ILS', symbol:'USD/ILS', name:'US Dollar / Israeli Shekel',  cat:'forex', tdSymbol:'USD/ILS', source:'Twelve Data', base:3.73 },
-  { id:'USD/AED', symbol:'USD/AED', name:'US Dollar / UAE Dirham',      cat:'forex', tdSymbol:'USD/AED', source:'Twelve Data', base:3.673 },
-  { id:'USD/SAR', symbol:'USD/SAR', name:'US Dollar / Saudi Riyal',     cat:'forex', tdSymbol:'USD/SAR', source:'Twelve Data', base:3.751 },
-  { id:'USD/EGP', symbol:'USD/EGP', name:'US Dollar / Egyptian Pound',  cat:'forex', tdSymbol:'USD/EGP', source:'Twelve Data', base:30.9 },
-  { id:'USD/NGN', symbol:'USD/NGN', name:'US Dollar / Nigerian Naira',  cat:'forex', tdSymbol:'USD/NGN', source:'Twelve Data', base:1520 },
-  { id:'USD/KES', symbol:'USD/KES', name:'US Dollar / Kenyan Shilling', cat:'forex', tdSymbol:'USD/KES', source:'Twelve Data', base:129 },
-  { id:'USD/GHS', symbol:'USD/GHS', name:'US Dollar / Ghanaian Cedi',   cat:'forex', tdSymbol:'USD/GHS', source:'Twelve Data', base:12.4 },
-  { id:'USD/PKR', symbol:'USD/PKR', name:'US Dollar / Pakistani Rupee', cat:'forex', tdSymbol:'USD/PKR', source:'Twelve Data', base:278 },
-  { id:'USD/BDT', symbol:'USD/BDT', name:'US Dollar / Bangladeshi Taka',cat:'forex', tdSymbol:'USD/BDT', source:'Twelve Data', base:110 },
-  { id:'USD/VND', symbol:'USD/VND', name:'US Dollar / Vietnamese Dong', cat:'forex', tdSymbol:'USD/VND', source:'Twelve Data', base:24850 },
-  { id:'USD/CLP', symbol:'USD/CLP', name:'US Dollar / Chilean Peso',    cat:'forex', tdSymbol:'USD/CLP', source:'Twelve Data', base:948 },
-  { id:'USD/COP', symbol:'USD/COP', name:'US Dollar / Colombian Peso',  cat:'forex', tdSymbol:'USD/COP', source:'Twelve Data', base:3920 },
-  { id:'USD/PEN', symbol:'USD/PEN', name:'US Dollar / Peruvian Sol',    cat:'forex', tdSymbol:'USD/PEN', source:'Twelve Data', base:3.72 },
-  { id:'USD/ARS', symbol:'USD/ARS', name:'US Dollar / Argentine Peso',  cat:'forex', tdSymbol:'USD/ARS', source:'Twelve Data', base:920 },
-  { id:'USD/UAH', symbol:'USD/UAH', name:'US Dollar / Ukrainian Hryvnia',cat:'forex',tdSymbol:'USD/UAH', source:'Twelve Data', base:39.4 },
-  { id:'USD/RUB', symbol:'USD/RUB', name:'US Dollar / Russian Ruble',   cat:'forex', tdSymbol:'USD/RUB', source:'Twelve Data', base:91.5 },
-
-  // ── COMMODITIES ───────────────────────────────
-  { id:'XAU/USD', symbol:'XAU/USD', name:'Gold Spot',         cat:'commodities', tdSymbol:'XAU/USD', source:'Twelve Data', base:2312.5 },
-  { id:'XAG/USD', symbol:'XAG/USD', name:'Silver Spot',       cat:'commodities', tdSymbol:'XAG/USD', source:'Twelve Data', base:27.45 },
-  { id:'WTI/USD', symbol:'WTI/USD', name:'WTI Crude Oil',     cat:'commodities', tdSymbol:'WTI/USD', source:'Twelve Data', base:78.65 },
-  { id:'XNG/USD', symbol:'XNG/USD', name:'Natural Gas',       cat:'commodities', tdSymbol:'XNG/USD', source:'Twelve Data', base:1.98 },
-  { id:'XPT/USD', symbol:'XPT/USD', name:'Platinum Spot',     cat:'commodities', tdSymbol:'XPT/USD', source:'Twelve Data', base:915.4 },
-  { id:'XPD/USD', symbol:'XPD/USD', name:'Palladium Spot',    cat:'commodities', tdSymbol:'XPD/USD', source:'Twelve Data', base:965 },
-  { id:'XCU/USD', symbol:'XCU/USD', name:'Copper Spot',       cat:'commodities', tdSymbol:'XCU/USD', source:'Twelve Data', base:4.12 },
-  { id:'BRENT',   symbol:'BRENT',   name:'Brent Crude Oil',   cat:'commodities', tdSymbol:'BRENT',   source:'Twelve Data', base:82.45 },
-  { id:'WHEAT',   symbol:'WHEAT',   name:'Wheat Futures',     cat:'commodities', tdSymbol:'WHEAT',   source:'Twelve Data', base:548 },
-  { id:'CORN',    symbol:'CORN',    name:'Corn Futures',      cat:'commodities', tdSymbol:'CORN',    source:'Twelve Data', base:432 },
-  { id:'SOYBEAN', symbol:'SOYBEAN', name:'Soybean Futures',   cat:'commodities', tdSymbol:'SOYBEAN', source:'Twelve Data', base:1178 },
-  { id:'COFFEE',  symbol:'COFFEE',  name:'Coffee Futures',    cat:'commodities', tdSymbol:'COFFEE',  source:'Twelve Data', base:178.5 },
-  { id:'SUGAR',   symbol:'SUGAR',   name:'Sugar Futures',     cat:'commodities', tdSymbol:'SUGAR',   source:'Twelve Data', base:19.8 },
-  { id:'COCOA',   symbol:'COCOA',   name:'Cocoa Futures',     cat:'commodities', tdSymbol:'COCOA',   source:'Twelve Data', base:3850 },
-  { id:'COTTON',  symbol:'COTTON',  name:'Cotton Futures',    cat:'commodities', tdSymbol:'COTTON',  source:'Twelve Data', base:78.2 },
-  { id:'LUMBER',  symbol:'LUMBER',  name:'Lumber Futures',    cat:'commodities', tdSymbol:'LUMBER',  source:'Twelve Data', base:448 },
-
-  // ── INDICES — Americas ────────────────────────
-  // Indices — US
-  { id:'SPX',    symbol:'S&P 500',   name:'S&P 500',                  cat:'indices', source:'Yahoo Finance' },
-  { id:'IXIC',   symbol:'NASDAQ',    name:'NASDAQ Composite',         cat:'indices', source:'Yahoo Finance' },
-  { id:'DJI',    symbol:'DOW',       name:'Dow Jones Industrial',     cat:'indices', source:'Yahoo Finance' },
-  { id:'NDX',    symbol:'NDX 100',   name:'NASDAQ 100',               cat:'indices', source:'Yahoo Finance' },
-  { id:'RUT',    symbol:'Russell',   name:'Russell 2000',             cat:'indices', source:'Yahoo Finance' },
-  { id:'VIX',    symbol:'VIX',       name:'CBOE Volatility Index',    cat:'indices', source:'Yahoo Finance' },
-  { id:'DXY',    symbol:'DXY',       name:'US Dollar Index',          cat:'indices', source:'Yahoo Finance' },
-  { id:'TNX',    symbol:'US10Y',     name:'US 10-Year Treasury',      cat:'indices', source:'Yahoo Finance' },
-  { id:'TYX',    symbol:'US30Y',     name:'US 30-Year Treasury',      cat:'indices', source:'Yahoo Finance' },
-  // Indices — Europe
-  { id:'FTSE',   symbol:'FTSE 100',  name:'FTSE 100 (UK)',            cat:'indices', source:'Yahoo Finance' },
-  { id:'FTMC',   symbol:'FTSE 250',  name:'FTSE 250 (UK)',            cat:'indices', source:'Yahoo Finance' },
-  { id:'DAX',    symbol:'DAX 40',    name:'DAX 40 (Germany)',         cat:'indices', source:'Yahoo Finance' },
-  { id:'CAC',    symbol:'CAC 40',    name:'CAC 40 (France)',          cat:'indices', source:'Yahoo Finance' },
-  { id:'IBEX',   symbol:'IBEX 35',   name:'IBEX 35 (Spain)',          cat:'indices', source:'Yahoo Finance' },
-  { id:'FTSEMIB',symbol:'FTSE MIB',  name:'FTSE MIB (Italy)',         cat:'indices', source:'Yahoo Finance' },
-  { id:'SMI',    symbol:'SMI',       name:'SMI (Switzerland)',        cat:'indices', source:'Yahoo Finance' },
-  { id:'AEX',    symbol:'AEX',       name:'AEX (Netherlands)',        cat:'indices', source:'Yahoo Finance' },
-  { id:'BEL20',  symbol:'BEL 20',    name:'BEL 20 (Belgium)',         cat:'indices', source:'Yahoo Finance' },
-  { id:'OMX',    symbol:'OMXS30',    name:'OMX Stockholm 30',         cat:'indices', source:'Yahoo Finance' },
-  { id:'OMXH25', symbol:'OMXH25',    name:'OMX Helsinki 25',          cat:'indices', source:'Yahoo Finance' },
-  { id:'OMXC25', symbol:'OMXC25',    name:'OMX Copenhagen 25',        cat:'indices', source:'Yahoo Finance' },
-  { id:'OBX',    symbol:'OBX',       name:'OBX (Norway)',             cat:'indices', source:'Yahoo Finance' },
-  { id:'ATX',    symbol:'ATX',       name:'ATX (Austria)',            cat:'indices', source:'Yahoo Finance' },
-  { id:'PSI20',  symbol:'PSI 20',    name:'PSI 20 (Portugal)',        cat:'indices', source:'Yahoo Finance' },
-  { id:'WIG20',  symbol:'WIG20',     name:'WIG 20 (Poland)',          cat:'indices', source:'Yahoo Finance' },
-  { id:'BUX',    symbol:'BUX',       name:'BUX (Hungary)',            cat:'indices', source:'Yahoo Finance' },
-  { id:'PX',     symbol:'PX',        name:'Prague Stock Exchange',    cat:'indices', source:'Yahoo Finance' },
-  { id:'MOEX',   symbol:'MOEX',      name:'MOEX (Russia)',            cat:'indices', source:'Yahoo Finance' },
-  { id:'ISE100', symbol:'BIST 100',  name:'BIST 100 (Turkey)',        cat:'indices', source:'Yahoo Finance' },  // Yahoo: ^XU100
-  { id:'TA35',   symbol:'TA-35',     name:'TA-35 (Israel)',           cat:'indices', source:'Yahoo Finance' },
-  { id:'STOXX50',symbol:'STOXX 50',  name:'EURO STOXX 50',            cat:'indices', source:'Yahoo Finance' },
-  // Indices — Americas
-  { id:'GSPTSE', symbol:'TSX',       name:'S&P/TSX Composite (Canada)',cat:'indices',source:'Yahoo Finance' },
-  { id:'BVSP',   symbol:'BOVESPA',   name:'IBOVESPA (Brazil)',         cat:'indices', source:'Yahoo Finance' },
-  { id:'MXX',    symbol:'IPC',       name:'IPC Mexico',               cat:'indices', source:'Yahoo Finance' },
-  { id:'MERVAL', symbol:'MERVAL',    name:'MERVAL (Argentina)',        cat:'indices', source:'Yahoo Finance' },
-  { id:'IPSA',   symbol:'IPSA',      name:'IPSA (Chile)',             cat:'indices', source:'Yahoo Finance' },
-  // Indices — Asia-Pacific
-  { id:'N225',   symbol:'Nikkei',    name:'Nikkei 225 (Japan)',        cat:'indices', source:'Yahoo Finance' },
-  { id:'TOPIX',  symbol:'TOPIX',     name:'TOPIX (Japan)',             cat:'indices', source:'Yahoo Finance' },
-  { id:'HSI',    symbol:'Hang Seng', name:'Hang Seng (Hong Kong)',     cat:'indices', source:'Yahoo Finance' },
-  { id:'HSCEi',  symbol:'HSCEI',     name:'Hang Seng China Ent.',      cat:'indices', source:'Yahoo Finance' },
-  { id:'SHCOMP', symbol:'SSE',       name:'Shanghai Composite',        cat:'indices', source:'Yahoo Finance' },
-  { id:'SZCOMP', symbol:'SZSE',      name:'Shenzhen Composite',        cat:'indices', source:'Yahoo Finance' },
-  { id:'CSI300', symbol:'CSI 300',   name:'CSI 300 (China)',           cat:'indices', source:'Yahoo Finance' },
-  { id:'SENSEX', symbol:'SENSEX',    name:'SENSEX (India)',            cat:'indices', source:'Yahoo Finance' },
-  { id:'NIFTY',  symbol:'NIFTY 50',  name:'Nifty 50 (India)',         cat:'indices', source:'Yahoo Finance' },
-  { id:'KOSPI',  symbol:'KOSPI',     name:'KOSPI (South Korea)',       cat:'indices', source:'Yahoo Finance' },
-  { id:'TWII',   symbol:'TAIEX',     name:'Taiwan Weighted',           cat:'indices', source:'Yahoo Finance' },
-  { id:'ASX200', symbol:'ASX 200',   name:'ASX 200 (Australia)',       cat:'indices', source:'Yahoo Finance' },
-  { id:'AORD',   symbol:'All Ords',  name:'All Ordinaries (Australia)',cat:'indices', source:'Yahoo Finance' },
-  { id:'NZ50',   symbol:'NZX 50',    name:'NZX 50 (New Zealand)',      cat:'indices', source:'Yahoo Finance' },
-  { id:'STI',    symbol:'STI',       name:'Straits Times (Singapore)', cat:'indices', source:'Yahoo Finance' },
-  { id:'KLCI',   symbol:'KLCI',      name:'KLCI (Malaysia)',           cat:'indices', source:'Yahoo Finance' },
-  { id:'JCI',    symbol:'IDX',       name:'IDX Composite (Indonesia)', cat:'indices', source:'Yahoo Finance' },
-  { id:'SET',    symbol:'SET',       name:'SET Index (Thailand)',      cat:'indices', source:'Yahoo Finance' },
-  { id:'PSEi',   symbol:'PSEi',      name:'PSEi (Philippines)',        cat:'indices', source:'Yahoo Finance' },
-  // Indices — Middle East & Africa
-  { id:'TADAWUL',symbol:'TASI',      name:'Tadawul (Saudi Arabia)',    cat:'indices', source:'Yahoo Finance' },
-  { id:'ADX',    symbol:'ADX',       name:'Abu Dhabi (UAE)',           cat:'indices', source:'Yahoo Finance' },
-  { id:'DFM',    symbol:'DFM',       name:'Dubai Financial Market',   cat:'indices', source:'Yahoo Finance' },
-  { id:'EGX30',  symbol:'EGX 30',    name:'EGX 30 (Egypt)',           cat:'indices', source:'Yahoo Finance' },
-  { id:'JSE',    symbol:'JSE TOP40', name:'JSE Top 40 (S. Africa)',   cat:'indices', source:'Yahoo Finance' },
-  { id:'NSE',    symbol:'NSE ASI',   name:'NGX All-Share (Nigeria)',   cat:'indices', source:'Yahoo Finance' },
-
-  // ── ETFs ──────────────────────────────────────
-  { id:'SPY',  symbol:'SPY',  name:'SPDR S&P 500 ETF',         cat:'etf', tdSymbol:'SPY',  source:'Twelve Data', base:523.4 },
-  { id:'QQQ',  symbol:'QQQ',  name:'Invesco QQQ (NASDAQ)',     cat:'etf', tdSymbol:'QQQ',  source:'Twelve Data', base:441.8 },
-  { id:'IWM',  symbol:'IWM',  name:'iShares Russell 2000',     cat:'etf', tdSymbol:'IWM',  source:'Twelve Data', base:198.2 },
-  { id:'DIA',  symbol:'DIA',  name:'SPDR Dow Jones ETF',       cat:'etf', tdSymbol:'DIA',  source:'Twelve Data', base:389.5 },
-  { id:'GLD',  symbol:'GLD',  name:'SPDR Gold Shares ETF',     cat:'etf', tdSymbol:'GLD',  source:'Twelve Data', base:215.4 },
-  { id:'SLV',  symbol:'SLV',  name:'iShares Silver Trust ETF', cat:'etf', tdSymbol:'SLV',  source:'Twelve Data', base:24.8 },
-  { id:'USO',  symbol:'USO',  name:'US Oil Fund ETF',           cat:'etf', tdSymbol:'USO',  source:'Twelve Data', base:74.3 },
-  { id:'TLT',  symbol:'TLT',  name:'iShares 20Y Treasury ETF', cat:'etf', tdSymbol:'TLT',  source:'Twelve Data', base:95.8 },
-  { id:'XLF',  symbol:'XLF',  name:'Financial Select ETF',     cat:'etf', tdSymbol:'XLF',  source:'Twelve Data', base:40.2 },
-  { id:'XLK',  symbol:'XLK',  name:'Technology Select ETF',    cat:'etf', tdSymbol:'XLK',  source:'Twelve Data', base:208.5 },
-  { id:'XLE',  symbol:'XLE',  name:'Energy Select ETF',        cat:'etf', tdSymbol:'XLE',  source:'Twelve Data', base:88.4 },
-  { id:'XLV',  symbol:'XLV',  name:'Health Care Select ETF',   cat:'etf', tdSymbol:'XLV',  source:'Twelve Data', base:143.2 },
-  { id:'ARKK', symbol:'ARKK', name:'ARK Innovation ETF',        cat:'etf', tdSymbol:'ARKK', source:'Twelve Data', base:48.5 },
-  { id:'BITO', symbol:'BITO', name:'ProShares Bitcoin ETF',     cat:'etf', tdSymbol:'BITO', source:'Twelve Data', base:28.2 },
-  { id:'VWO',  symbol:'VWO',  name:'Vanguard Emerging Markets', cat:'etf', tdSymbol:'VWO',  source:'Twelve Data', base:40.8 },
-  { id:'EEM',  symbol:'EEM',  name:'iShares MSCI Emerging Mkts',cat:'etf', tdSymbol:'EEM',  source:'Twelve Data', base:40.2 },
-  { id:'EFA',  symbol:'EFA',  name:'iShares MSCI EAFE ETF',     cat:'etf', tdSymbol:'EFA',  source:'Twelve Data', base:78.4 },
-  { id:'XBI',  symbol:'XBI',  name:'Biotech ETF (SPDR)',        cat:'etf', tdSymbol:'XBI',  source:'Twelve Data', base:95.6 },
-];
 
 function openAddModal() {
   document.getElementById('add-modal').style.display = 'flex';
@@ -2320,19 +2269,25 @@ function renderLibrary() {
     const grid = document.createElement('div');
     grid.className = 'lib-grid';
     groups[cat].forEach(asset => {
-      const inWatch = allWatchIds.has(asset.id);
+      const inWatch    = allWatchIds.has(asset.id);
+      const isUnavail  = asset.sources?.[0] === 'unavailable';
       const card = document.createElement('div');
-      card.className = `lib-card${inWatch ? ' in-watch' : ''}`;
+      card.className = `lib-card${inWatch ? ' in-watch' : ''}${isUnavail ? ' unavailable' : ''}`;
       card.innerHTML = `
         <div>
-          <div class="lib-sym">${asset.symbol}</div>
-          <div class="lib-name">${asset.name}</div>
+          <div class="lib-sym" style="${isUnavail ? 'opacity:0.45' : ''}">${asset.symbol}</div>
+          <div class="lib-name" style="${isUnavail ? 'opacity:0.45' : ''}">${asset.name}</div>
+          ${isUnavail ? '<div style="font-size:0.6rem;letter-spacing:0.06em;color:var(--muted);margin-top:2px;opacity:0.7">NO BROKER</div>' : ''}
         </div>
-        <div class="lib-action">${inWatch
-          ? `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 5.5,10.5 12,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-          : `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="7" y1="2" x2="7" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="2" y1="7" x2="12" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`
+        <div class="lib-action">${
+          inWatch
+            ? `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 5.5,10.5 12,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+          : isUnavail
+            ? `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="opacity:0.3"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.4"/><line x1="6" y1="3" x2="6" y2="7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="9" r="0.7" fill="currentColor"/></svg>`
+            : `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="7" y1="2" x2="7" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="2" y1="7" x2="12" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`
         }</div>`;
-      if (!inWatch) card.onclick = (e) => { e.stopPropagation(); addAssetToWatchlist(asset); };
+      if (!inWatch && !isUnavail) card.onclick = (e) => { e.stopPropagation(); addAssetToWatchlist(asset); };
+      else if (isUnavail) card.title = 'No broker connected for this asset yet';
       grid.appendChild(card);
     });
     sec.appendChild(grid);
@@ -2351,7 +2306,8 @@ function addAssetToWatchlist(asset) {
   if (!ASSETS[asset.cat]) ASSETS[asset.cat] = [];
   if (ASSETS[asset.cat].find(a => a.id === asset.id)) return;
 
-  ASSETS[asset.cat].push({ id: asset.id, symbol: asset.symbol, name: asset.name, tdSymbol: asset.tdSymbol, source: asset.source });
+  ASSETS[asset.cat].push(ASSET_BY_ID.get(asset.id) || asset);
+  subscribeDerivAsset(asset);
   // Start with no price — will be populated by next fetch cycle
   priceData[asset.id] = priceData[asset.id] || null;
   prices[asset.id]    = prices[asset.id]    || null;
@@ -2407,18 +2363,30 @@ async function refreshAll() {
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 }
 
-// Auto-tick every 8 seconds — picks up WS price updates
+// 8-second UI tick — Deriv WebSocket keeps prices live between REST refreshes
 setInterval(() => {
   renderHotList();
   renderWatchlist();
   refreshSelectedAssetPanel();
   checkAlerts();
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const el = document.getElementById('lastUpdate');
+  if (el) el.textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 }, 8000);
 
-// Real price refresh every 60 seconds
+// REST refresh every 60 seconds — CoinGecko + OANDA snapshot (Deriv WS covers the rest)
+// Deriv WebSocket handles intraday ticks; REST fills OHLC + catches up after reconnects
 setInterval(() => {
   fetchAllPrices();
+  // Re-subscribe to any assets added since last connect
+  if (derivReady) {
+    getDerivSymbols().forEach(sym => {
+      if (derivWs?.readyState === WebSocket.OPEN) {
+        derivWs.send(JSON.stringify({ ticks: sym, subscribe: 1 }));
+      }
+    });
+  } else {
+    connectDeriv(); // attempt reconnect if ws dropped
+  }
 }, 60 * 1000);
 
 // ═══════════════════════════════════════════════
@@ -2474,8 +2442,8 @@ async function init() {
         id:       row.asset_id,
         symbol:   row.symbol,
         name:     row.name,
-        tdSymbol: row.td_symbol || row.asset_id,
-        source:   row.source   || 'Twelve Data',
+        derivSym: row.td_symbol || null,
+        sources:  row.sources  || ['deriv'],
         cat,
       });
     });
@@ -2509,7 +2477,10 @@ async function init() {
   renderAlerts();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
-  // Initial REST fetch — all assets
+  // Connect Deriv WebSocket for real-time ticks (forex, commodities, synthetics)
+  connectDeriv();
+
+  // Initial REST fetch — CoinGecko + OANDA snapshot (Deriv WS already running)
   await fetchAllPrices();
   setStatusPill(true);
 
@@ -2551,7 +2522,11 @@ window.addEventListener('resize', () => {
 
 // Refresh prices when user returns to the tab
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') { fetchAllPrices(); if (isMobileLayout()) mobileTab(navStack[navStack.length-1], false); }
+  if (document.visibilityState === 'visible') {
+    fetchAllPrices();
+    connectDeriv(); // reconnect WS if it dropped while tab was hidden
+    if (isMobileLayout()) mobileTab(navStack[navStack.length-1], false);
+  }
 });
 
 // ── TELEGRAM CONNECT PROMPT (blocks app if not in Telegram) ──
