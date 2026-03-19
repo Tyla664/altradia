@@ -38,6 +38,7 @@ const ASSETS = {
   commodities: [],
   indices:     [],
   stocks:      [],
+  synthetics:  [],
 };
 
 // ── Master asset catalogue ────────────────────
@@ -287,24 +288,97 @@ const ALL_ASSETS = [
   { id:'JSE',     symbol:'JSE TOP40', name:'JSE Top 40 (S. Africa)', cat:'indices', sources:['unavailable']                                             },
   { id:'NSE',     symbol:'NGX 30',    name:'NGX 30 (Nigeria)',       cat:'indices', sources:['unavailable']                                             },
 
-  // ── Deriv Synthetic Indices (unique to Deriv, 24/7) ──
-  { id:'R_10',    symbol:'Volatility 10', name:'Volatility 10 Index',   cat:'indices', sources:['deriv'], derivSym:'R_10' },
-  { id:'R_25',    symbol:'Volatility 25', name:'Volatility 25 Index',   cat:'indices', sources:['deriv'], derivSym:'R_25' },
-  { id:'R_50',    symbol:'Volatility 50', name:'Volatility 50 Index',   cat:'indices', sources:['deriv'], derivSym:'R_50' },
-  { id:'R_75',    symbol:'Volatility 75', name:'Volatility 75 Index',   cat:'indices', sources:['deriv'], derivSym:'R_75' },
-  { id:'R_100',   symbol:'Volatility 100',name:'Volatility 100 Index',  cat:'indices', sources:['deriv'], derivSym:'R_100' },
-  { id:'BOOM500', symbol:'Boom 500',  name:'Boom 500 Index',            cat:'indices', sources:['deriv'], derivSym:'BOOM500' },
-  { id:'BOOM1000',symbol:'Boom 1000', name:'Boom 1000 Index',           cat:'indices', sources:['deriv'], derivSym:'BOOM1000' },
-  { id:'CRASH500',symbol:'Crash 500', name:'Crash 500 Index',           cat:'indices', sources:['deriv'], derivSym:'CRASH500' },
-  { id:'CRASH1000',symbol:'Crash 1000',name:'Crash 1000 Index',         cat:'indices', sources:['deriv'], derivSym:'CRASH1000' },
-  { id:'STPFALL', symbol:'Step Down', name:'Step Index',                 cat:'indices', sources:['deriv'], derivSym:'stpRNG' },
-  { id:'JUMP10',  symbol:'Jump 10',   name:'Jump 10 Index',             cat:'indices', sources:['deriv'], derivSym:'JD10' },
-  { id:'JUMP25',  symbol:'Jump 25',   name:'Jump 25 Index',             cat:'indices', sources:['deriv'], derivSym:'JD25' },
-  { id:'JUMP50',  symbol:'Jump 50',   name:'Jump 50 Index',             cat:'indices', sources:['deriv'], derivSym:'JD50' },
-  { id:'JUMP75',  symbol:'Jump 75',   name:'Jump 75 Index',             cat:'indices', sources:['deriv'], derivSym:'JD75' },
-  { id:'JUMP100', symbol:'Jump 100',  name:'Jump 100 Index',            cat:'indices', sources:['deriv'], derivSym:'JD100' },
-  { id:'DEX900UP',symbol:'DEX 900',   name:'Daily Exp. 900 Up',         cat:'indices', sources:['deriv'], derivSym:'DEX900UP' },
-  { id:'DEX900DN',symbol:'DEX 900 DN',name:'Daily Exp. 900 Down',       cat:'indices', sources:['deriv'], derivSym:'DEX900DN' },
+  // ══════════════════════════════════════════════════════════════════════════
+  // DERIV SYNTHETIC INDICES — Complete catalogue, available 24/7
+  // All use Deriv WebSocket for live ticks and OHLC candles
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Volatility Indices (2-second ticks) ───────────────────────────────────
+  { id:'R_10',      symbol:'Vol 10',        name:'Volatility 10 Index',          cat:'synthetics', sources:['deriv'], derivSym:'R_10'       },
+  { id:'R_25',      symbol:'Vol 25',        name:'Volatility 25 Index',          cat:'synthetics', sources:['deriv'], derivSym:'R_25'       },
+  { id:'R_50',      symbol:'Vol 50',        name:'Volatility 50 Index',          cat:'synthetics', sources:['deriv'], derivSym:'R_50'       },
+  { id:'R_75',      symbol:'Vol 75',        name:'Volatility 75 Index',          cat:'synthetics', sources:['deriv'], derivSym:'R_75'       },
+  { id:'R_100',     symbol:'Vol 100',       name:'Volatility 100 Index',         cat:'synthetics', sources:['deriv'], derivSym:'R_100'      },
+
+  // ── Volatility Indices (1-second ticks — faster price updates) ────────────
+  { id:'1HZ10V',    symbol:'Vol 10 (1s)',   name:'Volatility 10 (1s) Index',     cat:'synthetics', sources:['deriv'], derivSym:'1HZ10V'     },
+  { id:'1HZ15V',    symbol:'Vol 15 (1s)',   name:'Volatility 15 (1s) Index',     cat:'synthetics', sources:['deriv'], derivSym:'1HZ15V'     },
+  { id:'1HZ25V',    symbol:'Vol 25 (1s)',   name:'Volatility 25 (1s) Index',     cat:'synthetics', sources:['deriv'], derivSym:'1HZ25V'     },
+  { id:'1HZ30V',    symbol:'Vol 30 (1s)',   name:'Volatility 30 (1s) Index',     cat:'synthetics', sources:['deriv'], derivSym:'1HZ30V'     },
+  { id:'1HZ50V',    symbol:'Vol 50 (1s)',   name:'Volatility 50 (1s) Index',     cat:'synthetics', sources:['deriv'], derivSym:'1HZ50V'     },
+  { id:'1HZ75V',    symbol:'Vol 75 (1s)',   name:'Volatility 75 (1s) Index',     cat:'synthetics', sources:['deriv'], derivSym:'1HZ75V'     },
+  { id:'1HZ90V',    symbol:'Vol 90 (1s)',   name:'Volatility 90 (1s) Index',     cat:'synthetics', sources:['deriv'], derivSym:'1HZ90V'     },
+  { id:'1HZ100V',   symbol:'Vol 100 (1s)',  name:'Volatility 100 (1s) Index',    cat:'synthetics', sources:['deriv'], derivSym:'1HZ100V'    },
+  { id:'1HZ150V',   symbol:'Vol 150 (1s)',  name:'Volatility 150 (1s) Index',    cat:'synthetics', sources:['deriv'], derivSym:'1HZ150V'    },
+  { id:'1HZ200V',   symbol:'Vol 200 (1s)',  name:'Volatility 200 (1s) Index',    cat:'synthetics', sources:['deriv'], derivSym:'1HZ200V'    },
+  { id:'1HZ250V',   symbol:'Vol 250 (1s)',  name:'Volatility 250 (1s) Index',    cat:'synthetics', sources:['deriv'], derivSym:'1HZ250V'    },
+  { id:'1HZ300V',   symbol:'Vol 300 (1s)',  name:'Volatility 300 (1s) Index',    cat:'synthetics', sources:['deriv'], derivSym:'1HZ300V'    },
+
+  // ── Boom Indices (sudden upward spikes) ───────────────────────────────────
+  { id:'BOOM150N',  symbol:'Boom 150',      name:'Boom 150 Index',               cat:'synthetics', sources:['deriv'], derivSym:'BOOM150N'   },
+  { id:'BOOM300N',  symbol:'Boom 300',      name:'Boom 300 Index',               cat:'synthetics', sources:['deriv'], derivSym:'BOOM300N'   },
+  { id:'BOOM500',   symbol:'Boom 500',      name:'Boom 500 Index',               cat:'synthetics', sources:['deriv'], derivSym:'BOOM500'    },
+  { id:'BOOM600',   symbol:'Boom 600',      name:'Boom 600 Index',               cat:'synthetics', sources:['deriv'], derivSym:'BOOM600'    },
+  { id:'BOOM900',   symbol:'Boom 900',      name:'Boom 900 Index',               cat:'synthetics', sources:['deriv'], derivSym:'BOOM900'    },
+  { id:'BOOM1000',  symbol:'Boom 1000',     name:'Boom 1000 Index',              cat:'synthetics', sources:['deriv'], derivSym:'BOOM1000'   },
+
+  // ── Crash Indices (sudden downward drops) ─────────────────────────────────
+  { id:'CRASH150N', symbol:'Crash 150',     name:'Crash 150 Index',              cat:'synthetics', sources:['deriv'], derivSym:'CRASH150N'  },
+  { id:'CRASH300N', symbol:'Crash 300',     name:'Crash 300 Index',              cat:'synthetics', sources:['deriv'], derivSym:'CRASH300N'  },
+  { id:'CRASH500',  symbol:'Crash 500',     name:'Crash 500 Index',              cat:'synthetics', sources:['deriv'], derivSym:'CRASH500'   },
+  { id:'CRASH600',  symbol:'Crash 600',     name:'Crash 600 Index',              cat:'synthetics', sources:['deriv'], derivSym:'CRASH600'   },
+  { id:'CRASH900',  symbol:'Crash 900',     name:'Crash 900 Index',              cat:'synthetics', sources:['deriv'], derivSym:'CRASH900'   },
+  { id:'CRASH1000', symbol:'Crash 1000',    name:'Crash 1000 Index',             cat:'synthetics', sources:['deriv'], derivSym:'CRASH1000'  },
+
+  // ── Hybrid Indices (Boom/Crash with fixed 20% volatility layer) ───────────
+  { id:'VOBULL400', symbol:'Vol Boom 400',  name:'Vol over Boom 400 Index',      cat:'synthetics', sources:['deriv'], derivSym:'VOBULL400'  },
+  { id:'VOBULL550', symbol:'Vol Boom 550',  name:'Vol over Boom 550 Index',      cat:'synthetics', sources:['deriv'], derivSym:'VOBULL550'  },
+  { id:'VOBULL750', symbol:'Vol Boom 750',  name:'Vol over Boom 750 Index',      cat:'synthetics', sources:['deriv'], derivSym:'VOBULL750'  },
+  { id:'VOBEAR400', symbol:'Vol Crash 400', name:'Vol over Crash 400 Index',     cat:'synthetics', sources:['deriv'], derivSym:'VOBEAR400'  },
+  { id:'VOBEAR550', symbol:'Vol Crash 550', name:'Vol over Crash 550 Index',     cat:'synthetics', sources:['deriv'], derivSym:'VOBEAR550'  },
+  { id:'VOBEAR750', symbol:'Vol Crash 750', name:'Vol over Crash 750 Index',     cat:'synthetics', sources:['deriv'], derivSym:'VOBEAR750'  },
+
+  // ── Jump Indices (sudden jumps ~3x/hour) ──────────────────────────────────
+  { id:'JD10',      symbol:'Jump 10',       name:'Jump 10 Index',                cat:'synthetics', sources:['deriv'], derivSym:'JD10'       },
+  { id:'JD25',      symbol:'Jump 25',       name:'Jump 25 Index',                cat:'synthetics', sources:['deriv'], derivSym:'JD25'       },
+  { id:'JD50',      symbol:'Jump 50',       name:'Jump 50 Index',                cat:'synthetics', sources:['deriv'], derivSym:'JD50'       },
+  { id:'JD75',      symbol:'Jump 75',       name:'Jump 75 Index',                cat:'synthetics', sources:['deriv'], derivSym:'JD75'       },
+  { id:'JD100',     symbol:'Jump 100',      name:'Jump 100 Index',               cat:'synthetics', sources:['deriv'], derivSym:'JD100'      },
+
+  // ── Step Indices (fixed step sizes, equal up/down probability) ────────────
+  { id:'stpRNG',    symbol:'Step Index',    name:'Step Index',                   cat:'synthetics', sources:['deriv'], derivSym:'stpRNG'     },
+  { id:'stpRNG2',   symbol:'Step 200',      name:'Step Index 200',               cat:'synthetics', sources:['deriv'], derivSym:'stpRNG2'    },
+  { id:'stpRNG3',   symbol:'Step 300',      name:'Step Index 300',               cat:'synthetics', sources:['deriv'], derivSym:'stpRNG3'    },
+  { id:'stpRNG4',   symbol:'Step 400',      name:'Step Index 400',               cat:'synthetics', sources:['deriv'], derivSym:'stpRNG4'    },
+  { id:'stpRNG5',   symbol:'Step 500',      name:'Step Index 500',               cat:'synthetics', sources:['deriv'], derivSym:'stpRNG5'    },
+
+  // ── Multi-Step Indices (variable step sizes) ──────────────────────────────
+  { id:'MSI2',      symbol:'Multi-Step 2',  name:'Multi Step 2 Index',           cat:'synthetics', sources:['deriv'], derivSym:'MSI2'       },
+  { id:'MSI3',      symbol:'Multi-Step 3',  name:'Multi Step 3 Index',           cat:'synthetics', sources:['deriv'], derivSym:'MSI3'       },
+  { id:'MSI4',      symbol:'Multi-Step 4',  name:'Multi Step 4 Index',           cat:'synthetics', sources:['deriv'], derivSym:'MSI4'       },
+
+  // ── Range Break Indices (breaks range every N attempts) ───────────────────
+  { id:'RDBULL100', symbol:'Range Brk 100 Up',   name:'Range Break 100 Up',     cat:'synthetics', sources:['deriv'], derivSym:'RDBULL100'  },
+  { id:'RDBEAR100', symbol:'Range Brk 100 Down',  name:'Range Break 100 Down',  cat:'synthetics', sources:['deriv'], derivSym:'RDBEAR100'  },
+  { id:'RDBULL200', symbol:'Range Brk 200 Up',   name:'Range Break 200 Up',     cat:'synthetics', sources:['deriv'], derivSym:'RDBULL200'  },
+  { id:'RDBEAR200', symbol:'Range Brk 200 Down',  name:'Range Break 200 Down',  cat:'synthetics', sources:['deriv'], derivSym:'RDBEAR200'  },
+
+  // ── DEX Indices (simulate news events — spike or drop) ────────────────────
+  { id:'DEX600UP',  symbol:'DEX 600 Up',    name:'DEX 600 Up Index',             cat:'synthetics', sources:['deriv'], derivSym:'DEX600UP'   },
+  { id:'DEX600DN',  symbol:'DEX 600 Down',  name:'DEX 600 Down Index',           cat:'synthetics', sources:['deriv'], derivSym:'DEX600DN'   },
+  { id:'DEX900UP',  symbol:'DEX 900 Up',    name:'DEX 900 Up Index',             cat:'synthetics', sources:['deriv'], derivSym:'DEX900UP'   },
+  { id:'DEX900DN',  symbol:'DEX 900 Down',  name:'DEX 900 Down Index',           cat:'synthetics', sources:['deriv'], derivSym:'DEX900DN'   },
+  { id:'DEX1500UP', symbol:'DEX 1500 Up',   name:'DEX 1500 Up Index',            cat:'synthetics', sources:['deriv'], derivSym:'DEX1500UP'  },
+  { id:'DEX1500DN', symbol:'DEX 1500 Down', name:'DEX 1500 Down Index',          cat:'synthetics', sources:['deriv'], derivSym:'DEX1500DN'  },
+
+  // ── Drift Switch Indices (trend + sideways switching) ─────────────────────
+  { id:'DSIDXS010', symbol:'Drift Sw 10',   name:'Drift Switch 10 Index',        cat:'synthetics', sources:['deriv'], derivSym:'DSIDXS010'  },
+  { id:'DSIDXS020', symbol:'Drift Sw 20',   name:'Drift Switch 20 Index',        cat:'synthetics', sources:['deriv'], derivSym:'DSIDXS020'  },
+  { id:'DSIDXS030', symbol:'Drift Sw 30',   name:'Drift Switch 30 Index',        cat:'synthetics', sources:['deriv'], derivSym:'DSIDXS030'  },
+
+  // ── Skew Step Indices (asymmetric step probabilities) ─────────────────────
+  { id:'SKSX80010', symbol:'Skew Step 80/10', name:'Skew Step 80/10 Index',    cat:'synthetics', sources:['deriv'], derivSym:'SKSX80010'  },
+  { id:'SKSX90010', symbol:'Skew Step 90/10', name:'Skew Step 90/10 Index',    cat:'synthetics', sources:['deriv'], derivSym:'SKSX90010'  },
 
   // ════════════════════════════════════════════
   // STOCKS CFD — OANDA primary (US/EU/Asia listed)
@@ -390,7 +464,9 @@ let navigateToChartOnSelect = false;
 // HOT LIST
 // ═══════════════════════════════════════════════
 const HOT_LIST_SEED = {
-  forex: ['EUR/USD','GBP/USD','USD/JPY','AUD/USD','USD/CAD','USD/CHF'],
+  forex:      ['EUR/USD','GBP/USD','USD/JPY','AUD/USD','USD/CAD','USD/CHF'],
+  synthetics: ['R_75','R_100','BOOM500','BOOM1000','CRASH500','CRASH1000',
+               '1HZ75V','1HZ100V','JD10','JD25','JD50','JD75','JD100'],
 };
 let HOT_LIST = { ...HOT_LIST_SEED };
 
@@ -399,21 +475,145 @@ let HOT_LIST = { ...HOT_LIST_SEED };
 // Connects once, subscribes to all active assets.
 // Falls back gracefully if unavailable.
 // ═══════════════════════════════════════════════
-let derivWs     = null;
+// Two Deriv WS connections to stay within ~50 subscription limit per connection
+// ws1 = forex, commodities, watchlist assets, hot list
+// ws2 = synthetics (they need their own connection for volume)
+let derivWs     = null;   // primary — forex, commodities, indices, watchlist
+let derivWs2    = null;   // secondary — synthetic indices only
 let derivReady  = false;
-let derivPending = [];   // assets waiting for subscription after open
-let derivRetryTimer = null;
+let derivReady2 = false;
+let derivRetryTimer  = null;
+let derivRetryTimer2 = null;
 
 function getDerivSymbols() {
-  // Subscribe to ALL assets with a Deriv symbol that are in watchlist OR hot list
-  // We cast a wide net so prices are ready before user taps an asset
+  // Assets in watchlist + hot list get subscribed
   const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
   const hotIds     = new Set(Object.values(HOT_LIST).flat());
   const allIds     = new Set([...watchedIds, ...hotIds]);
-  return ALL_ASSETS.filter(a => a.derivSym && allIds.has(a.id)).map(a => a.derivSym);
+
+  const fromWatchlist = ALL_ASSETS
+    .filter(a => a.derivSym && allIds.has(a.id))
+    .map(a => a.derivSym);
+
+  // Synthetics are always subscribed — they run 24/7 and users expect
+  // live prices when browsing the library even before adding to watchlist
+  const synthSymbols = ALL_ASSETS
+    .filter(a => a.cat === 'synthetics' && a.derivSym)
+    .map(a => a.derivSym);
+
+  return [...new Set([...fromWatchlist, ...synthSymbols])];
 }
 
 function resubscribeAllDeriv() {
+  // Conn 1: non-synthetic assets in watchlist + hot list
+  if (_conn1.ready && _conn1.ws && _conn1.ws.readyState === WebSocket.OPEN) {
+    const nonSynthSyms = ALL_ASSETS
+      .filter(a => a.derivSym && a.cat !== 'synthetics')
+      .map(a => a.derivSym);
+    nonSynthSyms.forEach(sym => _conn1.ws.send(JSON.stringify({ ticks: sym, subscribe: 1 })));
+    derivReady = true;
+  }
+  // Conn 2: always covers all synthetics — already subscribed on connect
+  if (_conn2.ws && _conn2.ws.readyState === WebSocket.OPEN) {
+    derivReady2 = true;
+  };
+}
+
+// ── Managed Deriv WS connection factory ─────────────────────────────────
+function makeDerivWS(symbols, retryRef) {
+  if (!symbols.length) return null;
+  const ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=" + DERIV_APP_ID);
+  ws.onopen = () => {
+    // Send in batches of 25 to avoid overwhelming the connection
+    for (let i = 0; i < symbols.length; i += 25) {
+      const batch = symbols.slice(i, i + 25);
+      batch.forEach(sym => ws.send(JSON.stringify({ ticks: sym, subscribe: 1 })));
+    }
+    if (retryRef) retryRef.ready = true;
+    setStatusPill(true);
+  };
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.msg_type === 'tick' && msg.tick) {
+        const sym   = msg.tick.symbol;
+        const asset = ASSET_BY_DERIV.get(sym);
+        if (!asset) return;
+        const newPrice = parseFloat(msg.tick.quote);
+        if (!newPrice) return;
+        const prev = priceData[asset.id];
+        priceData[asset.id] = {
+          price:  newPrice,
+          change: prev && prev.open ? (((newPrice - prev.open) / prev.open) * 100).toFixed(4) : '0.0000',
+          high:   prev && prev.high ? Math.max(prev.high, newPrice) : newPrice,
+          low:    prev && prev.low  ? Math.min(prev.low,  newPrice) : newPrice,
+          open:   (prev && prev.open) || newPrice,
+          vol: '—', mcap: '—', live: true, src: 'deriv',
+        };
+        prices[asset.id] = newPrice;
+      }
+    } catch(e) {}
+  };
+  ws.onclose = (e) => {
+    if (retryRef) retryRef.ready = false;
+    if (e.code !== 1000 && retryRef) {
+      retryRef.timer = setTimeout(() => {
+        retryRef.ws = makeDerivWS(symbols, retryRef);
+      }, 10000);
+    }
+  };
+  ws.onerror = () => { try { ws.close(); } catch(err) {} };
+  return ws;
+}
+
+const _conn1 = { ws: null, ready: false, timer: null };
+const _conn2 = { ws: null, ready: false, timer: null };
+
+function connectDeriv() {
+  // Connection 1: forex, commodities, indices, stock CFDs on Deriv
+  const nonSynthSyms = ALL_ASSETS
+    .filter(a => a.derivSym && a.cat !== 'synthetics')
+    .map(a => a.derivSym);
+
+  if (!_conn1.ws || _conn1.ws.readyState > 1) {
+    clearTimeout(_conn1.timer);
+    _conn1.ws = makeDerivWS(nonSynthSyms, _conn1);
+    derivWs   = _conn1.ws;
+  }
+
+  // Connection 2: synthetic indices (separate — high subscription volume)
+  const synthSyms = ALL_ASSETS
+    .filter(a => a.cat === 'synthetics' && a.derivSym)
+    .map(a => a.derivSym);
+
+  if (!_conn2.ws || _conn2.ws.readyState > 1) {
+    clearTimeout(_conn2.timer);
+    _conn2.ws = makeDerivWS(synthSyms, _conn2);
+    derivWs2  = _conn2.ws;
+  }
+}
+
+function connectDerivSynthetics() {
+  const synthSyms = ALL_ASSETS
+    .filter(a => a.cat === 'synthetics' && a.derivSym)
+    .map(a => a.derivSym);
+  if (!_conn2.ws || _conn2.ws.readyState > 1) {
+    clearTimeout(_conn2.timer);
+    _conn2.ws = makeDerivWS(synthSyms, _conn2);
+    derivWs2  = _conn2.ws;
+  }
+}
+
+function subscribeDerivAsset(asset) {
+  if (!asset.derivSym) return;
+  const conn  = asset.cat === 'synthetics' ? _conn2 : _conn1;
+  if (conn.ready && conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+    conn.ws.send(JSON.stringify({ ticks: asset.derivSym, subscribe: 1 }));
+  }
+}
+
+function resubscribeAllDeriv() {
+
   // Called after watchlist loads from DB — re-subscribes with actual user assets
   if (!derivReady || !derivWs || derivWs.readyState !== WebSocket.OPEN) return;
   getDerivSymbols().forEach(sym => {
@@ -430,20 +630,58 @@ function connectDeriv() {
   derivWs.onopen = () => {
     derivReady = true;
     clearTimeout(derivRetryTimer);
-    // Subscribe to all needed symbols
     const syms = getDerivSymbols();
     if (syms.length) {
-      derivWs.send(JSON.stringify({ ticks_history: syms[0], end: 'latest', count: 1 })); // ping
+      // Subscribe to live ticks for all watchlist/hot-list assets
       syms.forEach(sym => {
         derivWs.send(JSON.stringify({ ticks: sym, subscribe: 1 }));
       });
     }
+    // Request ticks + snapshot for synthetics in staggered batches
+    // Deriv throttles if too many requests fire simultaneously
+    const synthAssets = ALL_ASSETS.filter(a => a.cat === 'synthetics' && a.derivSym);
+    const batchSize = 10;
+    synthAssets.forEach((a, i) => {
+      const delay = Math.floor(i / batchSize) * 250; // 250ms between each batch of 10
+      setTimeout(() => {
+        if (!derivWs || derivWs.readyState !== WebSocket.OPEN) return;
+        // Subscribe to live ticks
+        derivWs.send(JSON.stringify({ ticks: a.derivSym, subscribe: 1 }));
+        // Also request last price snapshot
+        derivWs.send(JSON.stringify({
+          ticks_history: a.derivSym,
+          end: 'latest', count: 1, style: 'ticks',
+        }));
+      }, delay);
+    });
     setStatusPill(true);
   };
 
   derivWs.onmessage = (evt) => {
     try {
       const msg = JSON.parse(evt.data);
+
+      // Route OHLC candle responses to pending fetchDerivOHLC callbacks
+      if (msg.msg_type === 'candles' || msg.candles || (msg.error && msg.req_id && _derivOHLCCallbacks.has(msg.req_id || msg.echo_req?.req_id))) {
+        handleDerivOHLCMsg(msg, null); // null = don't close live WS
+        return;
+      }
+
+      // Handle ticks_history response (initial snapshot — gives last tick price)
+      if (msg.msg_type === 'history' && msg.history?.prices?.length) {
+        const sym   = msg.echo_req?.ticks_history;
+        const asset = sym ? ASSET_BY_DERIV.get(sym) : null;
+        if (asset) {
+          const price = parseFloat(msg.history.prices[msg.history.prices.length - 1]);
+          if (price && !priceData[asset.id]?.price) {
+            priceData[asset.id] = {
+              price, change: '0.0000', high: price, low: price,
+              open: price, vol: '—', mcap: '—', live: true, src: 'deriv',
+            };
+            prices[asset.id] = price;
+          }
+        }
+      }
       if (msg.msg_type === 'tick' && msg.tick) {
         const sym   = msg.tick.symbol;
         const asset = ASSET_BY_DERIV.get(sym);
@@ -1121,23 +1359,49 @@ async function loadLWChart(asset) {
 async function fetchOHLC(asset, tf) {
   const cfg = TF_CONFIG[tf] || TF_CONFIG['1D'];
 
-  // Crypto: try Binance first, fall back to CoinGecko
-  if (BINANCE_SYMBOL[asset.id]) {
-    const d = await fetchBinanceOHLC(asset.id, cfg, tf);
-    if (d && d.length) return d;
-    // Binance failed (CORS/network) — try CoinGecko OHLC
-    const cg = await fetchCoinGeckoOHLC(asset, cfg, tf);
-    if (cg && cg.length) return cg;
-    return null; // crypto — don't fall through to Deriv
+  // ── Crypto path ──────────────────────────────────────────────────────────
+  if (asset.cat === 'crypto' || BINANCE_SYMBOL[asset.id]) {
+    // Race Binance (direct + proxy) against Deriv CFD in parallel
+    // First valid response wins — eliminates sequential timeout waits
+    const racers = [];
+
+    if (BINANCE_SYMBOL[asset.id]) {
+      // Direct Binance
+      racers.push(fetchBinanceOHLC(asset.id, cfg, tf, false));
+      // Proxied Binance (slight delay so direct gets priority)
+      racers.push(
+        new Promise(r => setTimeout(r, 300))
+          .then(() => fetchBinanceOHLC(asset.id, cfg, tf, true))
+      );
+    }
+
+    // Deriv CFD for BTC/ETH/SOL/XRP/DOGE/ADA/LTC
+    if (asset.derivSym) {
+      racers.push(fetchDerivOHLC(asset.derivSym, cfg));
+    }
+
+    if (racers.length) {
+      // Use Promise.any — resolves with first non-null result
+      const d = await raceForData(racers);
+      if (d && d.length) return d;
+    }
+
+    // Last resort: CoinGecko OHLC (30min/4H/1D granularity only)
+    if (asset.cgId) {
+      const d = await fetchCoinGeckoOHLC(asset, cfg, tf);
+      if (d && d.length) return d;
+    }
+
+    return null;
   }
 
-  // Forex / commodities / synthetics / indices → Deriv WebSocket candles
+  // ── Forex / commodities / synthetics / indices → Deriv WebSocket ─────────
   if (asset.derivSym) {
     const d = await fetchDerivOHLC(asset.derivSym, cfg);
     if (d && d.length) return d;
   }
 
-  // Stocks CFD → OANDA
+  // ── Stocks CFD → OANDA ───────────────────────────────────────────────────
   if (OANDA_KEY && asset.oandaSym) {
     const d = await fetchOandaOHLC(asset.oandaSym, cfg);
     if (d && d.length) return d;
@@ -1149,9 +1413,11 @@ async function fetchOHLC(asset, tf) {
 // ── CoinGecko OHLC — crypto fallback ────────────────────────────────────
 async function fetchCoinGeckoOHLC(asset, cfg, tf) {
   if (!asset.cgId) return null;
-  // CoinGecko OHLC granularity is auto-selected by days:
-  // 1d=30min, 7d=4H, 14d=4H, 30-max=1D
-  // Best match per TF:
+  // CoinGecko OHLC free tier auto-selects granularity by days param:
+  //   days=1  → 30-min candles (best for 1m/5m/15m/30m/1H)
+  //   days=7  → 4H candles     (best for 4H)
+  //   days=90 → daily candles  (best for 1D)
+  //   days=365→ daily candles  (best for 1W/1M)
   const daysMap = { '1m':1,'5m':1,'15m':1,'30m':1,'1H':1,'4H':7,'1D':90,'1W':365,'1M':365 };
   const days = daysMap[tf] || 90;
   try {
@@ -1171,13 +1437,17 @@ async function fetchCoinGeckoOHLC(asset, cfg, tf) {
 }
 
 // ── Binance klines — crypto ────────────────────────────────────────────────
-async function fetchBinanceOHLC(assetId, cfg, tf) {
+async function fetchBinanceOHLC(assetId, cfg, tf, useProxy = false) {
   const sym      = BINANCE_SYMBOL[assetId];
+  if (!sym) return null;
   const interval = cfg.binance || '1d';
+  const limit    = Math.min(cfg.count, 1000);
+  const directUrl = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${limit}`;
+  const url = useProxy
+    ? `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`
+    : directUrl;
   try {
-    const res  = await fetch(
-      `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${Math.min(cfg.count, 1000)}`
-    );
+    const res  = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
     if (!Array.isArray(data) || !data.length) return null;
@@ -1220,44 +1490,70 @@ function aggregateCandles(candles, period) {
   return Object.values(groups).sort((a, b) => a.time - b.time);
 }
 
-// ── Deriv WebSocket candles — forex / commodities / indices ───────────────
+// ── Deriv WebSocket candles ──────────────────────────────────────────────
+// Uses the live derivWs if open — avoids opening a new WS per chart request.
+// Falls back to a dedicated one-shot WS if live connection isn't ready.
+const _derivOHLCCallbacks = new Map(); // reqId → resolve fn
+
 function fetchDerivOHLC(derivSym, cfg) {
   return new Promise(resolve => {
-    let done = false;
-    const ws  = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-    const t   = setTimeout(() => { done = true; try { ws.close(); } catch(e){} resolve(null); }, 12000);
+    const reqId  = `ohlc_${derivSym}_${Date.now()}`;
+    let   done   = false;
+    const finish = (result) => { if (!done) { done = true; resolve(result); } };
 
-    ws.onopen = () => ws.send(JSON.stringify({
-      ticks_history: derivSym,
-      style:         'candles',
-      granularity:   cfg.granularity,
-      count:         cfg.count,
-      end:           'latest',
+    // Register callback so onmessage can route the response back
+    _derivOHLCCallbacks.set(reqId, finish);
+    const t = setTimeout(() => {
+      _derivOHLCCallbacks.delete(reqId);
+      finish(null);
+    }, 10000);
+
+    const req = {
+      ticks_history:     derivSym,
+      style:             'candles',
+      granularity:       cfg.granularity,
+      count:             cfg.count,
+      end:               'latest',
       adjust_start_time: 1,
-    }));
-
-    ws.onmessage = evt => {
-      if (done) return;
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.candles || msg.msg_type === 'candles') {
-          done = true; clearTimeout(t); ws.close();
-          const raw = msg.candles || [];
-          if (!raw.length) return resolve(null);
-          resolve(dedupe(raw.map(c => ({
-            time: c.epoch,
-            open: +c.open, high: +c.high, low: +c.low, close: +c.close,
-          }))));
-        } else if (msg.error) {
-          done = true; clearTimeout(t); ws.close();
-          console.warn('Deriv candles error:', msg.error.message, derivSym);
-          resolve(null);
-        }
-      } catch(e) { resolve(null); }
+      req_id:            reqId, // echo'd back in response
     };
-    ws.onerror = () => { if (!done) { done=true; clearTimeout(t); resolve(null); } };
-    ws.onclose = () => { if (!done) { done=true; clearTimeout(t); resolve(null); } };
+
+    const sendReq = (ws) => ws.send(JSON.stringify(req));
+
+    // Try live WS first
+    if (derivWs && derivWs.readyState === WebSocket.OPEN) {
+      sendReq(derivWs);
+    } else {
+      // Fallback: dedicated one-shot WS
+      const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+      ws.onopen    = () => sendReq(ws);
+      ws.onmessage = (evt) => handleDerivOHLCMsg(JSON.parse(evt.data), ws);
+      ws.onerror   = () => { clearTimeout(t); _derivOHLCCallbacks.delete(reqId); finish(null); };
+    }
   });
+}
+
+function handleDerivOHLCMsg(msg, wsToClose) {
+  // Route candle responses to the correct pending callback via req_id
+  const reqId  = msg.req_id || msg.echo_req?.req_id;
+  const cb     = reqId ? _derivOHLCCallbacks.get(reqId) : null;
+
+  if (msg.msg_type === 'candles' || msg.candles) {
+    if (cb) {
+      _derivOHLCCallbacks.delete(reqId);
+      const raw = msg.candles || [];
+      if (wsToClose) try { wsToClose.close(); } catch(e) {}
+      cb(raw.length ? dedupe(raw.map(c => ({
+        time: c.epoch,
+        open: +c.open, high: +c.high, low: +c.low, close: +c.close,
+      }))) : null);
+    }
+  } else if (msg.error && cb) {
+    _derivOHLCCallbacks.delete(reqId);
+    if (wsToClose) try { wsToClose.close(); } catch(e) {}
+    console.warn('Deriv candles error:', msg.error.message);
+    cb(null);
+  }
 }
 
 // ── OANDA mid-price candles — stocks CFD ──────────────────────────────────
@@ -1287,6 +1583,28 @@ async function fetchOandaOHLC(oandaSym, cfg) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+// Race multiple OHLC fetches — returns first non-null, non-empty result
+async function raceForData(promises) {
+  return new Promise(resolve => {
+    let settled = 0;
+    const total = promises.length;
+    if (!total) return resolve(null);
+    promises.forEach(p => {
+      Promise.resolve(p).then(result => {
+        settled++;
+        if (result && result.length) {
+          resolve(result); // first valid result wins
+        } else if (settled === total) {
+          resolve(null); // all exhausted with no data
+        }
+      }).catch(() => {
+        settled++;
+        if (settled === total) resolve(null);
+      });
+    });
+  });
+}
+
 function dedupe(candles) {
   const seen = new Set();
   return candles
@@ -1904,11 +2222,8 @@ function isMarketOpenForAsset(assetId, now) {
   const asset = ASSET_BY_ID.get(assetId);
   if (!asset) return true; // unknown asset — don't block
 
-  // Deriv synthetic indices trade 24/7 — always open
-  const derivSynthetics = ['R_10','R_25','R_50','R_75','R_100',
-    'BOOM500','BOOM1000','CRASH500','CRASH1000','STPFALL',
-    'JUMP10','JUMP25','JUMP50','JUMP75','JUMP100','DEX900UP','DEX900DN'];
-  if (derivSynthetics.includes(assetId)) return true;
+  // Synthetics category (all Deriv synthetic indices) trade 24/7
+  if (asset.cat === 'synthetics') return true;
 
   // Crypto — always open
   if (asset.cat === 'crypto') return true;
@@ -2480,7 +2795,7 @@ function renderLibrary() {
     }
     const groups = {};
     allWatchAssets.forEach(a => { if (!groups[a.cat]) groups[a.cat] = []; groups[a.cat].push(a); });
-    const catLabels = { crypto:'Crypto', stocks:'Stocks', forex:'Forex', commodities:'Commodities', indices:'Indices', etf:'ETFs' };
+    const catLabels = { crypto:'Crypto', stocks:'Stocks', forex:'Forex', commodities:'Commodities', indices:'Indices', synthetics:'Synthetics', etf:'ETFs' };
     Object.entries(groups).forEach(([cat, assets]) => {
       const sec = document.createElement('div');
       sec.innerHTML = `<div class="lib-section-title">${catLabels[cat] || cat} · ${assets.length} assets</div>`;
@@ -2508,8 +2823,8 @@ function renderLibrary() {
 
   const groups = {};
   pool.forEach(a => { if (!groups[a.cat]) groups[a.cat] = []; groups[a.cat].push(a); });
-  const catOrder = ['crypto','stocks','forex','commodities','indices','etf'];
-  const catLabels = { crypto:'Crypto', stocks:'Stocks', forex:'Forex', commodities:'Commodities', indices:'Indices', etf:'ETFs' };
+  const catOrder = ['crypto','forex','indices','synthetics','commodities','stocks','etf'];
+  const catLabels = { crypto:'Crypto', stocks:'Stocks', forex:'Forex', commodities:'Commodities', indices:'Indices', synthetics:'Synthetics', etf:'ETFs' };
 
   body.innerHTML = '';
   catOrder.forEach(cat => {
@@ -2628,11 +2943,9 @@ setInterval(() => {
 setInterval(() => {
   fetchAllPrices();
   // Reconnect / re-subscribe Deriv on every REST cycle to catch any dropped ticks
-  if (derivWs?.readyState === WebSocket.OPEN) {
-    resubscribeAllDeriv();
-  } else {
-    connectDeriv(); // reconnect if ws dropped
-  }
+  // Reconnect both WS connections if needed
+  if (!_conn1.ws || _conn1.ws.readyState > 1) connectDeriv();
+  else resubscribeAllDeriv();
 }, 60 * 1000);
 
 // ═══════════════════════════════════════════════
@@ -2782,7 +3095,9 @@ window.addEventListener('resize', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     fetchAllPrices();
-    connectDeriv(); // reconnect WS if it dropped while tab was hidden
+    // Reconnect both WS connections if they dropped
+    if (!_conn1.ws || _conn1.ws.readyState > 1) connectDeriv();
+    if (!_conn2.ws || _conn2.ws.readyState > 1) connectDerivSynthetics();
     if (isMobileLayout()) mobileTab(navStack[navStack.length-1], false);
   }
 });
