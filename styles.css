@@ -272,18 +272,48 @@
     background: var(--surface);
     position: relative;
   }
-  #tradingview-widget {
-    width: 100% !important;
-    height: 100% !important;
+  #lw-chart {
+    width: 100%;
+    height: 100%;
     position: absolute;
     inset: 0;
   }
-  #tradingview-widget > div,
-  #tradingview-widget iframe {
-    width: 100% !important;
-    height: 100% !important;
-    border: none !important;
-    border-radius: 0 !important;
+  #chart-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    background: var(--surface);
+    z-index: 2;
+    pointer-events: none;
+  }
+  /* Timeframe selector */
+  .chart-tf-group {
+    display: flex;
+    gap: 4px;
+  }
+  .chart-tf-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    padding: 4px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chart-tf-btn:hover { color: var(--text); border-color: var(--border); }
+  .chart-tf-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(0,212,255,0.08);
   }
 
   /* Alert creation form */
@@ -962,9 +992,13 @@
       border-radius: 10px;
     }
     .tv-container {
-      height: 340px;
+      height: 300px;
       border-radius: 10px;
       margin-bottom: 14px;
+    }
+    .chart-tf-btn {
+      font-size: 0.6rem;
+      padding: 4px 6px;
     }
 
 
