@@ -576,6 +576,12 @@ function makeDerivWS(symbols, retryRef) {
     try {
       const msg = JSON.parse(evt.data);
 
+      // Route candle history responses to pending OHLC callbacks
+      if (msg.msg_type === 'candles' || (msg.msg_type === 'history' && msg.echo_req?.style === 'candles')) {
+        handleDerivOHLCMsg(msg, null);
+        return;
+      }
+
       // Last-price snapshot (ticks_history count:1) — sets initial price immediately
       if (msg.msg_type === 'history' && msg.history?.prices?.length) {
         const sym   = msg.echo_req?.ticks_history;
@@ -1130,7 +1136,6 @@ function mobileTab(tab, pushState = true) {
     panel.classList.add('mobile-active');
     panel.scrollTop = 0;
     document.getElementById('mnav-alerts').classList.add('active');
-    // Always re-render when navigating to alerts so the list is never stale/hidden
     renderAlerts();
   }
 }
@@ -1517,9 +1522,23 @@ function fetchDerivOHLC(derivSym, cfg) {
 
     const sendReq = (ws) => ws.send(JSON.stringify(req));
 
-    // Try live WS first
-    if (derivWs && derivWs.readyState === WebSocket.OPEN) {
-      sendReq(derivWs);
+    // Synthetics live on _conn2 (derivWs2), everything else on _conn1 (derivWs).
+    const asset      = ASSET_BY_DERIV.get(derivSym);
+    const isSynth    = asset?.cat === 'synthetics';
+    const liveConn   = isSynth
+      ? (derivWs2 && derivWs2.readyState === WebSocket.OPEN ? derivWs2 : null)
+      : (derivWs  && derivWs.readyState  === WebSocket.OPEN ? derivWs  : null);
+
+    if (liveConn) {
+      liveConn.addEventListener('message', function onMsg(evt) {
+        const msg = JSON.parse(evt.data);
+        const id  = msg.req_id || msg.echo_req?.req_id;
+        if (id === reqId) {
+          liveConn.removeEventListener('message', onMsg);
+          handleDerivOHLCMsg(msg, null);
+        }
+      });
+      sendReq(liveConn);
     } else {
       // Fallback: dedicated one-shot WS
       const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
@@ -1940,7 +1959,6 @@ function renderAlerts() {
     container.style.display = '';
     const histEl = document.getElementById('alerts-history');
     if (histEl) histEl.style.display = 'none';
-    // Sync tab button states
     document.getElementById('atab-active')?.classList.add('active');
     document.getElementById('atab-history')?.classList.remove('active');
     currentAlertTab = 'active';
