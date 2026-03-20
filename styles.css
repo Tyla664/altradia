@@ -210,7 +210,7 @@
     opacity: 0; background: transparent; border: none;
     color: var(--red); font-size: 0.7rem; cursor: pointer;
     transition: opacity 0.15s; padding: 2px 4px; border-radius: 3px;
-    z-index: 2;
+    z-index: 1;
   }
   .asset-remove:hover { background: rgba(255,61,90,0.15); }
   .asset-card.selected { border-color: var(--accent); background: rgba(0,212,255,0.05); }
@@ -872,7 +872,8 @@
       height: 34px;
       min-height: 34px;
       border-bottom: 1px solid var(--border);
-      z-index: 2;
+      z-index: 15;
+      position: relative;
       flex-shrink: 0;
       background: var(--surface);
       font-size: 0.56rem;
@@ -982,6 +983,7 @@
       font-size: 0.9rem;
       padding: 8px 10px;
       border-radius: 6px;
+      z-index: 1;
     }
     .asset-card.has-alert::after { top: 10px; right: 46px; }
     .asset-right { padding-right: 36px; }
