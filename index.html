@@ -582,9 +582,9 @@
 </div>
 
 <!-- Journal Entry Modal (Log Trade form) -->
-<div id="journal-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.7);overflow-y:auto">
-  <div style="min-height:100%;display:flex;align-items:flex-start;justify-content:center;padding:20px 12px">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;padding:20px">
+<div id="journal-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.7);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="min-height:100%;display:flex;align-items:flex-start;justify-content:center;padding:calc(20px + env(safe-area-inset-top)) 12px calc(80px + env(safe-area-inset-bottom))">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;padding:20px;box-sizing:border-box">
     <div style="font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.12em;color:var(--text);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
       <span>LOG TRADE</span>
       <button onclick="closeJournalModal()" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer">&#x2715;</button>
