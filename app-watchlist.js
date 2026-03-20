@@ -253,6 +253,12 @@ function isMobileLayout() {
 function mobileTab(tab, pushState = true) {
   if (!isMobileLayout()) return;
 
+  // Close journal modal whenever navigating away from journal tab
+  if (tab !== 'journal') {
+    const jm = document.getElementById('journal-modal');
+    if (jm) jm.style.display = 'none';
+  }
+
   const current = navStack[navStack.length - 1];
 
   // Push to stack only if navigating to a different tab
