@@ -18,8 +18,7 @@
 
 // ── Broker credentials ────────────────────────
 const DERIV_APP_ID     = '3FgUMWdvlyFOxPW';
-const SUPABASE_URL     = 'https://etugovdinpbqiygsbemc.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0dWdvdmRpbnBicWl5Z3NiZW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzA3NTEsImV4cCI6MjA4ODgwNjc1MX0.4gDZXjYlRsco96Ocuw_qexsgTIhElfr59HqFIaT_06Y';
+// SUPABASE_URL and SUPABASE_ANON_KEY are defined in db.js — do not redeclare here
 const OANDA_KEY     = 'bc279adfd3ef94ce554a110a9e555d05-7e712cb0ac8809392b3f4bfca9768b8b';
 const OANDA_ACCOUNT = '101-001-38834231-001';
 const OANDA_BASE    = 'https://api-fxpractice.oanda.com/v3';
