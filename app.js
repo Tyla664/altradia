@@ -576,12 +576,6 @@ function makeDerivWS(symbols, retryRef) {
     try {
       const msg = JSON.parse(evt.data);
 
-      // Route candle history responses to pending OHLC callbacks
-      if (msg.msg_type === 'candles' || (msg.msg_type === 'history' && msg.echo_req?.style === 'candles')) {
-        handleDerivOHLCMsg(msg, null);
-        return;
-      }
-
       // Last-price snapshot (ticks_history count:1) — sets initial price immediately
       if (msg.msg_type === 'history' && msg.history?.prices?.length) {
         const sym   = msg.echo_req?.ticks_history;
@@ -1136,7 +1130,9 @@ function mobileTab(tab, pushState = true) {
     panel.classList.add('mobile-active');
     panel.scrollTop = 0;
     document.getElementById('mnav-alerts').classList.add('active');
+    // Always re-render so alerts are fresh when tab opens
     renderAlerts();
+    switchAlertTab('active');
   }
 }
 
@@ -1522,23 +1518,9 @@ function fetchDerivOHLC(derivSym, cfg) {
 
     const sendReq = (ws) => ws.send(JSON.stringify(req));
 
-    // Synthetics live on _conn2 (derivWs2), everything else on _conn1 (derivWs).
-    const asset      = ASSET_BY_DERIV.get(derivSym);
-    const isSynth    = asset?.cat === 'synthetics';
-    const liveConn   = isSynth
-      ? (derivWs2 && derivWs2.readyState === WebSocket.OPEN ? derivWs2 : null)
-      : (derivWs  && derivWs.readyState  === WebSocket.OPEN ? derivWs  : null);
-
-    if (liveConn) {
-      liveConn.addEventListener('message', function onMsg(evt) {
-        const msg = JSON.parse(evt.data);
-        const id  = msg.req_id || msg.echo_req?.req_id;
-        if (id === reqId) {
-          liveConn.removeEventListener('message', onMsg);
-          handleDerivOHLCMsg(msg, null);
-        }
-      });
-      sendReq(liveConn);
+    // Try live WS first
+    if (derivWs && derivWs.readyState === WebSocket.OPEN) {
+      sendReq(derivWs);
     } else {
       // Fallback: dedicated one-shot WS
       const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
@@ -1951,19 +1933,6 @@ const SVG_PAUSE   = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"
 
 function renderAlerts() {
   const container = document.getElementById('alerts-list');
-  if (!container) return;
-
-  // Always make sure the active-tab container is visible when rendering
-  // (can get stuck hidden if switchAlertTab was called while alerts were empty)
-  if (currentAlertTab === 'active' || currentAlertTab === undefined) {
-    container.style.display = '';
-    const histEl = document.getElementById('alerts-history');
-    if (histEl) histEl.style.display = 'none';
-    document.getElementById('atab-active')?.classList.add('active');
-    document.getElementById('atab-history')?.classList.remove('active');
-    currentAlertTab = 'active';
-  }
-
   const active = alerts.filter(a => a.status === 'active').length;
   document.getElementById('alert-count').textContent = alerts.length;
   document.getElementById('activeCount').textContent = active;
@@ -2128,7 +2097,6 @@ function switchAlertTab(tab) {
   document.getElementById('atab-active').classList.toggle('active',  tab === 'active');
   document.getElementById('atab-history').classList.toggle('active', tab === 'history');
   if (tab === 'history') renderHistory();
-  if (tab === 'active')  renderAlerts();
 }
 
 function setHistoryFilter(f) {
