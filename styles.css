@@ -164,6 +164,7 @@
   }
   .wl-fab:active { transform: scale(0.92); border-color: var(--accent); }
   .wl-fab.visible { display: flex; }
+  .wl-empty {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 48px 24px; color: var(--muted);
     font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.5px;
@@ -913,6 +914,7 @@
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
+    .panels-wrap {
       position: relative;
       flex: 1;
       overflow: hidden;
@@ -1118,6 +1120,10 @@
     .mobile-nav-btn:active { opacity: 0.6; }
     .mobile-nav-btn .nav-icon svg { width: 24px; height: 24px; }
 
+    /* ── Journal modal ── */
+    #journal-modal {
+      overscroll-behavior: contain;
+    }
     /* ── Modal ── */
     .modal-overlay { align-items: flex-end; }
     .modal {
