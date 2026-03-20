@@ -411,24 +411,4 @@ async function deleteJournalEntry(id) {
   renderJournal();
 }
 
-// ── mobileTab extension for journal panel ─────────────────────────────────
-// Journal panel is outside the panels-wrap, so handle separately
-const _origMobileTab = typeof mobileTab === 'function' ? mobileTab : null;
-function mobileTab(tab, pushState = true) {
-  const journalPanel = document.getElementById('panel-journal');
-
-  // Hide journal when switching to any other tab
-  if (journalPanel) journalPanel.style.display = tab === 'journal' ? 'flex' : 'none';
-
-  if (tab === 'journal') {
-    // Deactivate all other nav buttons
-    document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('mnav-journal')?.classList.add('active');
-    if (pushState) window.history.pushState({ twTab: 'journal' }, '', '');
-    renderJournal();
-    return;
-  }
-
-  // Delegate everything else to original mobileTab
-  if (_origMobileTab) _origMobileTab(tab, pushState);
-}
+// mobileTab is handled by app-watchlist.js — journal tab already supported there
