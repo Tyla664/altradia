@@ -215,7 +215,7 @@ function toggleTelegram() {
   updateTgModalState();
   updateTgBtn();
   if (telegramEnabled) {
-    sendTelegram('🔔 <b>TradeWatch Connected!</b>\n\nYour alerts are live. You\'ll get notified here the moment a price target is hit.\n\n<i>Stay sharp. 📊</i>');
+    sendTelegram('<b>TRADEWATCH CONNECTED</b>\n\nYour alerts are live. You\'ll get notified here the moment a price target is hit.\n\n<i>Stay sharp. </i>');
   }
 }
 
@@ -241,11 +241,11 @@ async function testTelegram() {
     return;
   }
   setTgStatus('Sending…', '');
-  const ok = await sendTelegram('✅ <b>Test Successful!</b>\n\nTradeWatch is connected and ready to fire alerts.\n\n<i>You\'re all set. 🎯</i>');
+  const ok = await sendTelegram('<b>TEST SUCCESSFUL</b>\n\nTradeWatch is connected and ready to fire alerts.\n\n<i>You\'re all set. </i>');
   if (ok) {
-    setTgStatus('✓ Message sent! Check your Telegram.', 'ok');
+    setTgStatus('Message sent! Check your Telegram.', 'ok');
   } else {
-    setTgStatus('✗ Failed. Please try again.', 'err');
+    setTgStatus('Failed. Please try again.', 'err');
   }
 }
 
@@ -285,21 +285,21 @@ function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, asse
   let header, subtitle, rows = [];
 
   if (isZone) {
-    header   = `📍 <b>ZONE ALERT — ${symbol}</b>`;
+    header   = `[ZONE] <b>ZONE ALERT — ${symbol}</b>`;
     subtitle = `Price has entered your zone`;
     rows.push(tgRow('Zone',          `<b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`));
     rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
     if (timeframe)                            rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
     if (repeatInterval && repeatInterval > 0) rows.push(tgRow('Repeat',   `<b>Every ${repeatInterval} min</b>`));
   } else if (isTap) {
-    header   = `🎯 <b>TAP ALERT — ${symbol}</b>`;
+    header   = `[TAP] <b>TAP ALERT — ${symbol}</b>`;
     subtitle = `Price touched your level`;
     rows.push(tgRow('Level',         `<b>${formatPrice(targetPrice, assetId)}</b>`));
     rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
     rows.push(tgRow('Tolerance',     `<b>±${tapTolerance}%</b>`));
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
   } else {
-    const emoji   = isAbove ? '🚀' : '📉';
+    const emoji   = isAbove ? '[UP]' : '[DOWN]';
     const dirWord = isAbove ? 'broke above' : 'dropped below';
     header   = `${emoji} <b>ALERT TRIGGERED — ${symbol}</b>`;
     subtitle = `Price ${dirWord} your target`;
@@ -320,19 +320,19 @@ function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timefra
   let header, subtitle, rows = [];
 
   if (isZone) {
-    header   = `📍 <b>Zone Alert Set — ${symbol}</b>`;
+    header   = `[ZONE SET] <b>Zone Alert Set — ${symbol}</b>`;
     subtitle = `You'll be notified when <b>${symbol}</b> enters the zone`;
     rows.push(tgRow('Zone',      `<b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`));
     if (timeframe)                            rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
     if (repeatInterval && repeatInterval > 0) rows.push(tgRow('Repeat',   `<b>Every ${repeatInterval} min</b>`));
   } else if (isTap) {
-    header   = `🎯 <b>Tap Alert Set — ${symbol}</b>`;
+    header   = `[TAP SET] <b>Tap Alert Set — ${symbol}</b>`;
     subtitle = `You'll be notified when <b>${symbol}</b> touches your level`;
     rows.push(tgRow('Level',     `<b>${formatPrice(targetPrice, assetId)}</b>`));
     rows.push(tgRow('Tolerance', `<b>±${tapTolerance}%</b>`));
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
   } else {
-    const emoji   = isAbove ? '🟢' : '🔴';
+    const emoji   = isAbove ? '' : '';
     const dirWord = isAbove ? 'rises above' : 'falls below';
     header   = `${emoji} <b>Alert Set — ${symbol}</b>`;
     subtitle = `You'll be notified when <b>${symbol}</b> ${dirWord}`;
@@ -341,7 +341,7 @@ function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timefra
   }
 
   if (note) rows.push(tgRow('Note', `<i>${note}</i>`));
-  return [header, ``, subtitle, ``, ...rows, ``, `<i>Watching the markets for you 👀</i>`].join('\n');
+  return [header, ``, subtitle, ``, ...rows, ``, `<i>Watching the markets for you.</i>`].join('\n');
 }
 
 // ── Telegram message for edited alerts ────────────────────────────────────
@@ -353,21 +353,21 @@ function tgEditedMessage(symbol, condition, targetPrice, assetId, note, timefram
   let header, subtitle, rows = [];
 
   if (isZone) {
-    header   = `✏️ <b>Alert Updated — ${symbol}</b>`;
+    header   = `[UPDATED] <b>Alert Updated — ${symbol}</b>`;
     subtitle = `Your zone alert has been updated`;
     rows.push(tgRow('Zone',      `<b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`));
     if (timeframe)                            rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
     if (repeatInterval && repeatInterval > 0) rows.push(tgRow('Repeat',   `<b>Every ${repeatInterval} min</b>`));
   } else if (isTap) {
-    header   = `✏️ <b>Alert Updated — ${symbol}</b>`;
+    header   = `[UPDATED] <b>Alert Updated — ${symbol}</b>`;
     subtitle = `Your tap alert has been updated`;
     rows.push(tgRow('Level',     `<b>${formatPrice(targetPrice, assetId)}</b>`));
     rows.push(tgRow('Tolerance', `<b>±${tapTolerance}%</b>`));
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
   } else {
-    const emoji   = isAbove ? '🟢' : '🔴';
+    const emoji   = isAbove ? '' : '';
     const dirWord = isAbove ? 'rises above' : 'falls below';
-    header   = `✏️ <b>Alert Updated — ${symbol}</b>`;
+    header   = `[UPDATED] <b>Alert Updated — ${symbol}</b>`;
     subtitle = `Now watching for <b>${symbol}</b> to ${dirWord}`;
     rows.push(tgRow('New target', `<b>${formatPrice(targetPrice, assetId)}</b>`));
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
@@ -883,7 +883,7 @@ function showOnboardingScreen() {
 
     // ── Phase 2: Test message ─────────────────────
     async function attemptTestMessage() {
-      const msg = '🎉 <b>TradeWatch Connected!</b>\n\nYour account is linked. You\'ll receive instant alerts here the moment a price target is hit.\n\n<i>You\'re all set. 📊</i>';
+      const msg = '<b>TRADEWATCH CONNECTED</b>\n\nYour account is linked. You\'ll receive instant alerts here the moment a price target is hit.\n\n<i>You\'re all set. </i>';
       const ok  = await sendTelegram(msg);
 
       if (ok) {
