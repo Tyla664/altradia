@@ -1130,6 +1130,8 @@ function mobileTab(tab, pushState = true) {
     panel.classList.add('mobile-active');
     panel.scrollTop = 0;
     document.getElementById('mnav-alerts').classList.add('active');
+    // Always re-render when navigating to alerts so the list is never stale/hidden
+    renderAlerts();
   }
 }
 
@@ -1930,6 +1932,20 @@ const SVG_PAUSE   = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"
 
 function renderAlerts() {
   const container = document.getElementById('alerts-list');
+  if (!container) return;
+
+  // Always make sure the active-tab container is visible when rendering
+  // (can get stuck hidden if switchAlertTab was called while alerts were empty)
+  if (currentAlertTab === 'active' || currentAlertTab === undefined) {
+    container.style.display = '';
+    const histEl = document.getElementById('alerts-history');
+    if (histEl) histEl.style.display = 'none';
+    // Sync tab button states
+    document.getElementById('atab-active')?.classList.add('active');
+    document.getElementById('atab-history')?.classList.remove('active');
+    currentAlertTab = 'active';
+  }
+
   const active = alerts.filter(a => a.status === 'active').length;
   document.getElementById('alert-count').textContent = alerts.length;
   document.getElementById('activeCount').textContent = active;
@@ -2094,6 +2110,7 @@ function switchAlertTab(tab) {
   document.getElementById('atab-active').classList.toggle('active',  tab === 'active');
   document.getElementById('atab-history').classList.toggle('active', tab === 'history');
   if (tab === 'history') renderHistory();
+  if (tab === 'active')  renderAlerts();
 }
 
 function setHistoryFilter(f) {
