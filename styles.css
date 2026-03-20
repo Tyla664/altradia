@@ -1251,6 +1251,97 @@
   cursor: pointer;
   transition: all 0.15s;
 }
+
+/* ── Light mode ─────────────────────────────────────────────────────────── */
+.light-mode {
+  --bg:        #f0f4f8;
+  --surface:   #ffffff;
+  --surface2:  #e8edf3;
+  --border:    #d0dae6;
+  --accent:    #0099bb;
+  --accent2:   #e85a1e;
+  --green:     #00a854;
+  --red:       #e02020;
+  --gold:      #c9a000;
+  --text:      #0d1a26;
+  --muted:     #6a8099;
+  --mono:      'Space Mono', monospace;
+  --sans:      'Syne', sans-serif;
+}
+
+/* Light mode overrides */
+.light-mode header {
+  background: rgba(240,244,248,0.96);
+  border-bottom-color: var(--border);
+}
+.light-mode .asset-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.light-mode .asset-card:hover,
+.light-mode .asset-card.selected {
+  background: var(--surface2);
+}
+.light-mode .alert-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.light-mode .modal,
+.light-mode .modal-overlay {
+  background: rgba(130,150,170,0.6);
+}
+.light-mode .modal {
+  background: var(--surface);
+}
+.light-mode .lib-card {
+  background: var(--surface2);
+  border-color: var(--border);
+}
+.light-mode .lib-card:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+.light-mode .mobile-nav {
+  background: rgba(240,244,248,0.97);
+  border-top-color: var(--border);
+}
+.light-mode .journal-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.light-mode input,
+.light-mode select,
+.light-mode textarea {
+  background: var(--surface2) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+.light-mode .icon-btn {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.light-mode .icon-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0,153,187,0.08);
+}
+.light-mode .panel-title {
+  background: var(--surface);
+  color: var(--text);
+}
+.light-mode .watchlist-panel,
+.light-mode .alerts-panel,
+.light-mode .journal-panel {
+  background: var(--surface);
+}
+.light-mode .wl-panel-header,
+.light-mode .market-group-label {
+  color: var(--muted);
+}
+.light-mode .price-up   { color: var(--green); }
+.light-mode .price-down { color: var(--red);   }
+
 .setup-dir-btn:hover { color: var(--text); border-color: var(--accent); }
 .setup-dir-btn.active {
   background: rgba(0,212,255,0.1);
