@@ -926,20 +926,23 @@
     .panel, .main-panel {
       position: absolute;
       inset: 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
       display: none;
       padding: 0;
       border: none;
-      /* Smooth momentum scroll */
-      scroll-behavior: smooth;
     }
-    .panel.mobile-active,
-    .main-panel.mobile-active { display: block; }
-    .journal-panel.mobile-active { display: flex !important; flex-direction: column; }
-    .journal-panel {
-      padding: 0;
+    .watchlist-panel.mobile-active,
+    .main-panel.mobile-active,
+    .alerts-panel.mobile-active {
+      display: block;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    /* Journal uses flex so stats strip + list work correctly */
+    .journal-panel.mobile-active {
+      display: flex !important;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     /* ── Watchlist panel ── */
@@ -1076,34 +1079,22 @@
     /* ── Alerts panel ── */
     .alerts-panel {
       background: var(--surface);
-      top: 0 !important;
-      display: none;
-      flex-direction: column;
-      padding: 0;
-    }
-    .alerts-panel.mobile-active {
-      display: flex !important;
     }
     .alerts-panel .panel-title {
       position: sticky;
       top: 0;
       background: var(--surface);
-      z-index: 10;
+      z-index: 5;
       padding: 14px 16px 10px;
       margin-bottom: 0;
       border-bottom: 1px solid var(--border);
       font-size: 0.6rem;
     }
     #alerts-list {
-      flex: 1;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
       padding: 12px 16px calc(72px + env(safe-area-inset-bottom) + 16px);
     }
     #alerts-history {
-      flex: 1;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+      padding: 0 16px calc(72px + env(safe-area-inset-bottom) + 16px);
     }
     .alert-item {
       padding: 14px;
@@ -1278,15 +1269,12 @@
   flex-direction: column;
 }
 .journal-panel .panel-title {
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   background: var(--surface);
-  z-index: 10;
   padding: 14px 16px 10px;
   margin-bottom: 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.6rem;
-  flex-shrink: 0;
 }
 #journal-stats {
   display: flex;
@@ -1295,7 +1283,6 @@
   flex-shrink: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  min-height: 50px;
 }
 .journal-stat {
   flex: 1;
@@ -1323,10 +1310,11 @@
   margin-top: 2px;
 }
 #journal-list {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 14px 14px calc(72px + env(safe-area-inset-bottom) + 16px);
 }
 
