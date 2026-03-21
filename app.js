@@ -3369,6 +3369,30 @@ function toggleSound() {
   if (soundEnabled) playAlertSound(selectedAlertSound);
 }
 
+function toggleTheme() {
+  const root    = document.documentElement;
+  const isLight = root.getAttribute('data-theme') !== 'light';
+  root.setAttribute('data-theme', isLight ? 'light' : 'dark');
+  localStorage.setItem('tw_theme', isLight ? 'light' : 'dark');
+  const moon = document.getElementById('theme-moon');
+  const sun  = document.getElementById('theme-sun');
+  if (moon) moon.style.display = isLight ? 'none' : '';
+  if (sun)  sun.style.display  = isLight ? ''     : 'none';
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.title = isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode';
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('tw_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  if (saved === 'light') {
+    const moon = document.getElementById('theme-moon');
+    const sun  = document.getElementById('theme-sun');
+    if (moon) moon.style.display = 'none';
+    if (sun)  sun.style.display  = '';
+  }
+}
+
 function selectSound(type, btn) {
   selectedAlertSound = type;
   document.querySelectorAll('.sound-opt').forEach(b => b.classList.remove('active'));
@@ -3917,6 +3941,9 @@ setInterval(() => {
 // INIT
 // ═══════════════════════════════════════════════
 async function init() {
+  // Apply saved theme immediately before any rendering
+  initTheme();
+
   // Push initial history state so Android back button is interceptable from the start
   window.history.replaceState({ twTab: 'watchlist' }, '', '');
 
