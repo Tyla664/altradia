@@ -1130,9 +1130,6 @@ function mobileTab(tab, pushState = true) {
     panel.classList.add('mobile-active');
     panel.scrollTop = 0;
     document.getElementById('mnav-alerts').classList.add('active');
-    // Always re-render so alerts are fresh when tab opens
-    renderAlerts();
-    switchAlertTab('active');
   }
 }
 
@@ -1935,40 +1932,32 @@ function renderAlerts() {
   const container = document.getElementById('alerts-list');
   if (!container) return;
 
+  // Always show the list, always show the active tab
+  container.style.removeProperty('display');
+  currentAlertTab = 'active';
+  const _hist = document.getElementById('alerts-history');
+  if (_hist) _hist.style.display = 'none';
+  document.getElementById('atab-active')?.classList.add('active');
+  document.getElementById('atab-history')?.classList.remove('active');
+
   const active = alerts.filter(a => a.status === 'active').length;
-  const alertCountEl = document.getElementById('alert-count');
-  const activeCountEl = document.getElementById('activeCount');
-  const triggeredCountEl = document.getElementById('triggeredCount');
-  if (alertCountEl)   alertCountEl.textContent   = alerts.length;
-  if (activeCountEl)  activeCountEl.textContent  = active;
-  if (triggeredCountEl) triggeredCountEl.textContent = triggeredToday;
+  document.getElementById('alert-count').textContent = alerts.length;
+  document.getElementById('activeCount').textContent = active;
+  document.getElementById('triggeredCount').textContent = triggeredToday;
 
-  // ── DEBUG: Show alert count prominently ──
-  // This will be removed once alerts display is confirmed working
-  const debugBanner = document.getElementById('alert-debug-banner');
-  if (debugBanner) {
-    debugBanner.textContent = `renderAlerts called: ${alerts.length} alerts in array`;
-    debugBanner.style.display = 'block';
-  }
-
-  // No alerts at all
   if (alerts.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 6C16.27 6 10 12.27 10 20v13L6 37h36l-4-4V20C38 12.27 31.73 6 24 6z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" fill="none" opacity="0.4"/><path d="M19 38c0 2.76 2.24 5 5 5s5-2.24 5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.4"/></svg></div><p>No alerts yet.<br>Select an asset and set a<br>price target to get started.</p></div>';
-    const dot = document.getElementById('alert-dot');
-    if (dot) dot.classList.remove('show');
+    container.innerHTML = `<div class="empty-state"><div class="icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 6C16.27 6 10 12.27 10 20v13L6 37h36l-4-4V20C38 12.27 31.73 6 24 6z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" fill="none" opacity="0.4"/><path d="M19 38c0 2.76 2.24 5 5 5s5-2.24 5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.4"/></svg></div><p>No alerts yet.<br>Select an asset and set a<br>price target to get started.</p></div>`;
     return;
   }
 
-  // Build all cards, then assign innerHTML once (atomic — no flicker)
-  const fragment = document.createDocumentFragment();
-
+  container.innerHTML = '';
   [...alerts].reverse().forEach(alert => {
     const div = document.createElement('div');
 
     // Setup/trade alerts get their own card renderer
     if (alert.condition === 'setup') {
       renderSetupCard(alert, div);
-      fragment.appendChild(div);
+      container.appendChild(div);
       return;
     }
 
@@ -1978,23 +1967,26 @@ function renderAlerts() {
     if (isTriggered) {
       div.className = `alert-item triggered-${dir}`;
     } else {
-      div.className = 'alert-item active-alert';
+      div.className = `alert-item active-alert`;
     }
 
     let badgeClass, badgeLabel;
     const isRepeatingZone  = alert.condition === 'zone' && (alert.repeatInterval || 0) > 0;
     const zoneInProgress   = isRepeatingZone && alert.zoneTriggeredOnce;
+    // Check if price is currently inside the zone (live data)
     const currentLivePrice = priceData[alert.assetId]?.price || 0;
     const isCurrentlyInZone = alert.condition === 'zone' && currentLivePrice > 0
       && currentLivePrice >= alert.zoneLow && currentLivePrice <= alert.zoneHigh;
 
     if (isTriggered) {
-      if (alert.condition === 'zone')     { badgeClass = 'badge-triggered-below'; badgeLabel = `${ALERT_ICONS.zone}TRIGGERED`; }
-      else if (alert.condition === 'tap') { badgeClass = 'badge-triggered-above'; badgeLabel = `${ALERT_ICONS.triggered}TAPPED`; }
-      else                                { badgeClass = `badge-triggered-${dir}`; badgeLabel = dir === 'above' ? `${ALERT_ICONS.above}TRIGGERED` : `${ALERT_ICONS.below}TRIGGERED`; }
+      if (alert.condition === 'zone')      { badgeClass = 'badge-triggered-below'; badgeLabel = `${ALERT_ICONS.zone}TRIGGERED`; }
+      else if (alert.condition === 'tap')  { badgeClass = 'badge-triggered-above'; badgeLabel = `${ALERT_ICONS.triggered}TAPPED`; }
+      else                                 { badgeClass = `badge-triggered-${dir}`; badgeLabel = dir === 'above' ? `${ALERT_ICONS.above}TRIGGERED` : `${ALERT_ICONS.below}TRIGGERED`; }
     } else if (zoneInProgress && isCurrentlyInZone) {
+      // Has fired before AND price is still inside
       badgeClass = 'badge-zone-active'; badgeLabel = `${ALERT_ICONS.inzone}IN ZONE`;
     } else if (zoneInProgress && !isCurrentlyInZone) {
+      // Has fired before BUT price has since left — waiting for re-entry
       badgeClass = 'badge-zone-exited'; badgeLabel = `${ALERT_ICONS.zone}EXITED`;
     } else if (alert.status === 'paused') {
       badgeClass = 'badge-inactive'; badgeLabel = `${ALERT_ICONS.paused}PAUSED`;
@@ -2003,37 +1995,43 @@ function renderAlerts() {
     }
 
     const triggeredLine = isTriggered
-      ? `<span style="color:${dir === 'above' || alert.condition === 'tap' ? 'var(--green)' : 'var(--red)'}">Hit ${formatPrice(alert.triggeredPrice, alert.assetId)} at ${formatTriggeredAt(alert.triggeredAt)}</span><br>`
+      ? `<span style="color:${dir === 'above' || alert.condition === 'tap' ? 'var(--green)' : 'var(--red)'}">
+           Hit ${formatPrice(alert.triggeredPrice, alert.assetId)} at ${formatTriggeredAt(alert.triggeredAt)}
+         </span><br>`
       : (zoneInProgress && isCurrentlyInZone)
         ? `<span style="color:var(--accent);font-size:0.78rem;">Price inside zone · alerting every ${alert.repeatInterval}m</span><br>`
       : (zoneInProgress && !isCurrentlyInZone)
         ? `<span style="color:var(--red);font-size:0.78rem;">Price exited zone · watching for re-entry</span><br>`
       : '';
 
+    // Detail line — all condition types
     let detailLine;
     if (alert.condition === 'zone') {
       detailLine = `<strong>${ALERT_ICONS.zone}ZONE</strong> ${formatPrice(alert.zoneLow, alert.assetId)} – ${formatPrice(alert.zoneHigh, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}${alert.repeatInterval ? ` <span style="opacity:0.6;font-size:0.75em">· every ${alert.repeatInterval}m</span>` : ''}`;
     } else if (alert.condition === 'tap') {
       detailLine = `<strong>${ALERT_ICONS.tap}TAP LEVEL</strong> ${formatPrice(alert.targetPrice, alert.assetId)} <span style="opacity:0.6;font-size:0.75em">· ±${alert.tapTolerance}% tolerance</span>${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}`;
+
     } else {
       detailLine = `<strong>${alert.condition === 'above' ? ALERT_ICONS.above + 'ABOVE' : ALERT_ICONS.below + 'BELOW'}</strong> ${formatPrice(alert.targetPrice, alert.assetId)}${alert.timeframe ? ` <span style="opacity:0.6;font-size:0.75em">· ${alert.timeframe}</span>` : ''}`;
     }
 
-    const isRepeat     = (alert.condition === 'zone' || alert.condition === 'tap') && (alert.repeatInterval || 0) > 0;
-    const hasEverFired = !!alert.zoneTriggeredOnce || !!alert.tapTriggeredOnce || alert.status === 'triggered';
-    const SVG_EDIT     = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:4px"><path d="M1 7.5L2.5 9 8 3.5 6.5 2 1 7.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><line x1="5.5" y1="2.5" x2="7.5" y2="4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
-    const btnDelete    = `<button class="alert-action-btn delete" onclick="deleteAlert('${alert.id}')">${SVG_DELETE}DELETE</button>`;
-    const btnDismiss   = `<button class="alert-action-btn dismiss" onclick="dismissAlert('${alert.id}')">${SVG_DISMISS}DISMISS</button>`;
-    const btnEdit      = `<button class="alert-action-btn toggle" onclick="editAlert('${alert.id}')">${SVG_EDIT}EDIT</button>`;
-    const btnPause     = alert.status === 'paused'
+    const isRepeat      = (alert.condition === 'zone' || alert.condition === 'tap') && (alert.repeatInterval || 0) > 0;
+    const hasEverFired  = !!alert.zoneTriggeredOnce || !!alert.tapTriggeredOnce || alert.status === 'triggered';
+    const SVG_EDIT    = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="display:inline-block;vertical-align:middle;margin-right:4px"><path d="M1 7.5L2.5 9 8 3.5 6.5 2 1 7.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><line x1="5.5" y1="2.5" x2="7.5" y2="4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    const btnDelete     = `<button class="alert-action-btn delete" onclick="deleteAlert('${alert.id}')">${SVG_DELETE}DELETE</button>`;
+    const btnDismiss    = `<button class="alert-action-btn dismiss" onclick="dismissAlert('${alert.id}')">${SVG_DISMISS}DISMISS</button>`;
+    const btnEdit       = `<button class="alert-action-btn toggle" onclick="editAlert('${alert.id}')" title="Edit alert">${SVG_EDIT}EDIT</button>`;
+    const btnPause      = alert.status === 'paused'
       ? `<button class="alert-action-btn toggle" onclick="toggleAlert('${alert.id}')">${SVG_RESUME}RESUME</button>`
       : `<button class="alert-action-btn toggle" onclick="toggleAlert('${alert.id}')">${SVG_PAUSE}PAUSE</button>`;
 
+    // Triggered/repeating-fired: DISMISS + DELETE only
+    // Active/paused: EDIT + PAUSE/RESUME + DELETE
     const actions = isTriggered || (isRepeat && hasEverFired)
       ? btnDismiss + btnDelete
       : btnEdit + btnPause + btnDelete;
 
-    div.innerHTML = `
+        div.innerHTML = `
       <div class="alert-header-row">
         <div class="alert-symbol">${alert.symbol}</div>
         <div class="alert-badge ${badgeClass}">${badgeLabel}</div>
@@ -2045,19 +2043,14 @@ function renderAlerts() {
         Set at ${alert.createdAt}
       </div>
       <div class="alert-actions">${actions}</div>`;
-
-    fragment.appendChild(div);
+    container.appendChild(div);
   });
 
-  // Atomic DOM update — replaces empty-state and all old cards in one operation
-  container.innerHTML = '';
-  container.appendChild(fragment);
-
-  // Mobile alert badge dot
+  // Update mobile alert badge dot — only for active (waiting) alerts
   const dot = document.getElementById('alert-dot');
   if (dot) dot.classList.toggle('show', alerts.some(a => a.status === 'active'));
 
-  // Refresh alert lines on chart
+  // Refresh alert lines on the chart for the currently viewed asset
   if (lwCurrentAsset) drawAlertLines(lwCurrentAsset.id);
 }
 
@@ -2106,11 +2099,19 @@ function clearAlertHistory() {
 let currentAlertTab = 'active';
 function switchAlertTab(tab) {
   currentAlertTab = tab;
-  document.getElementById('alerts-list').style.display    = tab === 'active'  ? 'block' : 'none';
-  document.getElementById('alerts-history').style.display = tab === 'history' ? '' : 'none';
-  document.getElementById('atab-active').classList.toggle('active',  tab === 'active');
-  document.getElementById('atab-history').classList.toggle('active', tab === 'history');
-  if (tab === 'history') renderHistory();
+  const _list = document.getElementById('alerts-list');
+  const _hist = document.getElementById('alerts-history');
+  if (tab === 'active') {
+    if (_list) _list.style.removeProperty('display');
+    if (_hist) _hist.style.display = 'none';
+    renderAlerts();
+  } else {
+    if (_list) _list.style.display = 'none';
+    if (_hist) _hist.style.removeProperty('display');
+    renderHistory();
+  }
+  document.getElementById('atab-active')?.classList.toggle('active',  tab === 'active');
+  document.getElementById('atab-history')?.classList.toggle('active', tab === 'history');
 }
 
 function setHistoryFilter(f) {
@@ -3390,20 +3391,22 @@ function toggleTheme() {
   localStorage.setItem('tw_theme', isLight ? 'light' : 'dark');
   const moon = document.getElementById('theme-moon');
   const sun  = document.getElementById('theme-sun');
-  if (moon) moon.style.display = isLight ? 'none' : '';
-  if (sun)  sun.style.display  = isLight ? ''     : 'none';
+  if (moon) moon.style.display = isLight ? 'none'  : '';
+  if (sun)  sun.style.display  = isLight ? ''      : 'none';
   const btn = document.getElementById('theme-btn');
   if (btn) btn.title = isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode';
 }
 
 function initTheme() {
-  const saved = localStorage.getItem('tw_theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', saved);
+  const saved = localStorage.getItem('tw_theme');
   if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
     const moon = document.getElementById('theme-moon');
     const sun  = document.getElementById('theme-sun');
     if (moon) moon.style.display = 'none';
     if (sun)  sun.style.display  = '';
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
   }
 }
 
@@ -3955,7 +3958,7 @@ setInterval(() => {
 // INIT
 // ═══════════════════════════════════════════════
 async function init() {
-  // Apply saved theme immediately before any rendering
+  // Apply saved theme before anything renders
   initTheme();
 
   // Push initial history state so Android back button is interceptable from the start
@@ -4052,7 +4055,6 @@ async function init() {
   renderHotList();
   renderWatchlist();
   renderAlerts();
-  switchAlertTab('active'); // ensure alerts-list is visible on init
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
   // Connect Deriv WebSocket — connects and subscribes to all watchlist + hot list assets
