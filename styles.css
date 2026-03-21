@@ -936,7 +936,7 @@
       scroll-behavior: smooth;
     }
     .panel.mobile-active,
-    .main-panel.mobile-active { display: block; }
+    .main-panel.mobile-active { display: block; z-index: 2; }
     .journal-panel.mobile-active { display: flex !important; flex-direction: column; }
 
     /* ── Watchlist panel ── */
@@ -1192,19 +1192,24 @@
       transform: none;
     }
   
-    /* ── Journal panel layout fix ── */
+    /* ── Journal panel layout ── */
     .journal-panel .panel-title {
-      position: relative;
-      top: auto;
+      position: relative !important;
+      top: auto !important;
       z-index: 1;
+      flex-shrink: 0;
     }
     #journal-stats {
+      display: grid !important;
+      grid-template-columns: repeat(5, 1fr);
       flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
     }
     #journal-list {
       flex: 1;
       overflow-y: auto;
       min-height: 0;
+      padding: 14px;
     }
   }
 
