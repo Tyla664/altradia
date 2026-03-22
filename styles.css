@@ -846,6 +846,7 @@
 
     /* ── Safe-area & body ── */
     body { overflow: hidden; }
+    .mobile-nav { display: flex; }
 
     /* ── Header ── */
     header {
