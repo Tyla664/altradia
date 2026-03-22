@@ -1130,6 +1130,7 @@ function mobileTab(tab, pushState = true) {
     panel.classList.add('mobile-active');
     panel.scrollTop = 0;
     document.getElementById('mnav-alerts').classList.add('active');
+    renderAlerts();
   }
 }
 
@@ -4540,12 +4541,5 @@ function showTgToast(msg) {
     }
   }, { passive: true });
 })();
-
-// Force-refresh all panels after init (fixes blank pages)
-setTimeout(() => {
-  renderAlerts();           // Show your 12 active alerts
-  renderJournal();          // Show journal stats + empty state
-  if (selectedAsset) loadLWChart(selectedAsset);  // Reload chart if any asset was selected
-}, 800);
 
 init();
