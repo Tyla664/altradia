@@ -1071,8 +1071,7 @@ const navStack = ['watchlist']; // start on watchlist
 // Returns true when the mobile bottom nav is active (regardless of device width)
 // This handles landscape phones, tablets, and any unusual viewport sizes correctly.
 function isMobileLayout() {
-  const nav = document.getElementById('mobile-nav');
-  return nav ? window.getComputedStyle(nav).display !== 'none' : window.innerWidth <= 768;
+  return true; // always mobile — app is Telegram mini app only
 }
 
 function mobileTab(tab, pushState = true) {
@@ -2459,6 +2458,51 @@ async function createSetupAlert() {
   const entryReason    = document.getElementById('setup-entry-reason').value.trim();
   const htfContext     = document.getElementById('setup-htf-context').value.trim();
   const emotionBefore  = document.getElementById('setup-emotion-before').value;
+
+  // ── If editing an existing setup alert, update it instead of creating new ──
+  if (editingAlertId) {
+    const existing = alerts.find(a => a.id === editingAlertId);
+    if (existing) {
+      const oldJ = getJournal(existing);
+      const updatedJournal = {
+        ...oldJ,
+        direction:     setupDirection,
+        sl:            isNaN(sl)   ? oldJ.sl   : sl,
+        tp1:           isNaN(tp1)  ? oldJ.tp1  : tp1,
+        tp2:           tp2 !== null ? tp2 : oldJ.tp2 || null,
+        tp3:           tp3 !== null ? tp3 : oldJ.tp3 || null,
+        tp2Notify:     setupTp2Notify,
+        setupType:     setupType   || oldJ.setupType   || null,
+        entryReason:   entryReason || oldJ.entryReason || null,
+        htfContext:    htfContext  || oldJ.htfContext  || null,
+        emotionBefore: emotionBefore || oldJ.emotionBefore || null,
+        tradeStatus:   oldJ.tradeStatus || 'watching',
+      };
+      Object.assign(existing, {
+        targetPrice:  isNaN(entry) ? existing.targetPrice : entry,
+        zoneLow:      isNaN(entry) || isNaN(sl) ? existing.zoneLow  : Math.min(entry, sl),
+        zoneHigh:     isNaN(entry) || isNaN(sl) ? existing.zoneHigh : Math.max(entry, sl),
+        timeframe:    timeframe || null,
+        note:         JSON.stringify(updatedJournal),
+        status:       'active',
+      });
+      await updateAlert(editingAlertId, {
+        target_price: existing.targetPrice,
+        zone_low:     existing.zoneLow,
+        zone_high:    existing.zoneHigh,
+        timeframe:    existing.timeframe,
+        note:         existing.note,
+        status:       'active',
+      });
+      editingAlertId = null;
+      const btn = document.getElementById('set-alert-btn');
+      if (btn) { btn.textContent = 'SET ALERT'; btn.style.background = ''; btn.style.borderColor = ''; }
+      renderAlerts();
+      showToast('Setup Updated', `${existing.symbol} setup alert updated.`, 'success');
+      if (isMobileLayout()) { switchAlertTab('active'); mobileTab('alerts'); }
+      return;
+    }
+  }
 
 
   if (isNaN(entry) || entry <= 0) return showToast('Missing Entry', 'Enter a valid entry price.', 'error');
@@ -4382,15 +4426,29 @@ async function saveEditedAlert() {
       return showToast('Invalid Price', 'Enter a valid target price.', 'error');
   }
 
-  // Apply changes locally
-  Object.assign(alert, {
+  // For setup alerts: preserve the JSON note, only update entry/timeframe
+  const isSetup = alert.condition === 'setup';
+  if (isSetup) {
+    const j = getJournal(alert);
+    j.tradeStatus = j.tradeStatus || 'watching';
+    Object.assign(alert, {
+      condition: 'setup',
+      timeframe: timeframe || alert.timeframe || null,
+      targetPrice,
+      note: JSON.stringify(j), // preserve all journal fields
+      status: 'active',
+    });
+  }
+
+  // Apply changes locally (non-setup alerts)
+  if (!isSetup) Object.assign(alert, {
     condition, timeframe: timeframe || null,
     targetPrice, note,
     zoneLow:       isZone ? zoneLow      : null,
     zoneHigh:      isZone ? zoneHigh     : null,
     tapTolerance:  isTap  ? tapTolerance : null,
     repeatInterval,
-    status: 'active', // reset to active if it was paused/triggered
+    status: 'active',
     zoneTriggeredOnce: false,
   });
 
