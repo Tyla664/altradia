@@ -4499,8 +4499,8 @@ function showTgToast(msg) {
 
 // ── SWIPE GESTURES (mobile) ──────────────────────
 (function() {
-  let touchStartX = 0, touchStartY = 0;
-
+  let touchStartX = 0;
+  let touchStartY = 0;
   let touchStartedInChart = false;
 
   document.addEventListener('touchstart', e => {
@@ -4513,8 +4513,8 @@ function showTgToast(msg) {
 
   document.addEventListener('touchend', e => {
     if (!isMobileLayout()) return;
-    if (document.getElementById('add-modal').style.display !== 'none') return;
-    if (document.getElementById('tg-modal').style.display !== 'none') return;
+    if (document.getElementById('add-modal')?.style.display !== 'none') return;
+    if (document.getElementById('tg-modal')?.style.display !== 'none') return;
 
     const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
@@ -4523,22 +4523,23 @@ function showTgToast(msg) {
     // (left 30px of screen) — this lets chart pan/zoom work freely
     const current = navStack[navStack.length - 1];
     if (touchStartedInChart && current === 'chart') {
-      // Only trigger back if swipe started from left edge of screen
       if (touchStartX > 30) return;
     }
 
     // Stricter threshold: 80px horizontal, must be much more horizontal than vertical
-  if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 2.5) return;
-  if (dx > 0) {
-    goBack();
-  } else {
-    if (current === 'watchlist' && selectedAsset) {
-      mobileTab('chart');
-    } else if (current === 'chart') {
-      mobileTab('alerts');
+    if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 2.5) return;
+
+    if (dx > 0) {
+      goBack();
+    } else {
+      if (current === 'watchlist' && selectedAsset) {
+        mobileTab('chart');
+      } else if (current === 'chart') {
+        mobileTab('alerts');
+      }
     }
-  }
-}, { passive: true });
+  }, { passive: true });
+})();
 
 // Force-refresh all panels after init (fixes blank pages)
 setTimeout(() => {
@@ -4546,6 +4547,5 @@ setTimeout(() => {
   renderJournal();          // Show journal stats + empty state
   if (selectedAsset) loadLWChart(selectedAsset);  // Reload chart if any asset was selected
 }, 800);
-}
 
 init();
