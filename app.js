@@ -2374,6 +2374,8 @@ function setSetupDirection(dir) {
 }
 
 function updateSetupPricePlaceholders(dir) {
+  // Never overwrite fields while editing an existing setup alert
+  if (editingAlertId) return;
   const rawPrice = selectedAsset ? (priceData[selectedAsset.id]?.price || null) : null;
   const p = rawPrice ? parseFloat(rawPrice) : null;
   const assetId = selectedAsset?.id || '';
@@ -2683,66 +2685,68 @@ function editSetupAlert(id) {
   if (!alert) return;
   const j = getJournal(alert);
 
-  // Navigate to chart tab where the setup form lives
-  if (isMobileLayout()) mobileTab('chart');
+  // ── Step 1: Mark editing state BEFORE selectAsset so updateSetupPricePlaceholders
+  //   sees editingAlertId and won't overwrite fields
+  editingAlertId = id;
 
-  // Switch condition dropdown to setup
+  // ── Step 2: Navigate and select asset FIRST — this triggers updateSetupPricePlaceholders
+  //   but since editingAlertId is now set it will skip pre-filling
+  if (isMobileLayout()) mobileTab('chart');
+  const asset = ASSET_BY_ID.get(alert.assetId);
+  if (asset) selectAsset(asset);
+
+  // ── Step 3: Switch condition to setup
   const condEl = document.getElementById('alert-condition');
   if (condEl) { condEl.value = 'setup'; onConditionChange(); }
 
-  // Fill direction
+  // ── Step 4: Set direction
   const dir = j.direction || 'long';
   setSetupDirection(dir);
 
-  // Fill price fields
-  // Set raw numeric values (input[type=number] needs raw numbers not formatted strings)
-  const set = (id, val) => {
-    const el = document.getElementById(id);
-    if (!el || val === null || val === undefined) return;
-    // Determine decimal precision for this asset
-    const dec = (alert.assetId || '').includes('/') && !alert.assetId.startsWith('XAU') && !alert.assetId.startsWith('XAG') ? 5 : 2;
+  // ── Step 5: Populate ALL fields with exact stored values
+  //   Use raw numeric strings — input[type=number] rejects "$1,234.56"
+  const dec = (alert.assetId || '').includes('/') &&
+              !alert.assetId.startsWith('XAU') &&
+              !alert.assetId.startsWith('XAG') ? 5 : 2;
+  const setNum = (elId, val) => {
+    const el = document.getElementById(elId);
+    if (!el || val === null || val === undefined || isNaN(parseFloat(val))) return;
     el.value = parseFloat(val).toFixed(dec);
-    el.dataset.userEdited = '1'; // prevent updateSetupPricePlaceholders from overwriting
+    el.dataset.userEdited = '1';
   };
-  set('setup-entry', alert.targetPrice);
-  set('setup-sl',    j.sl);
-  set('setup-tp1',   j.tp1);
-  set('setup-tp2',   j.tp2);
-  set('setup-tp3',   j.tp3);
+  setNum('setup-entry', alert.targetPrice);
+  setNum('setup-sl',    j.sl);
+  setNum('setup-tp1',   j.tp1);
+  setNum('setup-tp2',   j.tp2);
+  setNum('setup-tp3',   j.tp3);
 
-  // Fill timeframe
+  const setTxt = (elId, val) => {
+    const el = document.getElementById(elId);
+    if (el) el.value = val || '';
+  };
+  setTxt('setup-entry-reason', j.entryReason);
+  setTxt('setup-htf-context',  j.htfContext);
+  setTxt('setup-type',         j.setupType);
+
   const tfEl = document.getElementById('setup-timeframe');
-  if (tfEl && alert.timeframe) tfEl.value = alert.timeframe;
+  if (tfEl) tfEl.value = alert.timeframe || '';
 
-  // Fill journal fields
-  const setTxt = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
-  setTxt('setup-type',         j.setupType   || '');
-  setTxt('setup-entry-reason', j.entryReason || '');
-  setTxt('setup-htf-context',  j.htfContext  || '');
+  const emEl = document.getElementById('setup-emotion-before');
+  if (emEl) emEl.value = j.emotionBefore || '';
 
-  // TP2 notify
-  const tp2Yes = document.getElementById('setup-tp2notify-yes');
-  const tp2No  = document.getElementById('setup-tp2notify-no');
-  if (tp2Yes && tp2No) {
-    const notify = j.tp2Notify !== false;
-    tp2Yes.classList.toggle('active',  notify);
-    tp2No.classList.toggle('active', !notify);
-  }
+  // ── Step 6: TP2 notify toggle
+  const notify = j.tp2Notify !== false;
+  document.getElementById('setup-tp2notify-yes')?.classList.toggle('active',  notify);
+  document.getElementById('setup-tp2notify-no')?.classList.toggle('active',  !notify);
+  setupTp2Notify = notify;
 
-  // Mark as editing this setup alert
-  editingAlertId = id;
-
-  // Update button label
+  // ── Step 7: Update button to UPDATE SETUP
   const btn = document.getElementById('set-alert-btn');
   if (btn) {
     btn.textContent = 'UPDATE SETUP';
     btn.style.background  = 'rgba(0,212,255,0.15)';
     btn.style.borderColor = 'rgba(0,212,255,0.5)';
   }
-
-  // Select the asset
-  const asset = ASSET_BY_ID.get(alert.assetId);
-  if (asset) selectAsset(asset);
 
   showToast('Edit Setup', `Editing ${alert.symbol} setup — adjust values and tap UPDATE SETUP.`, 'alert');
 }
