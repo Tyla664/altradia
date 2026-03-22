@@ -1,5 +1,4 @@
-/* v1774128904 */
-  :root {
+:root {
     --bg: #080c12;
     --surface: #0d1520;
     --surface2: #111c2d;
@@ -105,6 +104,22 @@
   }
   .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
   .journal-panel { flex-direction: column; }
+
+  /* ── Journal panel layout (shared desktop+mobile base) ─── */
+  #journal-stats {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #journal-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px;
+  }
   .panel-title {
     font-size: 0.65rem;
     font-family: var(--mono);
@@ -119,7 +134,6 @@
     background: var(--surface);
     padding: 20px 0 12px;
     border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
   }
   .panel-title span { color: var(--accent); }
 
@@ -141,7 +155,7 @@
     opacity: 0; background: transparent; border: none;
     color: var(--accent); cursor: pointer;
     transition: opacity 0.15s; padding: 2px 4px; border-radius: 3px;
-    z-index: 1;
+    z-index: 2;
   }
   .asset-add-btn.in-watchlist { color: var(--green); opacity: 0.5; }
   .asset-card:hover .asset-add-btn { opacity: 1; }
@@ -874,6 +888,7 @@
       height: 34px;
       min-height: 34px;
       border-bottom: 1px solid var(--border);
+      position: relative;
       z-index: 20;
       flex-shrink: 0;
       background: var(--surface);
@@ -937,8 +952,19 @@
       scroll-behavior: smooth;
     }
     .panel.mobile-active,
-    .main-panel.mobile-active { display: block; z-index: 2; }
-    .journal-panel.mobile-active { display: flex !important; flex-direction: column; }
+    .main-panel.mobile-active { display: block; }
+    .journal-panel.mobile-active {
+      display: flex !important;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .journal-panel .panel-title {
+      flex-shrink: 0;
+      position: static;
+    }
+    #journal-list {
+      padding-bottom: calc(72px + env(safe-area-inset-bottom) + 16px);
+    }
 
     /* ── Watchlist panel ── */
     .watchlist-panel {
@@ -984,6 +1010,7 @@
       font-size: 0.9rem;
       padding: 8px 10px;
       border-radius: 6px;
+      z-index: 1;
     }
     .asset-card.has-alert::after { top: 10px; right: 46px; }
     .asset-right { padding-right: 36px; }
@@ -998,10 +1025,12 @@
       top: 0 !important;
     }
 
-    /* Asset header inside chart panel — static, no sticky */
+    /* Sticky asset header inside chart panel */
     .asset-header {
-      position: static;
+      position: sticky;
+      top: 0;
       background: var(--bg);
+      z-index: 10;
       flex-direction: row;
       align-items: center;
       justify-content: space-between;
@@ -1083,9 +1112,8 @@
       margin-bottom: 0;
       border-bottom: 1px solid var(--border);
       font-size: 0.6rem;
-      flex-shrink: 0;
     }
-    #alerts-list { padding: 12px 16px 0; display: block !important; }
+    #alerts-list { padding: 12px 16px 0; }
     .alert-item {
       padding: 14px;
       border-radius: 10px;
@@ -1192,87 +1220,7 @@
       left: 14px; right: 14px;
       transform: none;
     }
-  
-    /* ── Journal panel layout ── */
-    .journal-panel .panel-title {
-      position: relative !important;
-      top: auto !important;
-      z-index: 1;
-      flex-shrink: 0;
-    }
-    /* ── FIXED JOURNAL STYLES ──────────────────────────────────────────────── */
-
-/* Stats strip - clean grid like your screenshot */
-#journal-stats {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  padding: 12px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  text-align: center;
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  color: var(--muted);
-}
-
-#journal-stats > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-#journal-stats span {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text);
-}
-
-/* Entries container */
-#journal-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  background: var(--bg);
-}
-
-/* Card (when entries exist) */
-.journal-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 12px;
-}
-
-/* Screenshot upload areas */
-.screenshot-upload-area {
-  flex: 1;
-  background: var(--surface2);
-  border: 2px dashed var(--border);
-  border-radius: 10px;
-  padding: 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.screenshot-upload-area:hover {
-  border-color: var(--accent);
-  background: rgba(0,212,255,0.05);
-}
-
-.screenshot-preview-empty {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.screenshot-preview-img {
-  max-width: 100%;
-  max-height: 120px;
-  border-radius: 8px;
-  object-fit: cover;
-}
+  }
 
   /* ── Extra small phones ── */
   @media (max-width: 390px) {
@@ -1282,24 +1230,6 @@
     .mobile-nav-btn { font-size: 0.52rem; }
     .mobile-nav-btn .nav-icon svg { width: 20px; height: 20px; }
   }
-/* Make stats bolder and more readable on small screens */
-@media (max-width: 768px) {
-  #journal-stats {
-    font-size: 0.62rem;
-    padding: 10px 12px;
-    gap: 6px;
-  }
-  #journal-stats span {
-    font-size: 1rem;
-  }
-}
-
-/* Slightly better empty state spacing */
-#journal-list .empty-state {
-  padding: 80px 20px;
-  line-height: 1.7;
-}
-
   /* ── TELEGRAM MODAL ── */
   .tg-modal-inner { width: 480px; max-width: 96vw; height: auto; max-height: 90vh; border-radius: 16px; }
   .tg-modal-body { padding: 20px 24px 24px; overflow-y: auto; }
@@ -1352,17 +1282,16 @@
 }
 
 /* ═══════════════════════════════════════════════
-   LIGHT MODE — data-theme="light" on <html>
-   Uses attribute selector which beats :root specificity
+   LIGHT MODE — explicit overrides via data-theme
    ═══════════════════════════════════════════════ */
 
+/* Override CSS vars at :root level so all var() calls pick up new values */
 :root[data-theme="light"] {
   --bg:      #f0f4f8;
   --surface: #ffffff;
   --surface2:#e4ecf4;
   --border:  #c8d8e8;
   --accent:  #0088aa;
-  --accent2: #e85a1e;
   --green:   #00995a;
   --red:     #cc1a1a;
   --gold:    #b08800;
@@ -1370,61 +1299,81 @@
   --muted:   #5a7a99;
 }
 
+/* Body + app shell */
 [data-theme="light"] body              { background: #f0f4f8; color: #0d1a26; }
-[data-theme="light"] body::before      { opacity: 0.15; filter: invert(1); }
+[data-theme="light"] body::before      { opacity: 0.3; filter: invert(1); }
 [data-theme="light"] header            { background: rgba(240,244,248,0.97) !important; border-bottom-color: #c8d8e8; }
 [data-theme="light"] .app              { background: #f0f4f8; }
+
+/* Panels */
 [data-theme="light"] .watchlist-panel,
 [data-theme="light"] .alerts-panel,
 [data-theme="light"] .journal-panel,
 [data-theme="light"] .main-panel       { background: #f0f4f8; }
 [data-theme="light"] .panel-title      { background: #ffffff; color: #0d1a26; border-bottom-color: #c8d8e8; }
-[data-theme="light"] .summary-bar      { background: #ffffff; border-bottom-color: #c8d8e8; }
-[data-theme="light"] .summary-item     { color: #5a7a99; }
+
+/* Asset cards */
 [data-theme="light"] .asset-card       { background: #ffffff; border-color: #c8d8e8; }
 [data-theme="light"] .asset-card.selected { background: #e4ecf4; border-color: #0088aa; }
 [data-theme="light"] .asset-sym        { color: #0d1a26; }
-[data-theme="light"] .asset-name,
-[data-theme="light"] .asset-price-sub  { color: #5a7a99; }
-[data-theme="light"] .market-group-label { color: #5a7a99; }
-[data-theme="light"] .wl-panel-header  { color: #5a7a99; }
-[data-theme="light"] .alert-item       { background: #ffffff; border-color: #c8d8e8; }
-[data-theme="light"] .alert-symbol     { color: #0d1a26; }
+[data-theme="light"] .asset-name       { color: #5a7a99; }
+
+/* Alert cards */
+[data-theme="light"] .alert-card       { background: #ffffff; border-color: #c8d8e8; }
 [data-theme="light"] .alert-detail     { color: #2a4a6a; }
-[data-theme="light"] .mobile-nav       { background: rgba(240,244,248,0.97) !important; border-top-color: #c8d8e8; }
+
+/* Nav */
+[data-theme="light"] .mobile-nav       { background: rgba(240,244,248,0.97); border-top-color: #c8d8e8; }
 [data-theme="light"] .mobile-nav-btn   { color: #5a7a99; }
 [data-theme="light"] .mobile-nav-btn.active { color: #0088aa; }
-[data-theme="light"] .mobile-nav-btn.active::before { background: #0088aa; }
+
+/* Summary bar */
+[data-theme="light"] .summary-bar      { background: #ffffff; border-bottom-color: #c8d8e8; }
+[data-theme="light"] .summary-item     { color: #5a7a99; }
+
+/* Forms */
 [data-theme="light"] input,
 [data-theme="light"] select,
 [data-theme="light"] textarea          { background: #ffffff !important; border-color: #c8d8e8 !important; color: #0d1a26 !important; }
 [data-theme="light"] input::placeholder,
 [data-theme="light"] textarea::placeholder { color: #8aaabf !important; }
 [data-theme="light"] label             { color: #5a7a99; }
+
+/* Buttons */
 [data-theme="light"] .icon-btn         { background: #ffffff; border-color: #c8d8e8; color: #2a4a6a; }
 [data-theme="light"] .icon-btn.active  { background: rgba(0,136,170,0.1); border-color: #0088aa; color: #0088aa; }
+[data-theme="light"] .alert-action-btn.toggle  { border-color: #c8d8e8; color: #2a4a6a; }
+[data-theme="light"] .alert-action-btn.dismiss { background: rgba(0,136,170,0.12); border-color: #0088aa; color: #0088aa; }
+
+/* Modals */
 [data-theme="light"] .modal-overlay    { background: rgba(100,130,160,0.6); }
 [data-theme="light"] .modal            { background: #ffffff; border-color: #c8d8e8; }
 [data-theme="light"] .modal-header     { border-bottom-color: #c8d8e8; }
 [data-theme="light"] .modal-title      { color: #0d1a26; }
 [data-theme="light"] .modal-title-sub  { color: #5a7a99; }
+
+/* Asset library */
 [data-theme="light"] .lib-card         { background: #f4f8fc; border-color: #c8d8e8; }
 [data-theme="light"] .lib-card:hover   { background: #ffffff; border-color: #0088aa; }
 [data-theme="light"] .lib-sym          { color: #0d1a26; }
 [data-theme="light"] .lib-name         { color: #5a7a99; }
 [data-theme="light"] .lib-section-title { color: #5a7a99; }
+
+/* Journal */
 [data-theme="light"] .journal-card     { background: #ffffff; border-color: #c8d8e8; }
 [data-theme="light"] .journal-card-header { color: #0d1a26; }
 [data-theme="light"] .journal-notes    { color: #5a7a99; }
 [data-theme="light"] #journal-stats    { background: #ffffff; border-bottom-color: #c8d8e8; }
+
+/* Misc */
+[data-theme="light"] .market-group-label { color: #5a7a99; }
+[data-theme="light"] .wl-panel-header  { color: #5a7a99; }
+[data-theme="light"] .form-group label { color: #5a7a99; }
 [data-theme="light"] .setup-dir-btn    { background: #f0f4f8; border-color: #c8d8e8; color: #2a4a6a; }
 [data-theme="light"] .setup-dir-btn.active { background: rgba(0,136,170,0.15); border-color: #0088aa; color: #0088aa; }
-[data-theme="light"] .alert-action-btn.toggle { border-color: #c8d8e8; color: #2a4a6a; background: #f0f4f8; }
-[data-theme="light"] .alert-action-btn.dismiss { background: rgba(0,136,170,0.1); border-color: #0088aa; color: #0088aa; }
+[data-theme="light"] .alert-header-row .alert-symbol { color: #0d1a26; }
+[data-theme="light"] .badge-watching   { background: rgba(0,136,170,0.12); color: #0088aa; }
+[data-theme="light"] .surface-card     { background: #ffffff; }
+[data-theme="light"] .section-label    { color: #5a7a99; }
 [data-theme="light"] .confirm-modal-bg { background: rgba(100,130,160,0.7); }
 [data-theme="light"] #confirm-modal > div { background: #ffffff; border-color: #c8d8e8; }
-[data-theme="light"] .alert-tabs       { border-bottom-color: #c8d8e8; }
-[data-theme="light"] .alert-tab-btn    { color: #5a7a99; }
-[data-theme="light"] .alert-tab-btn.active { color: #0088aa; }
-[data-theme="light"] .section-label    { color: #5a7a99; }
-[data-theme="light"] .form-group label { color: #5a7a99; }
