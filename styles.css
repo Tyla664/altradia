@@ -1398,6 +1398,8 @@
   --border:  #c8d8e8;
   --text:    #0d1a26;
   --muted:   #5a7a99;
+  --accent:  #0078a8;   /* darker cyan — readable on light backgrounds */
+  --green:   #00875a;   /* darker green — readable on light backgrounds */
 }
 
 /* Body + grid background */
@@ -1431,7 +1433,7 @@
 /* Asset cards */
 [data-theme="light"] .asset-card  { background: #f8fbff; border-color: var(--border); }
 [data-theme="light"] .asset-card:hover { border-color: var(--accent); background: #eef6ff; }
-[data-theme="light"] .asset-card.selected { background: rgba(0,212,255,0.06); }
+[data-theme="light"] .asset-card.selected { background: rgba(0,120,168,0.06); }
 
 /* Alert items */
 [data-theme="light"] .alert-item  { background: #f8fbff; border-color: var(--border); }
@@ -1450,7 +1452,7 @@
 [data-theme="light"] .tv-container { background: #f8fbff; border-color: var(--border); }
 [data-theme="light"] .chart-toolbar-label { color: var(--muted); }
 [data-theme="light"] .chart-tf-btn { color: var(--muted); border-color: var(--border); }
-[data-theme="light"] .chart-tf-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(0,212,255,0.08); }
+[data-theme="light"] .chart-tf-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(0,120,168,0.08); }
 
 /* Mobile nav */
 [data-theme="light"] .mobile-nav  { background: rgba(240,244,248,0.97); border-top-color: var(--border); }
@@ -1489,7 +1491,7 @@
 
 /* Sound opts */
 [data-theme="light"] .sound-opt { background: #f0f4f8; border-color: var(--border); color: var(--muted); }
-[data-theme="light"] .sound-opt.active { background: rgba(0,212,255,0.08); border-color: var(--accent); color: var(--accent); }
+[data-theme="light"] .sound-opt.active { background: rgba(0,120,168,0.08); border-color: var(--accent); color: var(--accent); }
 
 /* Setup dir btns */
 [data-theme="light"] .setup-dir-btn { background: #f0f4f8; border-color: var(--border); color: var(--muted); }
