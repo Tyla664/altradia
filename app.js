@@ -1702,9 +1702,10 @@ function setTF()              {}
 
 async function createAlert() {
   userTypingInForm = false;
-  if (editingAlertId) return saveEditedAlert();
-  // Route setup condition to its own handler
+  // Route setup to its own handler FIRST — even when editing
+  // (setup edits go through createSetupAlert which handles editingAlertId)
   if (document.getElementById('alert-condition').value === 'setup') return createSetupAlert();
+  if (editingAlertId) return saveEditedAlert();
 
   if (!selectedAsset) return showToast('No Asset', 'Tap any asset from the Hot List or Watchlist first.', 'error');
 
@@ -2514,6 +2515,14 @@ async function createSetupAlert() {
       });
       renderAlerts();
       showToast('Setup Updated', `${existing.symbol} setup alert updated.`, 'success');
+      // Send Telegram update notification with new values
+      if (telegramEnabled && telegramChatId) {
+        const uj = JSON.parse(existing.note);
+        sendTelegram(tgSetupUpdatedMessage(
+          existing.symbol, uj.direction, existing.targetPrice,
+          uj.sl, uj.tp1, uj.tp2, uj.tp3, existing.timeframe, uj
+        ));
+      }
       if (isMobileLayout()) { switchAlertTab('active'); mobileTab('alerts'); }
       return;
     }
@@ -2621,7 +2630,7 @@ function getSetupBadge(alert) {
 // ── Render setup alert card ────────────────────────────────────────────────
 function renderSetupCard(alert, div) {
   const j   = getJournal(alert);
-  const dir = j.direction === 'long' ? '▲ LONG' : '▼ SHORT';
+  const dir = j.direction === 'long' ? 'LONG' : 'SHORT';
   const dirColor = j.direction === 'long' ? 'var(--green)' : 'var(--red)';
   const badge = getSetupBadge(alert);
 
@@ -2889,6 +2898,34 @@ function tgSetupCreatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, time
     ...rows,
     ``,
     `<i>🖥 Open your trading platform and place your orders.</i>`,
+    ``,
+    `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
+  ].join('\n');
+}
+
+function tgSetupUpdatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, timeframe, journal) {
+  const dir   = direction === 'long' ? '▲ LONG' : '▼ SHORT';
+  const emoji = direction === 'long' ? '🟢' : '🔴';
+  const rrRaw = tp1 && sl ? Math.abs(tp1 - entry) / Math.abs(entry - sl) : null;
+  const rows = [
+    tgRow('Direction', `<b>${emoji} ${dir}</b>`),
+    tgRow('Entry',     `<b>${entry}</b>`),
+    tgRow('Stop Loss', `<b>${sl}</b>`),
+    tgRow('TP1',       `<b>${tp1}</b>`),
+    tp2 ? tgRow('TP2', `<b>${tp2}</b>`) : null,
+    tp3 ? tgRow('TP3', `<b>${tp3}</b>`) : null,
+    rrRaw ? tgRow('Risk:Reward', `<b>${rrRaw.toFixed(1)}:1</b>`) : null,
+    timeframe ? tgRow('Timeframe', `<b>${timeframe}</b>`) : null,
+    journal.setupType   ? tgRow('Setup',  `<i>${journal.setupType}</i>`) : null,
+    journal.entryReason ? tgRow('Reason', `<i>${journal.entryReason}</i>`) : null,
+    journal.htfContext  ? tgRow('HTF',    `<i>${journal.htfContext}</i>`) : null,
+  ].filter(Boolean);
+  return [
+    `✏️ <b>SETUP UPDATED — ${symbol}</b>`,
+    ``,
+    `Your trade setup has been updated.`,
+    ``,
+    ...rows,
     ``,
     `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
   ].join('\n');
@@ -4413,12 +4450,15 @@ function editAlert(id) {
 }
 
 async function saveEditedAlert() {
-  if (!editingAlertId) return createAlert(); // fall through to create if no edit in progress
+  if (!editingAlertId) return createAlert();
 
   const alert = alerts.find(a => a.id === editingAlertId);
   if (!alert) { editingAlertId = null; return createAlert(); }
 
   const condition = document.getElementById('alert-condition').value;
+
+  // Safety: if somehow a setup alert reaches here, route correctly
+  if (condition === 'setup' || alert.condition === 'setup') return createSetupAlert();
   const timeframe = document.getElementById('alert-timeframe').value;
   const isZone    = condition === 'zone';
   const isTap     = condition === 'tap';
