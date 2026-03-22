@@ -2416,11 +2416,14 @@ function updateSetupPricePlaceholders(dir) {
   fields.forEach(({ id, hint, val }) => {
     const el = document.getElementById(id);
     if (!el) return;
-    // Always update placeholder with context
+    // Placeholder always shows formatted hint
     el.placeholder = val ? fmt(val) : hint;
-    // Pre-fill the value ONLY if user hasn't edited it AND it's not in edit mode
+    // Pre-fill ONLY if user hasn't edited AND not in edit mode
+    // Use RAW numeric string — input[type=number] rejects "$1,234.56"
     if (!el.dataset.userEdited && !editingAlertId && val) {
-      el.value = fmt(val);
+      // Round to appropriate decimal places for the asset
+      const decimals = (assetId.includes('/') && !assetId.startsWith('XAU') && !assetId.startsWith('XAG')) ? 5 : 2;
+      el.value = parseFloat(val).toFixed(decimals);
     }
   });
 }
@@ -2497,6 +2500,16 @@ async function createSetupAlert() {
       editingAlertId = null;
       const btn = document.getElementById('set-alert-btn');
       if (btn) { btn.textContent = 'SET ALERT'; btn.style.background = ''; btn.style.borderColor = ''; }
+      // Clear ALL form fields so they don't linger for next alert
+      ['setup-entry','setup-sl','setup-tp1','setup-tp2','setup-tp3',
+       'setup-entry-reason','setup-htf-context'].forEach(fid => {
+        const fel = document.getElementById(fid);
+        if (fel) { fel.value = ''; delete fel.dataset.userEdited; }
+      });
+      ['setup-type','setup-timeframe','setup-emotion-before'].forEach(fid => {
+        const fel = document.getElementById(fid);
+        if (fel) fel.selectedIndex = 0;
+      });
       renderAlerts();
       showToast('Setup Updated', `${existing.symbol} setup alert updated.`, 'success');
       if (isMobileLayout()) { switchAlertTab('active'); mobileTab('alerts'); }
@@ -2682,7 +2695,15 @@ function editSetupAlert(id) {
   setSetupDirection(dir);
 
   // Fill price fields
-  const set = (id, val) => { const el = document.getElementById(id); if (el && val) { el.value = val; el.dataset.userEdited = '1'; } };
+  // Set raw numeric values (input[type=number] needs raw numbers not formatted strings)
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el || val === null || val === undefined) return;
+    // Determine decimal precision for this asset
+    const dec = (alert.assetId || '').includes('/') && !alert.assetId.startsWith('XAU') && !alert.assetId.startsWith('XAG') ? 5 : 2;
+    el.value = parseFloat(val).toFixed(dec);
+    el.dataset.userEdited = '1'; // prevent updateSetupPricePlaceholders from overwriting
+  };
   set('setup-entry', alert.targetPrice);
   set('setup-sl',    j.sl);
   set('setup-tp1',   j.tp1);
