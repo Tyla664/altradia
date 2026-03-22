@@ -1,4 +1,4 @@
-:root {
+  :root {
     --bg: #080c12;
     --surface: #0d1520;
     --surface2: #111c2d;
@@ -107,11 +107,10 @@
 
   /* ── Journal panel layout (shared desktop+mobile base) ─── */
   #journal-stats {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
   #journal-list {
     flex: 1;
@@ -507,7 +506,7 @@
     color: var(--muted); transition: all 0.15s; position: relative;
     text-transform: uppercase;
   }
-  .alert-tab-btn.active { color: var(--accent); }
+  .alert-tab-btn.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
   .alert-tab-btn.active::after {
     content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px;
     background: var(--accent); border-radius: 1px 1px 0 0;
@@ -660,6 +659,7 @@
   .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
   .icon-btn.active { border-color: var(--green); color: var(--green); background: rgba(0,230,118,0.08); }
   .icon-btn.muted-sound { border-color: var(--red); color: var(--red); background: rgba(255,61,90,0.08); }
+  .icon-btn.theme-light { border-color: var(--gold); color: var(--gold); background: rgba(255,214,0,0.08); }
 
   /* Notification permission banner */
   .notif-banner {
@@ -764,6 +764,26 @@
 
   /* Alert sound selector */
   .sound-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* ── Setup direction + TP2 notify toggle buttons ── */
+  .setup-dir-btn {
+    padding: 7px 16px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .setup-dir-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #setup-long-btn.active  { background: rgba(0,230,118,0.12); border-color: var(--green); color: var(--green); }
+  #setup-short-btn.active { background: rgba(255,61,90,0.12);  border-color: var(--red);   color: var(--red); }
+  #setup-tp2notify-yes.active { background: rgba(0,212,255,0.12); border-color: var(--accent); color: var(--accent); }
+  #setup-tp2notify-no.active  { background: rgba(74,106,128,0.15); border-color: var(--muted); color: var(--text); }
   .sound-opt {
     padding: 4px 10px; border-radius: 4px; font-family: var(--mono);
     font-size: 0.62rem; border: 1px solid var(--border); background: transparent;
@@ -818,10 +838,12 @@
   }
   .mobile-nav-btn {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
+    flex: 1;
     gap: 3px; background: transparent; border: none; color: var(--muted);
     font-size: 0.55rem; font-family: var(--mono); letter-spacing: 0.5px;
     cursor: pointer; transition: color 0.15s; padding: 8px 4px;
     text-transform: uppercase; position: relative;
+    min-width: 0;
   }
   .mobile-nav-btn .nav-icon { font-size: 1.15rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
   .mobile-nav-btn .nav-icon svg { transition: transform 0.2s; }
@@ -1027,19 +1049,15 @@
       top: 0 !important;
     }
 
-    /* Sticky asset header inside chart panel */
+    /* Asset header — sits naturally at top of chart panel, not sticky */
     .asset-header {
-      position: sticky;
-      top: 0;
-      background: var(--bg);
-      z-index: 10;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 14px 16px 12px;
+      position: static;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      padding: 20px 16px 14px;
       margin-bottom: 0;
-      border-bottom: 1px solid var(--border);
+      border-bottom: none;
     }
     .asset-header-left h2 { font-size: 1.4rem; letter-spacing: -0.5px; }
     .asset-header-left .full-name { font-size: 0.67rem; }
@@ -1117,7 +1135,6 @@
     }
     .alert-tabs { flex-shrink: 0; }
     #alerts-list {
-      display: block !important;
-      visibility: visible !important;
       padding: 12px 16px 0;
     }
+    
