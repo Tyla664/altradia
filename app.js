@@ -2263,6 +2263,128 @@ function isMarketOpenForAsset(assetId, now) {
   return isStockOpen(now);
 }
 
+
+// ── Check setup alert levels against live price ────────────────────────────
+function checkSetupLevels(alert, currentPrice) {
+  if (!currentPrice) return;
+  let j;
+  try { j = JSON.parse(alert.note || '{}'); } catch(e) { return; }
+
+  const prev   = j.tradeStatus || 'watching';
+  const entry  = alert.targetPrice;
+  const sl     = j.sl;
+  const tp1    = j.tp1;
+  const tp2    = j.tp2 || null;
+  const tp3    = j.tp3 || null;
+  const isLong = j.direction === 'long';
+
+  // Already in a final or closed state — nothing to check
+  if (['full_tp','sl_hit','cancelled','manual_exit'].includes(prev)) return;
+
+  let next = prev;
+
+  // ── Determine next status based on price ─────────────────────────────────
+  if (prev === 'watching') {
+    // Entry hit?
+    const entryHit = isLong ? currentPrice >= entry : currentPrice <= entry;
+    if (entryHit) next = 'entry_hit';
+  }
+
+  if (prev === 'entry_hit' || next === 'entry_hit') {
+    // Check SL first (price moved against us)
+    if (sl) {
+      const slHit = isLong ? currentPrice <= sl : currentPrice >= sl;
+      if (slHit) { next = 'sl_hit'; }
+    }
+    // Check TPs in order only if SL not hit
+    if (next !== 'sl_hit') {
+      const tp3Hit = tp3 && (isLong ? currentPrice >= tp3 : currentPrice <= tp3);
+      const tp2Hit = tp2 && (isLong ? currentPrice >= tp2 : currentPrice <= tp2);
+      const tp1Hit = tp1 && (isLong ? currentPrice >= tp1 : currentPrice <= tp1);
+      const topTp  = tp3 || tp2 || tp1;
+      const topHit = topTp && (isLong ? currentPrice >= topTp : currentPrice <= topTp);
+      if      (topHit)  next = 'full_tp';
+      else if (tp2Hit)  next = 'tp2_hit';
+      else if (tp1Hit)  next = 'tp1_hit';
+      else if (next !== 'entry_hit') next = 'running';
+    }
+  }
+
+  if (prev === 'running') {
+    // Running: monitor SL and TPs
+    if (sl) {
+      const slHit = isLong ? currentPrice <= sl : currentPrice >= sl;
+      if (slHit) next = 'sl_hit';
+    }
+    if (next !== 'sl_hit') {
+      const topTp  = tp3 || tp2 || tp1;
+      const topHit = topTp && (isLong ? currentPrice >= topTp : currentPrice <= topTp);
+      const tp2Hit = tp2 && (isLong ? currentPrice >= tp2 : currentPrice <= tp2);
+      const tp1Hit = tp1 && (isLong ? currentPrice >= tp1 : currentPrice <= tp1);
+      if      (topHit)  next = 'full_tp';
+      else if (tp2Hit)  next = 'tp2_hit';
+      else if (tp1Hit)  next = 'tp1_hit';
+    }
+  }
+
+  if (prev === 'tp1_hit') {
+    if (sl) {
+      const slHit = isLong ? currentPrice <= sl : currentPrice >= sl;
+      if (slHit) next = 'sl_hit';
+    }
+    if (next !== 'sl_hit') {
+      const topTp  = tp3 || tp2;
+      const topHit = topTp && (isLong ? currentPrice >= topTp : currentPrice <= topTp);
+      const tp2Hit = tp2 && (isLong ? currentPrice >= tp2 : currentPrice <= tp2);
+      if      (topHit) next = 'full_tp';
+      else if (tp2Hit) next = 'tp2_hit';
+    }
+  }
+
+  if (prev === 'tp2_hit') {
+    if (sl) {
+      const slHit = isLong ? currentPrice <= sl : currentPrice >= sl;
+      if (slHit) next = 'sl_hit';
+    }
+    if (next !== 'sl_hit' && tp3) {
+      const tp3Hit = isLong ? currentPrice >= tp3 : currentPrice <= tp3;
+      if (tp3Hit) next = 'full_tp';
+    }
+  }
+
+  // No state change — nothing to do
+  if (next === prev) return;
+
+  // ── Apply state change ────────────────────────────────────────────────────
+  j.tradeStatus = next;
+  alert.note = JSON.stringify(j);
+
+  // Persist the updated note to DB
+  updateAlert(alert.id, { note: alert.note });
+
+  // Render updated card
+  renderAlerts();
+
+  // Toast notification
+  const isFinal = ['full_tp','sl_hit'].includes(next);
+  const msgs = {
+    entry_hit: [`ENTRY HIT — ${alert.symbol}`, 'Price reached your entry. Your trade may now be active.'],
+    running:   [`TRADE RUNNING — ${alert.symbol}`, 'Trade is live. Monitoring SL and TP levels.'],
+    tp1_hit:   [`TP1 HIT — ${alert.symbol}`, 'First take profit reached! Consider securing partial profits.'],
+    tp2_hit:   [`TP2 HIT — ${alert.symbol}`, 'Second target hit! Protect remaining position.'],
+    full_tp:   [`FULL TP HIT — ${alert.symbol}`, 'All targets reached! Tap LOG TRADE to record this win.'],
+    sl_hit:    [`STOP LOSS HIT — ${alert.symbol}`, 'Price hit your stop loss. Tap LOG TRADE to record the trade.'],
+  };
+  const [title, body] = msgs[next] || [`${alert.symbol} update`, ''];
+  showToast(title, body + (isFinal ? '' : ''), isFinal ? 'alert' : 'info');
+  if (isFinal) playAlertSound(selectedAlertSound);
+
+  // Telegram level notification
+  if (telegramEnabled && telegramChatId) {
+    sendTelegram(tgSetupLevelMessage(alert.symbol, next, currentPrice, alert.assetId, j));
+  }
+}
+
 function checkAlerts() {
   const now = Date.now();
   const nowDate = new Date(now);
@@ -2274,6 +2396,13 @@ function checkAlerts() {
 
     const currentPrice = priceData[alert.assetId]?.price || prices[alert.assetId];
     if (!currentPrice) return;
+
+    // ── Setup alerts: handled entirely by frontend level checker ──────────
+    // Never let them fall through to above/below logic in Edge Function or here
+    if (alert.condition === 'setup') {
+      checkSetupLevels(alert, currentPrice);
+      return;
+    }
 
     const isZone      = alert.condition === 'zone';
     const isTap       = alert.condition === 'tap';
@@ -4180,6 +4309,9 @@ async function init() {
   const alertFormInputs = [
     'alert-price', 'alert-zone-low', 'alert-zone-high',
     'alert-note', 'alert-note-zone', 'alert-tap-custom',
+    // Setup alert inputs — must also block chart reloads while user types
+    'setup-entry', 'setup-sl', 'setup-tp1', 'setup-tp2', 'setup-tp3',
+    'setup-entry-reason', 'setup-htf-context',
   ];
   alertFormInputs.forEach(id => {
     const el = document.getElementById(id);
@@ -4190,8 +4322,9 @@ async function init() {
       setTimeout(() => { userTypingInForm = false; }, 300);
     });
   });
-  // Also track the dropdowns — they don't type but interaction matters
-  ['alert-condition','alert-timeframe','alert-repeat','alert-tap-tolerance'].forEach(id => {
+  // Also track all dropdowns — they don't type but interaction matters
+  ['alert-condition','alert-timeframe','alert-repeat','alert-tap-tolerance',
+   'setup-type','setup-timeframe','setup-emotion-before'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('focus', () => { userTypingInForm = true; });
@@ -4248,7 +4381,9 @@ document.addEventListener('visibilitychange', () => {
     // Reconnect both WS connections if they dropped
     if (!_conn1.ws || _conn1.ws.readyState > 1) connectDeriv();
     if (!_conn2.ws || _conn2.ws.readyState > 1) connectDerivSynthetics();
-    if (isMobileLayout()) mobileTab(navStack[navStack.length-1], false);
+    // Don't re-init the chart tab if user is actively filling a form —
+    // mobileTab('chart') calls loadTVChart which resets scroll position
+    if (isMobileLayout() && !userTypingInForm) mobileTab(navStack[navStack.length-1], false);
   }
 });
 
