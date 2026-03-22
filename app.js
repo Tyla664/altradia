@@ -3370,7 +3370,10 @@ function toggleTheme() {
   if (moon) moon.style.display = isLight ? 'none'  : '';
   if (sun)  sun.style.display  = isLight ? ''      : 'none';
   const btn = document.getElementById('theme-btn');
-  if (btn) btn.title = isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode';
+  if (btn) {
+    btn.title = isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode';
+    btn.classList.toggle('theme-light', isLight);
+  }
 }
 
 function initTheme() {
@@ -3379,6 +3382,8 @@ function initTheme() {
     document.documentElement.setAttribute('data-theme', 'light');
     const moon = document.getElementById('theme-moon');
     const sun  = document.getElementById('theme-sun');
+    const btn2 = document.getElementById('theme-btn');
+    if (btn2) btn2.classList.add('theme-light');
     if (moon) moon.style.display = 'none';
     if (sun)  sun.style.display  = '';
   } else {
