@@ -137,6 +137,7 @@
   }
 
   /* ── Journal cards ── */
+  /* ── Journal summary card ── */
   .journal-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -146,7 +147,51 @@
     transition: border-color 0.15s;
   }
   .journal-card:hover { border-color: rgba(0,212,255,0.3); }
-  .journal-card-header {
+  /* ── Journal summary card layout ── */
+  .journal-card-summary {
+    padding: 12px 14px;
+    cursor: pointer;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+  .journal-card-summary:active { background: rgba(0,212,255,0.04); }
+  .journal-card-summary-left  { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+  .journal-card-summary-right { display: flex; align-items: center; gap: 6px; }
+  .journal-card-summary-bottom {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);
+  }
+
+  /* ── Journal detail levels grid ── */
+  .jdetail-levels {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+  }
+  .jdetail-level-row { display: flex; flex-direction: column; gap: 2px; }
+  .jdetail-notes { border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .jdetail-note-row { display: flex; flex-direction: column; gap: 2px; }
+  .jdetail-note-label { font-family: var(--mono); font-size: 0.58rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+  .jdetail-note-val   { font-size: 0.82rem; color: var(--text); line-height: 1.4; }
+
+  /* ── Swipeable screenshot strip in detail view ── */
+  .jdetail-swiper {
+    display: flex; overflow-x: hidden; scroll-snap-type: x mandatory;
+    border-radius: 10px; background: var(--surface2);
+  }
+  .jdetail-slide { min-width: 100%; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; }
+  .jdetail-slide-img { width: 100%; max-height: 55vw; object-fit: cover; border-radius: 10px; cursor: zoom-in; }
+  .jdetail-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0 0; }
+  .jdetail-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
+  .jdetail-dot.active { background: var(--accent); }
+
+  /* ── Fullscreen image overlay slide track ── */
+  #img-fs-track { scroll-snap-type: x mandatory; }
+  #img-fs-track .img-fs-slide { scroll-snap-align: start; }
+
+    .journal-card-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 14px; cursor: pointer; gap: 8px;
   }
@@ -1420,6 +1465,55 @@
       overscroll-behavior: contain;
     }
 
+
+  /* ── Light theme overrides for alert card glow states ── */
+  /* Must be inside @media all to match dark-theme specificity */
+  [data-theme="light"] .alert-item { background: #f8fbff; border-color: var(--border); }
+
+  [data-theme="light"] .alert-item.zone-in-zone {
+    background: rgba(0,120,168,0.04);
+    border-color: rgba(0,120,168,0.55);
+    box-shadow: 0 0 0 1px rgba(0,120,168,0.2), 0 0 18px 2px rgba(0,120,168,0.10);
+    animation: zoneCardPulseLight 2s ease-in-out infinite;
+  }
+  @keyframes zoneCardPulseLight {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(0,120,168,0.2),  0 0 18px 2px rgba(0,120,168,0.10); }
+    50%       { box-shadow: 0 0 0 1px rgba(0,120,168,0.38), 0 0 26px 4px rgba(0,120,168,0.18); }
+  }
+
+  [data-theme="light"] .trade-price-profit {
+    background: rgba(0,135,90,0.04);
+    border-color: rgba(0,135,90,0.50);
+    box-shadow: 0 0 0 1px rgba(0,135,90,0.18), 0 0 16px 2px rgba(0,135,90,0.09);
+    animation: setupGlowGreenLight 2.2s ease-in-out infinite;
+  }
+  [data-theme="light"] .trade-price-danger {
+    background: rgba(200,40,60,0.04);
+    border-color: rgba(200,40,60,0.45);
+    box-shadow: 0 0 0 1px rgba(200,40,60,0.18), 0 0 16px 2px rgba(200,40,60,0.09);
+    animation: setupGlowRedLight 2.2s ease-in-out infinite;
+  }
+  @keyframes setupGlowGreenLight {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(0,135,90,0.18),  0 0 16px 2px rgba(0,135,90,0.09); }
+    50%       { box-shadow: 0 0 0 1px rgba(0,135,90,0.32),  0 0 22px 4px rgba(0,135,90,0.16); }
+  }
+  @keyframes setupGlowRedLight {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(200,40,60,0.18),  0 0 16px 2px rgba(200,40,60,0.09); }
+    50%       { box-shadow: 0 0 0 1px rgba(200,40,60,0.32),  0 0 22px 4px rgba(200,40,60,0.16); }
+  }
+
+  [data-theme="light"] .alert-item.triggered-above {
+    border-color: var(--green);
+    background: rgba(0,135,90,0.04);
+  }
+  [data-theme="light"] .alert-item.triggered-below {
+    border-color: var(--red);
+    background: rgba(200,40,60,0.04);
+  }
+  [data-theme="light"] .trade-running  { border-color: rgba(0,135,90,0.4); background: rgba(0,135,90,0.03); }
+  [data-theme="light"] .trade-full-tp  { border-color: rgba(0,135,90,0.6); background: rgba(0,135,90,0.05); }
+  [data-theme="light"] .trade-sl-hit   { border-color: rgba(200,40,60,0.4); background: rgba(200,40,60,0.03); }
+
   } /* end @media (max-width: 768px) */
 
 /* ══════════════════════════════════════════════════
@@ -1472,39 +1566,7 @@
 /* Alert items */
 [data-theme="light"] .alert-item  { background: #f8fbff; border-color: var(--border); }
 
-/* Zone in-zone glow — light theme (same teal, softened for white bg) */
-[data-theme="light"] .alert-item.zone-in-zone {
-  background: rgba(0,120,168,0.04);
-  border-color: rgba(0,120,168,0.55);
-  box-shadow: 0 0 0 1px rgba(0,120,168,0.2), 0 0 18px 2px rgba(0,120,168,0.1);
-  animation: zoneCardPulseLight 2s ease-in-out infinite;
-}
-@keyframes zoneCardPulseLight {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(0,120,168,0.2),  0 0 18px 2px rgba(0,120,168,0.10); }
-  50%       { box-shadow: 0 0 0 1px rgba(0,120,168,0.38), 0 0 26px 4px rgba(0,120,168,0.18); }
-}
-
-/* Setup card live price — light theme */
-[data-theme="light"] .trade-price-profit {
-  background: rgba(0,135,90,0.04);
-  border-color: rgba(0,135,90,0.5);
-  box-shadow: 0 0 0 1px rgba(0,135,90,0.18), 0 0 16px 2px rgba(0,135,90,0.09);
-  animation: setupGlowGreenLight 2.2s ease-in-out infinite;
-}
-[data-theme="light"] .trade-price-danger {
-  background: rgba(200,40,60,0.04);
-  border-color: rgba(200,40,60,0.45);
-  box-shadow: 0 0 0 1px rgba(200,40,60,0.18), 0 0 16px 2px rgba(200,40,60,0.09);
-  animation: setupGlowRedLight 2.2s ease-in-out infinite;
-}
-@keyframes setupGlowGreenLight {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(0,135,90,0.18),  0 0 16px 2px rgba(0,135,90,0.09); }
-  50%       { box-shadow: 0 0 0 1px rgba(0,135,90,0.32),  0 0 22px 4px rgba(0,135,90,0.16); }
-}
-@keyframes setupGlowRedLight {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(200,40,60,0.18),  0 0 16px 2px rgba(200,40,60,0.09); }
-  50%       { box-shadow: 0 0 0 1px rgba(200,40,60,0.32),  0 0 22px 4px rgba(200,40,60,0.16); }
-}
+/* light theme alert glows moved inside @media all above */
 
 /* Alert tabs */
 [data-theme="light"] .alert-tabs  { border-bottom-color: var(--border); }
