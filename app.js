@@ -2019,7 +2019,10 @@ function renderAlerts() {
 
     const isTriggered = alert.status === 'triggered';
     const dir = alert.triggeredDirection || alert.condition;
-    div.className = isTriggered ? `alert-item triggered-${dir}` : `alert-item active-alert`;
+    // Zone in-zone gets its own glow class so the whole card lights up
+    let cardClass = 'active-alert';
+    if (isTriggered) cardClass = `triggered-${dir}`;
+    div.className = `alert-item ${cardClass}`;
 
     let badgeClass, badgeLabel;
     const isRepeatingZone = alert.condition === 'zone' && (alert.repeatInterval || 0) > 0;
@@ -2027,6 +2030,8 @@ function renderAlerts() {
     const currentLivePrice = priceData[alert.assetId]?.price || 0;
     const isCurrentlyInZone = alert.condition === 'zone' && currentLivePrice > 0
       && currentLivePrice >= alert.zoneLow && currentLivePrice <= alert.zoneHigh;
+    // Promote class to zone-in-zone for whole-card glow effect
+    if (isCurrentlyInZone) div.className = 'alert-item zone-in-zone';
 
     if (isTriggered) {
       if (alert.condition === 'zone')      { badgeClass = 'badge-triggered-below'; badgeLabel = `${ALERT_ICONS.zone}TRIGGERED`; }
@@ -2953,7 +2958,27 @@ function renderSetupCard(alert, div) {
     full_tp: 'trade-full-tp', sl_hit: 'trade-sl-hit',
   }[j.tradeStatus || 'watching'] || 'trade-watching';
 
-  div.className = `alert-item ${statusClass}`;
+  // ── Live price-based card colour (overrides statusClass when trade is live) ──
+  // Green glow = price in profit zone (between entry and furthest TP)
+  // Red glow   = price in danger zone (between SL and entry)
+  // Only active once entry has triggered — not while just watching
+  let liveCardClass = statusClass;
+  const tradeIsLive = ['entry_hit','running','tp1_hit','tp2_hit'].includes(j.tradeStatus || '');
+  if (tradeIsLive && j.sl && j.tp1) {
+    const liveP   = priceData[alert.assetId]?.price || 0;
+    const entry   = alert.targetPrice;
+    const sl      = j.sl;
+    const topTp   = j.tp3 || j.tp2 || j.tp1;
+    const isLong  = j.direction === 'long';
+    if (liveP > 0) {
+      const inProfit  = isLong ? (liveP > entry && liveP <= topTp)  : (liveP < entry && liveP >= topTp);
+      const inDanger  = isLong ? (liveP < entry && liveP >= sl)     : (liveP > entry && liveP <= sl);
+      if      (inProfit) liveCardClass = 'trade-price-profit';
+      else if (inDanger) liveCardClass = 'trade-price-danger';
+    }
+  }
+
+  div.className = `alert-item ${liveCardClass}`;
 
   const levels = [
     `<span style="color:var(--muted);font-size:0.72rem">Entry</span> <b>${formatPrice(alert.targetPrice, alert.assetId)}</b>`,
