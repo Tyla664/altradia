@@ -1788,6 +1788,7 @@ async function createAlert() {
     sound:           selectedAlertSound,
     status:          'active',
     createdAt:       new Date().toLocaleDateString([], {day:'2-digit',month:'short',year:'numeric'}) + ' · ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:true}),
+    createdMs:       Date.now(),
     currentPriceWhenCreated: currentPrice,
   };
 
@@ -2008,7 +2009,11 @@ function renderAlerts() {
     };
     const ra = rank(a), rb = rank(b);
     if (ra !== rb) return ra - rb;
-    return 0; // preserve insertion order within same rank
+    // Within same rank: newest created first
+    // createdMs is set on all new alerts; fall back to 0 (pre-existing alerts sort stably)
+    const ta = a.createdMs || 0;
+    const tb = b.createdMs || 0;
+    return tb - ta; // descending — largest (newest) timestamp first
   });
 
   sortedAlerts.forEach(alert => {
@@ -2889,6 +2894,7 @@ async function createSetupAlert() {
     sound:        selectedAlertSound,
     status:       'active',
     createdAt:    new Date().toLocaleDateString([], {day:'2-digit',month:'short',year:'numeric'}) + ' · ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:true}),
+    createdMs:    Date.now(),
   };
 
   alerts.push(newAlert);
@@ -2999,12 +3005,25 @@ function renderSetupCard(alert, div) {
 
   ].filter(Boolean).join('<br>');
 
-  const isFinalState = ['full_tp','sl_hit'].includes(j.tradeStatus || '');
-  const btnLog    = `<button class="alert-action-btn dismiss" onclick="logTradeFromAlert('${alert.id}')">LOG TRADE</button>`;
-  const btnClose  = `<button class="alert-action-btn toggle"  onclick="dismissSetupAlert('${alert.id}')">CLOSE</button>`;
-  const btnEdit   = `<button class="alert-action-btn toggle"  onclick="editSetupAlert('${alert.id}')" title="Edit setup">${SVG_EDIT}EDIT</button>`;
-  const btnDelete = `<button class="alert-action-btn delete"  onclick="deleteAlert('${alert.id}')">DELETE</button>`;
-  const btnDismiss = isFinalState ? btnLog : btnClose;
+  const tradeStatus  = j.tradeStatus || 'watching';
+  const isFinalState = ['full_tp','sl_hit'].includes(tradeStatus);
+  const isLiveTrade  = ['entry_hit','running','tp1_hit','tp2_hit'].includes(tradeStatus);
+  const isWatching   = tradeStatus === 'watching';
+
+  const btnLog     = `<button class="alert-action-btn dismiss" onclick="logTradeFromAlert('${alert.id}')">LOG TRADE</button>`;
+  const btnDismissHistory = `<button class="alert-action-btn toggle" onclick="dismissSetupToHistory('${alert.id}')">${SVG_DISMISS}DISMISS</button>`;
+  const btnClose   = `<button class="alert-action-btn toggle"  onclick="dismissSetupAlert('${alert.id}')">CLOSE</button>`;
+  const btnEdit    = `<button class="alert-action-btn toggle"  onclick="editSetupAlert('${alert.id}')" title="Edit setup">${SVG_EDIT}EDIT</button>`;
+  const btnDelete  = `<button class="alert-action-btn delete"  onclick="deleteAlert('${alert.id}')">DELETE</button>`;
+
+  // Button layout by state:
+  // watching     → CLOSE + EDIT + DELETE
+  // live trade   → LOG TRADE + DELETE (no edit — trade is running)
+  // final state  → LOG TRADE + DISMISS (to history) + DELETE
+  let actionBtns;
+  if (isFinalState)       actionBtns = btnLog + btnDismissHistory + btnDelete;
+  else if (isLiveTrade)   actionBtns = btnLog + btnDelete;
+  else                    actionBtns = btnClose + btnEdit + btnDelete; // watching
 
   div.innerHTML = `
     <div class="alert-header-row">
@@ -3018,13 +3037,38 @@ function renderSetupCard(alert, div) {
       ${journalLines ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.72rem;line-height:1.7">${journalLines}</div>` : ''}
       <div style="margin-top:6px;opacity:0.45;font-size:0.68rem">Set ${alert.createdAt}</div>
     </div>
-    <div class="alert-actions">${btnDismiss}${btnEdit}${btnDelete}</div>`;
+    <div class="alert-actions">${actionBtns}</div>`;
 }
 
 function dismissSetupAlert(id) {
   const alert = alerts.find(a => a.id === id);
   if (!alert) return;
   showManualCloseForm(alert, getJournal(alert));
+}
+
+// Dismiss a final-state setup alert to history (no journal form — already logged or user skips)
+function dismissSetupToHistory(id) {
+  const alert = alerts.find(a => a.id === id);
+  if (!alert) return;
+  const j = getJournal(alert);
+  // Move to alert history
+  saveAlertToHistory(alert);
+  alertHistory.unshift({
+    id: Date.now() + Math.random(),
+    symbol:         alert.symbol,
+    assetId:        alert.assetId,
+    condition:      alert.condition,
+    targetPrice:    alert.targetPrice,
+    triggeredAt:    Date.now(),
+    triggeredPrice: priceData[alert.assetId]?.price || alert.targetPrice,
+    note:           `Setup closed · ${j.tradeStatus || 'final'}`,
+  });
+  saveAlertHistory();
+  deleteAlertFromDB(id);
+  alerts = alerts.filter(a => a.id !== id);
+  renderAlerts();
+  if (lwCurrentAsset) drawAlertLines(lwCurrentAsset.id);
+  showToast('Alert Dismissed', `${alert.symbol} setup moved to history.`, 'success');
 }
 
 function editSetupAlert(id) {
@@ -3542,6 +3586,12 @@ function openJournalEntryForm(prefill = null) {
 
 function closeJournalModal() {
   document.getElementById('journal-modal').style.display = 'none';
+  // Reset edit state so next open doesn't accidentally PATCH instead of INSERT
+  editingJournalId = null;
+  // Restore modal title in case it was changed to "EDIT TRADE"
+  document.querySelectorAll('#journal-modal span').forEach(s => {
+    if (s.textContent === 'EDIT TRADE') s.textContent = 'LOG TRADE';
+  });
 }
 
 // ── Save a journal entry ────────────────────────────────────────────────────
@@ -3810,7 +3860,16 @@ async function renderJournal() {
       : '';
 
     // Summary line: entry→exit shorthand
-    const entrySummary = entry.entry_price ? `${f(entry.entry_price)} → ${entry.exit_price ? f(entry.exit_price) : '?'}` : '';
+    // Derive effective exit: use stored exit_price, or fall back to outcome-based level
+    const effectiveExit = entry.exit_price || (() => {
+      const o = entry.outcome;
+      if (o === 'sl_hit')   return entry.sl_price;
+      if (o === 'tp1_hit')  return entry.tp1_price;
+      if (o === 'tp2_hit')  return entry.tp2_price || entry.tp1_price;
+      if (o === 'full_tp')  return entry.tp3_price || entry.tp2_price || entry.tp1_price;
+      return null;
+    })();
+    const entrySummary = entry.entry_price ? `${f(entry.entry_price)} → ${effectiveExit ? f(effectiveExit) : '—'}` : '';
     const setupSummary = entry.setup_type || '';
 
     card.innerHTML = `
@@ -3867,7 +3926,14 @@ function openJournalDetail(entryId) {
 
   const levelRows = [
     ['ENTRY',     entry.entry_price, 'var(--text)'],
-    ['EXIT',      entry.exit_price,  'var(--text)'],
+    ['EXIT',      entry.exit_price || (() => {
+      const o = entry.outcome;
+      if (o === 'sl_hit')   return entry.sl_price;
+      if (o === 'tp1_hit')  return entry.tp1_price;
+      if (o === 'tp2_hit')  return entry.tp2_price || entry.tp1_price;
+      if (o === 'full_tp')  return entry.tp3_price || entry.tp2_price || entry.tp1_price;
+      return null;
+    })(), 'var(--text)'],
     ['STOP LOSS', entry.sl_price,    'var(--red)'],
     ['TP1',       entry.tp1_price,   'var(--green)'],
     entry.tp2_price ? ['TP2', entry.tp2_price, 'var(--green)'] : null,
@@ -4049,10 +4115,13 @@ function editJournalEntry(id) {
     lessons:       entry.lessons,
   });
 
-  // Update modal title to show editing state
-  const titleEl = document.querySelector('#journal-modal [style*="LOG TRADE"]');
-  const allSpans = document.querySelectorAll('#journal-modal span');
-  allSpans.forEach(s => { if (s.textContent === 'LOG TRADE') s.textContent = 'EDIT TRADE'; });
+  // Update modal title to EDIT TRADE
+  // Use setTimeout so DOM has settled after openJournalEntryForm
+  setTimeout(() => {
+    document.querySelectorAll('#journal-modal span').forEach(s => {
+      if (s.textContent === 'LOG TRADE') s.textContent = 'EDIT TRADE';
+    });
+  }, 0);
 
   // Show delete existing screenshots option if they exist
   if (entry.screenshot_before || entry.screenshot_after) {
