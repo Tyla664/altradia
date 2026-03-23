@@ -249,6 +249,7 @@ async function loadAlertsFromDB() {
       sound: r.sound,
       note: r.note,
       createdAt: new Date(r.created_at).toLocaleDateString([], {day:'2-digit',month:'short',year:'numeric'}) + ' · ' + new Date(r.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:true}),
+      createdMs: new Date(r.created_at).getTime(),
       triggeredAt: r.triggered_at,
       triggeredPrice: r.triggered_price ? parseFloat(r.triggered_price) : null,
       triggeredDirection: r.triggered_direction,
