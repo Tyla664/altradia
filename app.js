@@ -3063,14 +3063,14 @@ function renderSetupCard(alert, div) {
   const btnDelete  = `<button class="alert-action-btn delete"  onclick="deleteAlert('${alert.id}')">DELETE</button>`;
 
   // Button layout by state:
-  // watching     → CLOSE + EDIT + DELETE
+  // watching     → EDIT + DELETE only (trade not triggered yet — nothing to close)
   // live trade   → CLOSE + EDIT + DELETE  (CLOSE opens LOG TRADE / DISMISS choice)
   // final state  → LOG TRADE + DISMISS (to history) + DELETE
   const btnCloseRunning = `<button class="alert-action-btn toggle" onclick="showCloseTradeChoice('${alert.id}')">CLOSE</button>`;
   let actionBtns;
   if (isFinalState)       actionBtns = btnLog + btnDismissHistory + btnDelete;
   else if (isLiveTrade)   actionBtns = btnCloseRunning + btnEdit + btnDelete;
-  else                    actionBtns = btnClose + btnEdit + btnDelete; // watching
+  else                    actionBtns = btnEdit + btnDelete; // watching — no CLOSE
 
   div.innerHTML = `
     <div class="alert-header-row">
