@@ -2462,7 +2462,21 @@ function checkSetupLevels(alert, currentPrice) {
   if (prev === 'watching') {
     // Only check: has price reached entry?
     // Do NOT check TP/SL here — the trade hasn't started yet.
-    const entryHit = isLong ? currentPrice >= entry : currentPrice <= entry;
+    const rawEntryHit = isLong ? currentPrice >= entry : currentPrice <= entry;
+
+    // Guard against false trigger: price must have been on the CORRECT side of entry
+    // at the time the alert was created. If price was already past entry when the alert
+    // was set, it means the user set the alert late — we must not immediately fire.
+    // priceAtCreation is stored in the note JSON when the alert is created.
+    // For LONG: price must have been BELOW entry at creation (needs to travel UP to it)
+    // For SHORT: price must have been ABOVE entry at creation (needs to travel DOWN to it)
+    const pac = j.priceAtCreation;
+    const priceWasOnCorrectSide = pac
+      ? (isLong ? pac < entry : pac > entry)
+      : true; // if we have no creation price (old alert), allow firing as before
+
+    const entryHit = rawEntryHit && priceWasOnCorrectSide;
+
     if (entryHit) next = 'entry_hit';
     // Return now — let the NEXT tick handle TP/SL checking once entry is confirmed
     if (next !== prev) {
@@ -2892,6 +2906,7 @@ async function createSetupAlert() {
   }
 
   // Pack all journal + trade data into the note field as JSON
+  const currentPriceNow = priceData[selectedAsset.id]?.price || null;
   const journal = {
     direction:       setupDirection,
     sl,
@@ -2903,8 +2918,10 @@ async function createSetupAlert() {
     entryReason:     entryReason    || null,
     htfContext:      htfContext     || null,
     emotionBefore:   emotionBefore  || null,
-
     tradeStatus:     'watching',
+    // Store live price at creation so checkSetupLevels can verify price
+    // must actually TRAVEL to entry, not fire if already past it at creation
+    priceAtCreation: currentPriceNow,
   };
 
   const newAlert = {
