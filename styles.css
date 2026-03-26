@@ -1,4 +1,4 @@
-:root {
+  :root {
     --bg: #080c12;
     --surface: #0d1520;
     --surface2: #111c2d;
@@ -692,6 +692,10 @@
   .badge-zone-exited {
     background: rgba(255,61,90,0.08); color: var(--red);
     border: 1px solid rgba(255,61,90,0.25);
+  }
+  .badge-zone-crossed {
+    background: rgba(255,150,0,0.10); color: #e88a00;
+    border: 1px solid rgba(255,150,0,0.35);
   }
   @keyframes zonePulse {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,212,255,0.3); }
@@ -1696,3 +1700,4 @@
 [data-theme="light"] #jnl-long-btn.active  { background: rgba(0,135,90,0.10); border-color: var(--green); color: var(--green); }
 [data-theme="light"] #setup-short-btn.active,
 [data-theme="light"] #jnl-short-btn.active  { background: rgba(200,40,60,0.09); border-color: var(--red); color: var(--red); }
+
