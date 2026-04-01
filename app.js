@@ -4419,25 +4419,84 @@ function playAlertSound(type = 'chime') {
   } catch(e) { console.warn('Audio error:', e); }
 }
 
+
+// ── Slide-out menu panel ─────────────────────────────────────────────────────
+function openMenuPanel() {
+  const panel   = document.getElementById('menu-panel');
+  const overlay = document.getElementById('menu-overlay');
+  if (!panel || !overlay) return;
+  panel.style.display   = 'flex';
+  overlay.style.display = 'block';
+  // Trigger transition
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      panel.style.transform = 'translateX(0)';
+    });
+  });
+  updateMenuToggles();
+}
+
+function closeMenuPanel() {
+  const panel   = document.getElementById('menu-panel');
+  const overlay = document.getElementById('menu-overlay');
+  if (!panel || !overlay) return;
+  panel.style.transform = 'translateX(100%)';
+  overlay.style.display = 'none';
+  setTimeout(() => { panel.style.display = 'none'; }, 280);
+}
+
+function updateMenuToggles() {
+  // Theme toggle
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const themeIcon    = document.getElementById('menu-theme-icon');
+  const themeLabel   = document.getElementById('menu-theme-label');
+  const themeSub     = document.getElementById('menu-theme-sub');
+  const themeToggle  = document.getElementById('menu-theme-toggle');
+  if (themeIcon)   themeIcon.textContent   = isDark ? '🌙' : '☀️';
+  if (themeLabel)  themeLabel.textContent  = isDark ? 'Dark Mode' : 'Light Mode';
+  if (themeSub)    themeSub.textContent    = isDark ? 'Currently using dark theme' : 'Currently using light theme';
+  if (themeToggle) themeToggle.classList.toggle('on', isDark);
+
+  // Sound toggle
+  const soundToggle = document.getElementById('menu-sound-toggle');
+  const soundSub    = document.getElementById('menu-sound-sub');
+  if (soundToggle) soundToggle.classList.toggle('on', alertSoundEnabled);
+  if (soundSub)    soundSub.textContent = alertSoundEnabled ? 'Sound alerts are ON' : 'Sound alerts are OFF';
+
+  // Telegram status
+  const tgSub = document.getElementById('menu-tg-sub');
+  if (tgSub) tgSub.textContent = telegramEnabled && telegramChatId
+    ? `Connected · @${telegramChatId.length > 8 ? '...' : telegramChatId}`
+    : 'Tap to set up alert notifications';
+}
+
+function openMenuAbout() {
+  closeMenuPanel();
+  showToast('TradeWatch', 'Real-time price alerts & trade journal for active traders. v1.0', 'info');
+}
+
+function openMenuSubscription() {
+  closeMenuPanel();
+  showToast('Subscription Plans', 'Free, Pro and Elite tiers — coming soon.', 'info');
+}
+
+function openMenuAffiliate() {
+  closeMenuPanel();
+  showToast('Affiliate Program', 'Broker & prop firm partnerships — coming soon.', 'info');
+}
+
+function openMenuHelp() {
+  closeMenuPanel();
+  showToast('Help & FAQs', 'For support, contact us via Telegram @tradewatchsupport.', 'info');
+}
+
 function toggleSound() {
   soundEnabled = !soundEnabled;
-  const btn = document.getElementById('sound-btn');
-  const waves = document.getElementById('sound-waves');
-  const mute  = document.getElementById('sound-mute');
-  if (soundEnabled) {
-    btn.classList.add('active');
-    btn.classList.remove('muted-sound');
-    btn.title = 'Sound ON — click to mute';
-    if (waves) waves.style.display = '';
-    if (mute)  mute.style.display  = 'none';
-  } else {
-    btn.classList.remove('active');
-    btn.classList.add('muted-sound');
-    btn.title = 'Sound OFF — click to enable';
-    if (waves) waves.style.display = 'none';
-    if (mute)  mute.style.display  = '';
-  }
+  // sound-btn/waves/mute are gone from header — state synced via updateMenuToggles()
+  const btn = null, waves = null, mute = null;
+  // Visual state is now managed by updateMenuToggles() below
   if (soundEnabled) playAlertSound(selectedAlertSound);
+  updateMenuToggles(); // sync menu panel toggle state
 }
 
 function toggleTheme() {
@@ -4445,30 +4504,13 @@ function toggleTheme() {
   const isLight = root.getAttribute('data-theme') !== 'light';
   root.setAttribute('data-theme', isLight ? 'light' : 'dark');
   localStorage.setItem('tw_theme', isLight ? 'light' : 'dark');
-  const moon = document.getElementById('theme-moon');
-  const sun  = document.getElementById('theme-sun');
-  if (moon) moon.style.display = isLight ? 'none'  : '';
-  if (sun)  sun.style.display  = isLight ? ''      : 'none';
-  const btn = document.getElementById('theme-btn');
-  if (btn) {
-    btn.title = isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode';
-    btn.classList.toggle('theme-light', isLight);
-  }
+  updateMenuToggles(); // sync menu panel toggle state
 }
 
 function initTheme() {
   const saved = localStorage.getItem('tw_theme');
-  if (saved === 'light') {
-    document.documentElement.setAttribute('data-theme', 'light');
-    const moon = document.getElementById('theme-moon');
-    const sun  = document.getElementById('theme-sun');
-    const btn2 = document.getElementById('theme-btn');
-    if (btn2) btn2.classList.add('theme-light');
-    if (moon) moon.style.display = 'none';
-    if (sun)  sun.style.display  = '';
-  } else {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  }
+  document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
+  // Menu panel toggles updated once menu opens (updateMenuToggles called in openMenuPanel)
 }
 
 function selectSound(type, btn) {
