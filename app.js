@@ -2365,6 +2365,8 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
   // This prevents spam when app opens and loads a freshly-transitioned alert
   const lastFired = alert.lastTriggeredAt || 0;
   if ((Date.now() - lastFired) < 300000) return; // 5 min suppression after transition
+  // Also suppress if entry has already been triggered (state is beyond watching)
+  if (prev !== 'watching' && prev !== 'entry_hit' && prev !== 'running') return;
   const PROX = 0.015; // 1.5% proximity threshold for setup levels
   const entry = alert.targetPrice;
   const sl    = j.sl;
@@ -2373,11 +2375,14 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
   const isLong = j.direction === 'long';
   let noteDirty = false;
 
-  // Only warn about entry when watching
+  // Only warn about entry when watching and price hasn't already crossed entry
   if (prev === 'watching' && entry) {
     const dist = Math.abs(currentPrice - entry) / entry;
     const approaching = isLong ? currentPrice < entry : currentPrice > entry; // price moving toward entry
-    if (dist <= PROX && dist > 0.001 && approaching && !j.proxWarnedEntry) {
+    // Don't fire if price has already crossed entry — entry was already triggered
+    // (handles case where DB note is stale and still shows 'watching')
+    const alreadyCrossed = isLong ? currentPrice >= entry : currentPrice <= entry;
+    if (dist <= PROX && dist > 0.001 && approaching && !j.proxWarnedEntry && !alreadyCrossed) {
       j.proxWarnedEntry = true;
       noteDirty = true;
       const distPct = (dist * 100).toFixed(2);
@@ -2500,43 +2505,51 @@ function checkSetupLevels(alert, currentPrice) {
   // This prevents a "false trigger" where entry + TP fire in the same tick.
 
   if (prev === 'watching') {
-    // Two-phase entry detection to prevent false triggers:
+    // Two-phase entry detection — works for ALL setup types:
     //
-    // Phase 1 — "setup side visit": price must first reach/exceed the entry level
-    //   from the setup side (i.e. trade becomes eligible).
-    //   SHORT: price must rise UP to >= entry  (inducement sweep above entry)
-    //   LONG:  price must fall DOWN to <= entry (dip to the buy zone)
-    //   We track this with j.priceVisitedSetupSide = true in the note.
+    // The key insight is priceAtCreation (pac) tells us which side price is on
+    // when the alert is set. Entry fires when price CROSSES to the other side,
+    // then RETURNS back to the entry level (the retest/tap).
     //
-    // Phase 2 — entry fires: rawEntryHit is true AND setup side was visited.
-    //   SHORT: currentPrice <= entry (price came back down through entry after sweep)
-    //   LONG:  currentPrice >= entry (price bounced back up through entry after dip)
+    // pac < entry → price starts BELOW entry:
+    //   Phase 1: price rises to >= entry (breakout above, or sweep)
+    //   Phase 2: entry fires when price comes back DOWN to <= entry (retest tap)
+    //   Covers: LONG breakout-retest, SHORT ICT sweep
     //
-    // This prevents the alert from firing immediately if price was ALREADY past
-    // entry at creation time, while correctly handling inducement-style setups.
+    // pac > entry → price starts ABOVE entry:
+    //   Phase 1: price falls to <= entry (breakout below, or dip)
+    //   Phase 2: entry fires when price bounces back UP to >= entry (retest tap)
+    //   Covers: SHORT breakout-retest, LONG ICT dip
+    //
+    // No pac (old alerts): fall back to direction-based logic
+    //   LONG: phase1 = price <= entry, fires when price >= entry
+    //   SHORT: phase1 = price >= entry, fires when price <= entry
 
-    const setupSideReached = isLong
-      ? currentPrice <= entry   // LONG: price visits below/at entry (buy zone)
-      : currentPrice >= entry;  // SHORT: price visits above/at entry (sweep/inducement)
+    const pac = j.priceAtCreation ? parseFloat(j.priceAtCreation) : null;
 
-    // Phase 1: mark that price has visited the setup side
+    let setupSideReached, rawEntryHit;
+    if (pac !== null && pac < entry) {
+      // Price started BELOW entry → must visit ABOVE first, then retest back down
+      setupSideReached = currentPrice >= entry;
+      rawEntryHit      = currentPrice <= entry;
+    } else if (pac !== null && pac > entry) {
+      // Price started ABOVE entry → must visit BELOW first, then retest back up
+      setupSideReached = currentPrice <= entry;
+      rawEntryHit      = currentPrice >= entry;
+    } else {
+      // No priceAtCreation — fall back to direction-based logic (old alerts)
+      setupSideReached = isLong ? currentPrice <= entry : currentPrice >= entry;
+      rawEntryHit      = isLong ? currentPrice >= entry : currentPrice <= entry;
+    }
+
+    // Phase 1: mark that price has visited the setup side (opposite of pac)
     let noteDirty = false;
     if (!j.priceVisitedSetupSide && setupSideReached) {
       j.priceVisitedSetupSide = true;
       noteDirty = true;
     }
 
-    // Phase 2: entry fires only after setup side was visited
-    // For SHORT: price was >= entry (phase 1), then comes back down to <= entry
-    // For LONG:  price was <= entry (phase 1), then bounces back up to >= entry
-    // Note: if priceAtCreation shows price was on the setup side at creation (old alert
-    // with no flag), treat it as visited so these alerts still work.
-    const pacFallback = !j.priceVisitedSetupSide && j.priceAtCreation
-      ? (isLong ? j.priceAtCreation <= entry : j.priceAtCreation >= entry)
-      : false;
-    const setupVisited = j.priceVisitedSetupSide || pacFallback;
-
-    const rawEntryHit = isLong ? currentPrice >= entry : currentPrice <= entry;
+    const setupVisited = j.priceVisitedSetupSide || false;
     const entryHit = rawEntryHit && setupVisited;
 
     if (entryHit) {
