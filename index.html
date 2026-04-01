@@ -832,97 +832,343 @@
 <script src="app.js"></script>
 
 <!-- ── Slide-Out Menu Panel ─────────────────────────────────────────────── -->
-<div id="menu-overlay" onclick="closeMenuPanel()" style="display:none;position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,0.5);backdrop-filter:blur(3px)"></div>
-<div id="menu-panel" style="display:none;position:fixed;top:0;right:0;height:100%;width:280px;max-width:85vw;z-index:9991;background:var(--surface);border-left:1px solid var(--border);flex-direction:column;overflow-y:auto;transform:translateX(100%);transition:transform 0.28s cubic-bezier(0.4,0,0.2,1)">
+<div id="menu-overlay" onclick="closeMenuPanel()"></div>
+<div id="menu-panel">
 
   <!-- Panel header -->
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 18px 14px;border-bottom:1px solid var(--border)">
-    <span style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.14em;color:var(--muted)">MENU</span>
-    <button onclick="closeMenuPanel()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:2px 6px;line-height:1">&#x2715;</button>
+  <div class="menu-header">
+    <span class="menu-title">MENU</span>
+    <button class="menu-close-x" onclick="closeMenuPanel()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="2" x2="2" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
   </div>
 
-  <!-- Menu items -->
-  <div style="flex:1;padding:10px 0">
+  <!-- Menu items list -->
+  <div class="menu-list">
 
-    <!-- 1. About TradeWatch -->
+    <!-- About TradeWatch -->
     <button class="menu-item" onclick="openMenuAbout()">
-      <span class="menu-item-icon">ℹ️</span>
+      <span class="menu-item-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="7.5" stroke="currentColor" stroke-width="1.4"/>
+          <line x1="9" y1="8" x2="9" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="9" cy="5.5" r="1" fill="currentColor"/>
+        </svg>
+      </span>
       <div class="menu-item-text">
         <span class="menu-item-label">About TradeWatch</span>
-        <span class="menu-item-sub">Version info &amp; description</span>
+        <span class="menu-item-sub">App info &amp; version</span>
       </div>
-      <span class="menu-item-chevron">›</span>
+      <svg class="menu-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </button>
 
-    <!-- 2. Subscription Plans -->
+    <!-- Subscription Plans -->
     <button class="menu-item" onclick="openMenuSubscription()">
-      <span class="menu-item-icon">⭐</span>
+      <span class="menu-item-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <polygon points="9,2 11.5,6.5 16.5,7.3 13,10.7 13.8,15.7 9,13.2 4.2,15.7 5,10.7 1.5,7.3 6.5,6.5" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </span>
       <div class="menu-item-text">
         <span class="menu-item-label">Subscription Plans</span>
         <span class="menu-item-sub">Free, Pro and Elite tiers</span>
       </div>
-      <span class="menu-item-chevron">›</span>
+      <svg class="menu-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </button>
 
-    <!-- 3. Affiliate Program -->
+    <!-- Affiliate Program -->
     <button class="menu-item" onclick="openMenuAffiliate()">
-      <span class="menu-item-icon">🔗</span>
+      <span class="menu-item-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M7.5 10.5a3.5 3.5 0 0 0 5 0l2-2a3.536 3.536 0 0 0-5-5l-1 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <path d="M10.5 7.5a3.5 3.5 0 0 0-5 0l-2 2a3.536 3.536 0 0 0 5 5l1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </span>
       <div class="menu-item-text">
         <span class="menu-item-label">Affiliate Program</span>
         <span class="menu-item-sub">Broker &amp; prop firm partnerships</span>
       </div>
-      <span class="menu-item-chevron">›</span>
+      <svg class="menu-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </button>
 
-    <!-- 4. Help & FAQs -->
+    <!-- Help & FAQs -->
     <button class="menu-item" onclick="openMenuHelp()">
-      <span class="menu-item-icon">❓</span>
+      <span class="menu-item-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="7.5" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M6.5 6.5a2.5 2.5 0 0 1 4.9.8c0 1.6-2.4 2-2.4 3.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <circle cx="9" cy="13" r="1" fill="currentColor"/>
+        </svg>
+      </span>
       <div class="menu-item-text">
         <span class="menu-item-label">Help &amp; FAQs</span>
         <span class="menu-item-sub">Common questions &amp; support</span>
       </div>
-      <span class="menu-item-chevron">›</span>
+      <svg class="menu-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </button>
 
-    <div style="height:1px;background:var(--border);margin:8px 16px"></div>
+    <div class="menu-divider"></div>
 
-    <!-- 5. Theme Toggle -->
-    <button class="menu-item" id="menu-theme-btn" onclick="toggleTheme()">
-      <span class="menu-item-icon" id="menu-theme-icon">🌙</span>
+    <!-- Theme Toggle -->
+    <button class="menu-item" onclick="toggleTheme()">
+      <span class="menu-item-icon" id="menu-theme-icon">
+        <svg id="menu-icon-moon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M15 10.5A7 7 0 1 1 7.5 3a5 5 0 0 0 7.5 7.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <svg id="menu-icon-sun" width="18" height="18" viewBox="0 0 18 18" fill="none" style="display:none">
+          <circle cx="9" cy="9" r="3.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          <line x1="9" y1="1.5" x2="9" y2="3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="9" y1="14.5" x2="9" y2="16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="1.5" y1="9" x2="3.5" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="14.5" y1="9" x2="16.5" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="3.8" y1="3.8" x2="5.2" y2="5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="12.8" y1="12.8" x2="14.2" y2="14.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="12.8" y1="3.8" x2="14.2" y2="5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="3.8" y1="12.8" x2="5.2" y2="14.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </span>
       <div class="menu-item-text">
         <span class="menu-item-label" id="menu-theme-label">Dark Mode</span>
-        <span class="menu-item-sub" id="menu-theme-sub">Currently using dark theme</span>
+        <span class="menu-item-sub" id="menu-theme-sub">Switch to light theme</span>
       </div>
-      <span class="menu-item-toggle" id="menu-theme-toggle"></span>
+      <div class="menu-toggle-pill" id="menu-theme-toggle"></div>
     </button>
 
-    <!-- 6. Sound Alerts -->
-    <button class="menu-item" id="menu-sound-btn" onclick="toggleSound()">
-      <span class="menu-item-icon">🔔</span>
+    <!-- Sound Alerts -->
+    <button class="menu-item" onclick="toggleSound()">
+      <span class="menu-item-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M3 6.5H1.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 .5.5H3l4 3V3.5L3 6.5z" fill="currentColor"/>
+          <g id="menu-sound-waves">
+            <path d="M11 5.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <path d="M12.5 7.5a2.5 2.5 0 0 1 0 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+          </g>
+          <g id="menu-sound-mute" style="display:none">
+            <line x1="11" y1="6" x2="15" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="15" y1="6" x2="11" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </span>
       <div class="menu-item-text">
         <span class="menu-item-label">Sound Alerts</span>
-        <span class="menu-item-sub" id="menu-sound-sub">Tap to toggle alert sounds</span>
+        <span class="menu-item-sub" id="menu-sound-sub">Alert sounds are on</span>
       </div>
-      <span class="menu-item-toggle" id="menu-sound-toggle"></span>
+      <div class="menu-toggle-pill on" id="menu-sound-toggle"></div>
     </button>
 
-    <!-- 7. Telegram Alerts -->
+    <!-- Telegram Alerts -->
     <button class="menu-item" onclick="closeMenuPanel();openTelegramModal()">
-      <span class="menu-item-icon">✈️</span>
+      <span class="menu-item-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M15.5 2.5L1.5 7.5l5 2 2 5 2-3 4 3 1-12z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/>
+          <line x1="6.5" y1="9.5" x2="10.5" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
       <div class="menu-item-text">
         <span class="menu-item-label">Telegram Alerts</span>
         <span class="menu-item-sub" id="menu-tg-sub">Set up alert notifications</span>
       </div>
-      <span class="menu-item-chevron">›</span>
+      <svg class="menu-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </button>
 
   </div>
 
-  <!-- Close button at bottom -->
-  <div style="padding:16px 18px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--border)">
-    <button onclick="closeMenuPanel()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:0.68rem;letter-spacing:0.08em;border-radius:8px;cursor:pointer">CLOSE</button>
+  <!-- Close -->
+  <div class="menu-footer">
+    <button class="menu-close-btn" onclick="closeMenuPanel()">CLOSE</button>
   </div>
 </div>
 
+<!-- ── Menu Sub-Pages (full-screen overlays) ─────────────────────────────── -->
+
+<!-- About TradeWatch -->
+<div id="menu-page-about" class="menu-page">
+  <div class="menu-page-header">
+    <button class="menu-page-back" onclick="closeMenuPage('about')">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M11 4l-6 5 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <span class="menu-page-title">About TradeWatch</span>
+  </div>
+  <div class="menu-page-body">
+    <div class="menu-page-section">
+      <div class="menu-page-logo-row">
+        <svg width="36" height="36" viewBox="0 0 28 28" fill="none">
+          <line x1="6" y1="4" x2="6" y2="24" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="14" y1="3" x2="14" y2="25" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="22" y1="5" x2="22" y2="23" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
+          <rect x="3" y="8" width="6" height="10" rx="1.5" fill="#00e676"/>
+          <rect x="11" y="6" width="6" height="8" rx="1.5" fill="#ff3d5a"/>
+          <rect x="19" y="10" width="6" height="9" rx="1.5" fill="#00e676"/>
+          <circle cx="24" cy="7" r="2.5" fill="#00d4ff"/>
+        </svg>
+        <div>
+          <div style="font-weight:800;font-size:1.1rem;letter-spacing:0.04em"><span style="color:var(--text)">TRADE</span><span style="color:var(--accent)">WATCH</span></div>
+          <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted);letter-spacing:0.1em">VERSION 1.0.0</div>
+        </div>
+      </div>
+      <p class="menu-page-desc">TradeWatch is a real-time price alert and trade journaling app built for active traders. Set precision alerts on any asset, track your trade setups, and receive instant Telegram notifications — even when the app is closed.</p>
+    </div>
+    <div class="menu-page-section">
+      <div class="menu-page-section-title">FEATURES</div>
+      <div class="menu-page-feature-list">
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Real-time price alerts (above, below, zone, tap, setup)</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Trade setup lifecycle — entry, SL, TP1/2/3 monitoring</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Telegram bot notifications with full trade context</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Trade journal with screenshots, emotion tracking &amp; P&amp;L</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Live charts with LightweightCharts integration</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> 200+ assets — forex, crypto, indices, stocks, commodities</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 6,11 12,3" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Server-side alert monitoring via Supabase Edge Functions</div>
+      </div>
+    </div>
+    <div class="menu-page-section">
+      <div class="menu-page-section-title">BUILT FOR TRADERS</div>
+      <p class="menu-page-desc">Whether you trade forex, crypto, indices or stocks — TradeWatch keeps you in the loop on every price move that matters to your setup. No noise, just precision alerts when it counts.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Subscription Plans -->
+<div id="menu-page-subscription" class="menu-page">
+  <div class="menu-page-header">
+    <button class="menu-page-back" onclick="closeMenuPage('subscription')">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M11 4l-6 5 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <span class="menu-page-title">Subscription Plans</span>
+  </div>
+  <div class="menu-page-body">
+    <p class="menu-page-desc" style="margin-bottom:20px">Choose the plan that fits your trading style.</p>
+    <div class="plan-card">
+      <div class="plan-card-header"><span class="plan-name">FREE</span><span class="plan-price">$0<span class="plan-period">/mo</span></span></div>
+      <div class="plan-features">
+        <div class="plan-feature on">Up to 5 active alerts</div>
+        <div class="plan-feature on">Above / Below alerts</div>
+        <div class="plan-feature on">Zone &amp; Tap alerts</div>
+        <div class="plan-feature on">Telegram notifications</div>
+        <div class="plan-feature off">Trade setup lifecycle alerts</div>
+        <div class="plan-feature off">Trade journal</div>
+        <div class="plan-feature off">Priority server-side monitoring</div>
+      </div>
+    </div>
+    <div class="plan-card plan-card-pro">
+      <div class="plan-badge">POPULAR</div>
+      <div class="plan-card-header"><span class="plan-name">PRO</span><span class="plan-price">$9<span class="plan-period">/mo</span></span></div>
+      <div class="plan-features">
+        <div class="plan-feature on">Up to 25 active alerts</div>
+        <div class="plan-feature on">All alert types</div>
+        <div class="plan-feature on">Trade setup lifecycle alerts</div>
+        <div class="plan-feature on">Full trade journal</div>
+        <div class="plan-feature on">Telegram notifications</div>
+        <div class="plan-feature on">Server-side monitoring 24/7</div>
+        <div class="plan-feature off">Priority support</div>
+      </div>
+    </div>
+    <div class="plan-card plan-card-elite">
+      <div class="plan-card-header"><span class="plan-name">ELITE</span><span class="plan-price">$19<span class="plan-period">/mo</span></span></div>
+      <div class="plan-features">
+        <div class="plan-feature on">Unlimited active alerts</div>
+        <div class="plan-feature on">All alert types</div>
+        <div class="plan-feature on">Trade setup lifecycle alerts</div>
+        <div class="plan-feature on">Full trade journal</div>
+        <div class="plan-feature on">Telegram notifications</div>
+        <div class="plan-feature on">Priority server-side monitoring</div>
+        <div class="plan-feature on">Priority support</div>
+      </div>
+    </div>
+    <p style="font-family:var(--mono);font-size:0.62rem;color:var(--muted);text-align:center;margin-top:16px">Plans launching soon. Current users get free Pro access.</p>
+  </div>
+</div>
+
+<!-- Affiliate Program -->
+<div id="menu-page-affiliate" class="menu-page">
+  <div class="menu-page-header">
+    <button class="menu-page-back" onclick="closeMenuPage('affiliate')">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M11 4l-6 5 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <span class="menu-page-title">Affiliate Program</span>
+  </div>
+  <div class="menu-page-body">
+    <div class="menu-page-section">
+      <p class="menu-page-desc">Earn commissions by referring traders to TradeWatch. Partner with brokers and prop firms to grow your income while helping other traders access professional-grade tools.</p>
+    </div>
+    <div class="menu-page-section">
+      <div class="menu-page-section-title">HOW IT WORKS</div>
+      <div class="menu-page-feature-list">
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="var(--accent)" stroke-width="1.5"/><text x="7" y="10.5" text-anchor="middle" font-size="7" fill="var(--accent)" font-family="monospace" font-weight="bold">1</text></svg> Share your unique referral link with fellow traders</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="var(--accent)" stroke-width="1.5"/><text x="7" y="10.5" text-anchor="middle" font-size="7" fill="var(--accent)" font-family="monospace" font-weight="bold">2</text></svg> They sign up and subscribe to TradeWatch</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="var(--accent)" stroke-width="1.5"/><text x="7" y="10.5" text-anchor="middle" font-size="7" fill="var(--accent)" font-family="monospace" font-weight="bold">3</text></svg> You earn a recurring commission every month</div>
+      </div>
+    </div>
+    <div class="menu-page-section">
+      <div class="menu-page-section-title">BROKER PARTNERSHIPS</div>
+      <p class="menu-page-desc">We partner with regulated brokers and prop firms. Earn additional commissions when your referrals open funded accounts through our broker partners.</p>
+    </div>
+    <div class="menu-page-section">
+      <p style="font-family:var(--mono);font-size:0.62rem;color:var(--muted);text-align:center">Affiliate program launching soon. Contact us to join the waitlist.</p>
+      <button class="menu-page-cta" onclick="closeMenuPage('affiliate');openTelegramModal()">Contact via Telegram</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help & FAQs -->
+<div id="menu-page-help" class="menu-page">
+  <div class="menu-page-header">
+    <button class="menu-page-back" onclick="closeMenuPage('help')">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M11 4l-6 5 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <span class="menu-page-title">Help &amp; FAQs</span>
+  </div>
+  <div class="menu-page-body">
+    <div class="faq-item">
+      <div class="faq-q">How do I set up Telegram notifications?</div>
+      <div class="faq-a">Tap the Telegram Alerts item in the menu. Start a chat with @tradewatchalert_bot, send /start, and paste your Chat ID into the settings. Toggle Telegram on to activate.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Why didn't I receive an alert?</div>
+      <div class="faq-a">Ensure Telegram alerts are enabled and your Chat ID is correct. For setup alerts, price must first reach the setup side (breakout zone), then retest the entry level. Check the alert card status badge for current state.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">What is a Trade Setup alert?</div>
+      <div class="faq-a">A Trade Setup alert monitors the full lifecycle of a trade — entry, stop loss, and take profit levels. It fires when price reaches your entry via a retest, then tracks TP1, TP2, TP3 and SL automatically.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">How does the two-phase entry work?</div>
+      <div class="faq-a">For a breakout-retest setup, price must first break through the entry level (phase 1), then come back to retest it (phase 2 — entry fires). This prevents false triggers when price is already past entry when you set the alert.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Can I use TradeWatch without the app open?</div>
+      <div class="faq-a">Yes. Our Supabase Edge Function runs server-side every minute, checking all your alerts and sending Telegram notifications even when the app is completely closed.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">How do I log a trade?</div>
+      <div class="faq-a">When a setup alert reaches a final state (TP hit or SL hit), tap LOG TRADE on the alert card. For live trades, tap CLOSE then LOG TRADE. Fill in the journal form and tap SAVE TO JOURNAL.</div>
+    </div>
+    <div class="menu-page-section" style="margin-top:8px">
+      <div class="menu-page-section-title">STILL NEED HELP?</div>
+      <button class="menu-page-cta" onclick="closeMenuPage('help');openTelegramModal()">Contact Support via Telegram</button>
+    </div>
+  </div>
+</div>
+
+
 </body>
-</html>
