@@ -4425,9 +4425,21 @@ function openMenuPanel() {
   const panel   = document.getElementById('menu-panel');
   const overlay = document.getElementById('menu-overlay');
   if (!panel || !overlay) return;
+
+  // Populate profile card with Telegram user info
+  const nameEl    = document.getElementById('menu-profile-name');
+  const avatarEl  = document.getElementById('menu-avatar-initials');
+  const planEl    = document.getElementById('menu-profile-plan');
+  if (nameEl) {
+    const displayName = telegramUserName || 'TradeWatch User';
+    nameEl.textContent = displayName;
+    if (avatarEl) avatarEl.textContent = (displayName[0] || 'T').toUpperCase();
+  }
+  // Plan badge — placeholder FREE until billing is live
+  if (planEl) planEl.innerHTML = '<span class="menu-plan-badge">FREE</span>';
+
   panel.style.display   = 'flex';
   overlay.style.display = 'block';
-  // Trigger transition
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       panel.style.transform = 'translateX(0)';
@@ -5638,48 +5650,101 @@ function showTgToast(msg) {
   }, 4000);
 }
 
-// ── SWIPE GESTURES (mobile) ──────────────────────
+// ── SWIPE GESTURES — iOS-style edge-only back swipe ──────────────────────
+// Works like iPhone: swipe must START within 20px of the left edge,
+// tracks the finger in real time, and only commits on release if distance
+// exceeds the threshold. No false triggers from chart pan or scroll.
 (function() {
-  let touchStartX = 0, touchStartY = 0;
+  const EDGE_ZONE   = 20;   // px from left edge to start a back swipe
+  const COMMIT_PCT  = 0.35; // % of screen width needed to commit
+  const CANCEL_VELO = 0.3;  // if released quickly leftward, cancel
 
-  let touchStartedInChart = false;
+  let tracking   = false;
+  let startX     = 0;
+  let startY     = 0;
+  let currentX   = 0;
+  let axisLocked = false; // true once we know it's horizontal
+  let isHoriz    = false;
+
+  // Visual drag overlay so user sees the panel following their finger
+  let dragOverlay = null;
+
+  function createDragOverlay() {
+    if (dragOverlay) return;
+    dragOverlay = document.createElement('div');
+    dragOverlay.style.cssText = `
+      position:fixed;inset:0;z-index:8999;
+      pointer-events:none;
+      background:rgba(0,0,0,0);
+      transition:none;
+    `;
+    document.body.appendChild(dragOverlay);
+  }
+  function removeDragOverlay() {
+    if (dragOverlay) { dragOverlay.remove(); dragOverlay = null; }
+  }
 
   document.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    // Track if touch started inside the chart canvas
-    const chartEl = document.getElementById('lw-chart');
-    touchStartedInChart = chartEl ? chartEl.contains(e.target) : false;
+    if (!isMobileLayout()) return;
+    // Only start tracking if touch begins in the left edge zone
+    startX   = e.touches[0].clientX;
+    startY   = e.touches[0].clientY;
+    tracking = startX <= EDGE_ZONE;
+    axisLocked = false;
+    isHoriz    = false;
+    currentX   = startX;
+
+    // Don't interfere when modals/menu are open
+    const menuOpen   = document.getElementById('menu-panel')?.style.display === 'flex';
+    const modalOpen  = document.getElementById('add-modal')?.style.display  !== 'none';
+    const tgOpen     = document.getElementById('tg-modal')?.style.display   !== 'none';
+    if (menuOpen || modalOpen || tgOpen) { tracking = false; return; }
+
+    // Need at least one page to go back to
+    if (navStack.length <= 1) { tracking = false; }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!tracking) return;
+    const x  = e.touches[0].clientX;
+    const y  = e.touches[0].clientY;
+    const dx = x - startX;
+    const dy = y - startY;
+    currentX = x;
+
+    if (!axisLocked) {
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; // not moved enough to decide
+      isHoriz    = Math.abs(dx) > Math.abs(dy);
+      axisLocked = true;
+      if (!isHoriz) { tracking = false; return; } // vertical scroll — abort
+    }
+
+    if (!isHoriz) return;
+
+    // Only allow rightward drag (positive dx = going back)
+    if (dx <= 0) { tracking = false; return; }
+
+    // Darken overlay proportionally
+    if (!dragOverlay) createDragOverlay();
+    const progress = Math.min(dx / (window.innerWidth * COMMIT_PCT), 1);
+    dragOverlay.style.background = `rgba(0,0,0,${0.15 * progress})`;
   }, { passive: true });
 
   document.addEventListener('touchend', e => {
-    if (!isMobileLayout()) return;
-    if (document.getElementById('add-modal').style.display !== 'none') return;
-    if (document.getElementById('tg-modal').style.display !== 'none') return;
+    removeDragOverlay();
+    if (!tracking || !isHoriz) { tracking = false; return; }
+    tracking = false;
 
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dy = e.changedTouches[0].clientY - touchStartY;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (dx <= 0) return;
 
-    // If touch started inside the chart, only allow edge-swipe back
-    // (left 30px of screen) — this lets chart pan/zoom work freely
-    const current = navStack[navStack.length - 1];
-    if (touchStartedInChart && current === 'chart') {
-      // Only trigger back if swipe started from left edge of screen
-      if (touchStartX > 30) return;
-    }
+    const committed = dx >= window.innerWidth * COMMIT_PCT;
+    if (committed) goBack();
+  }, { passive: true });
 
-    // Stricter threshold: 80px horizontal, must be much more horizontal than vertical
-    if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 2.5) return;
-
-    if (dx > 0) {
-      goBack();
-    } else {
-      if (current === 'watchlist' && selectedAsset) {
-        mobileTab('chart');
-      } else if (current === 'chart') {
-        mobileTab('alerts');
-      }
-    }
+  document.addEventListener('touchcancel', () => {
+    tracking = false;
+    removeDragOverlay();
   }, { passive: true });
 })();
 
