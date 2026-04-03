@@ -1,8 +1,8 @@
-// TradeWatch — Config, Asset Catalogue, Global State
+// altradia — Config, Asset Catalogue, Global State
 // Loaded first — all other files depend on these globals
 
 // ═══════════════════════════════════════════════
-// TradeWatch — app.js
+// altradia — app.js
 // Price Architecture (broker-only, no free APIs):
 //   Crypto spot     → CoinGecko (free, no key needed)
 //   Forex / Metals  → Deriv WebSocket (real-time ticks, registered App ID)
@@ -499,7 +499,7 @@ const ASSET_LIBRARY = ALL_ASSETS;
 // Alert editing
 let editingAlertId   = null;
 let userTypingInForm = false;
-// TradeWatch — Data Layer
+// altradia — Data Layer
 // Deriv WebSocket connections, price fetchers, formatters
 
 
@@ -833,7 +833,7 @@ function formatPrice(p, id) {
   return '$' + p.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
-// TradeWatch — Watchlist & Hotlist
+// altradia — Watchlist & Hotlist
 // renderWatchlist, renderHotList, selectAsset, navigation
 
 // ═══════════════════════════════════════════════
@@ -1211,7 +1211,7 @@ window.addEventListener('popstate', (e) => {
 // Data sourced from Deriv REST (OHLC) + CoinGecko
 // No external symbol restrictions — every asset works
 // ═══════════════════════════════════════════════
-// TradeWatch — Chart Engine
+// altradia — Chart Engine
 // Lightweight Charts, OHLC fetchers, alert price lines
 
 
@@ -1721,7 +1721,7 @@ function drawChart()          {}
 function setTF()              {}
 
 
-// TradeWatch — Alerts
+// altradia — Alerts
 // createAlert, renderAlerts, checkAlerts, history, sound
 
 
@@ -3506,7 +3506,7 @@ function tgSetupLevelMessage(symbol, level, price, assetId, journal) {
     sl_hit: {
       header: `🛑 <b>STOP LOSS HIT — ${symbol}</b>`,
       body:   `Price reached your stop loss level. Trade is likely closed.`,
-      action: `Review your trading platform. Log your emotion and lessons in TradeWatch.`,
+      action: `Review your trading platform. Log your emotion and lessons in altradia.`,
     },
     tp1_approaching: {
       header: `👀 <b>TP1 APPROACHING — ${symbol}</b>`,
@@ -3545,7 +3545,7 @@ function tgSetupLevelMessage(symbol, level, price, assetId, journal) {
   ].join('\n');
 }
 // ═══════════════════════════════════════════════
-// TradeWatch — Trade Journal
+// altradia — Trade Journal
 // Dedicated journal page: log, review, study trades
 // Images uploaded to Supabase Storage
 // ═══════════════════════════════════════════════
@@ -4342,7 +4342,7 @@ function editJournalEntry(id) {
 }
 
 // mobileTab is handled by app-watchlist.js — journal tab already supported there
-// TradeWatch — UI & App Init
+// altradia — UI & App Init
 // Telegram, library modal, toast, onboarding, init()
 
 // ═══════════════════════════════════════════════
@@ -4463,51 +4463,58 @@ function openMenuPanel() {
   const overlay = document.getElementById('menu-overlay');
   if (!panel || !overlay) return;
 
-  // Populate profile card with Telegram user info
-  const nameEl    = document.getElementById('menu-profile-name');
-  const avatarEl  = document.getElementById('menu-avatar-initials');
-  const planEl    = document.getElementById('menu-profile-plan');
-  if (nameEl) {
-    const displayName = telegramUserName || 'TradeWatch User';
-    nameEl.textContent = displayName;
+  // ── Populate profile card ──────────────────────────────────────────────
+  const displayName = telegramUserName
+    || localStorage.getItem('tg_user_name')
+    || 'altradia User';
 
-    if (avatarEl) {
-      const photoEl  = document.getElementById('menu-avatar-photo');
-      const letterEl = document.getElementById('menu-avatar-letter');
-      const photoUrl = telegramUserPhoto || localStorage.getItem('tg_photo_url') || '';
+  const nameEl   = document.getElementById('menu-profile-name');
+  const photoEl  = document.getElementById('menu-avatar-photo');
+  const letterEl = document.getElementById('menu-avatar-letter');
+  const planEl   = document.getElementById('menu-profile-plan');
 
-      if (photoUrl && photoEl) {
-        // Show profile photo, hide initials
-        photoEl.src = photoUrl;
-        photoEl.style.display = 'block';
-        if (letterEl) letterEl.style.display = 'none';
-        // If photo fails to load, fall back to initials
-        photoEl.onerror = () => {
-          photoEl.style.display = 'none';
-          if (letterEl) {
-            letterEl.textContent  = (displayName[0] || 'T').toUpperCase();
-            letterEl.style.display = '';
-          }
-        };
-      } else {
-        // No photo — show coloured initial
-        if (photoEl)   photoEl.style.display  = 'none';
-        if (letterEl) {
-          letterEl.textContent  = (displayName[0] || 'T').toUpperCase();
-          letterEl.style.display = '';
-        }
-      }
+  if (nameEl) nameEl.textContent = displayName;
+
+  // Avatar: try photo URL first, fall back to colored initial letter
+  // tgUser.photo_url is often a bot-hosted URL that may be restricted —
+  // we attempt to load it and silently fall back on any error.
+  const initial  = (displayName[0] || 'A').toUpperCase();
+  const photoUrl = telegramUserPhoto || localStorage.getItem('tg_photo_url') || '';
+
+  function showInitial() {
+    if (photoEl)  { photoEl.src = ''; photoEl.style.display = 'none'; }
+    if (letterEl) { letterEl.textContent = initial; letterEl.style.display = ''; }
+  }
+
+  function showPhoto(url) {
+    if (!photoEl) { showInitial(); return; }
+    photoEl.onload  = () => {
+      photoEl.style.display = 'block';
+      if (letterEl) letterEl.style.display = 'none';
+    };
+    photoEl.onerror = () => showInitial();
+    photoEl.src = url;
+    // If already cached (complete), fire manually
+    if (photoEl.complete && photoEl.naturalWidth > 0) {
+      photoEl.style.display = 'block';
+      if (letterEl) letterEl.style.display = 'none';
     }
   }
-  // Plan badge — placeholder FREE until billing is live
+
+  if (photoUrl) {
+    showPhoto(photoUrl);
+  } else {
+    showInitial();
+  }
+
   if (planEl) planEl.innerHTML = '<span class="menu-plan-badge">FREE</span>';
 
+  // ── Show panel ─────────────────────────────────────────────────────────
   panel.style.display   = 'flex';
   overlay.style.display = 'block';
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       panel.style.transform = 'translateX(0)';
-      attachSwipeBack(panel, closeMenuPanel, true);
     });
   });
   updateMenuToggles();
@@ -4728,7 +4735,7 @@ function toggleTelegram() {
   updateTgModalState();
   updateTgBtn();
   if (telegramEnabled) {
-    sendTelegram('🔔 <b>TradeWatch Connected!</b>\n\nYour alerts are live. You\'ll get notified here the moment a price target is hit.\n\n<i>Stay sharp. </i>');
+    sendTelegram('🔔 <b>altradia Connected!</b>\n\nYour alerts are live. You\'ll get notified here the moment a price target is hit.\n\n<i>Stay sharp. </i>');
   }
 }
 
@@ -4754,7 +4761,7 @@ async function testTelegram() {
     return;
   }
   setTgStatus('Sending…', '');
-  const ok = await sendTelegram('✅ <b>Test Successful!</b>\n\nTradeWatch is connected and ready to fire alerts.\n\n<i>You\'re all set. </i>');
+  const ok = await sendTelegram('✅ <b>Test Successful!</b>\n\naltradia is connected and ready to fire alerts.\n\n<i>You\'re all set. </i>');
   if (ok) {
     setTgStatus('Message sent! Check your Telegram.', 'ok');
   } else {
@@ -5406,7 +5413,7 @@ function showOnboardingScreen() {
         </div>
         <div style="font-size:1rem;font-weight:700;letter-spacing:0.1em;color:var(--text);margin-bottom:10px;">LINKING YOUR ACCOUNT</div>
         <div style="font-size:0.82rem;color:var(--muted);line-height:1.6;max-width:260px;">
-          Connecting TradeWatch to your Telegram.<br>This only takes a moment…
+          Connecting altradia to your Telegram.<br>This only takes a moment…
         </div>`;
       document.body.appendChild(overlay);
 
@@ -5416,7 +5423,7 @@ function showOnboardingScreen() {
 
     // ── Phase 2: Test message ─────────────────────
     async function attemptTestMessage() {
-      const msg = '<b>TRADEWATCH CONNECTED</b>\n\nYour account is linked. You\'ll receive instant alerts here the moment a price target is hit.\n\n<i>You\'re all set. </i>';
+      const msg = '<b>ALTRADIA CONNECTED</b>\n\nYour account is linked. You\'ll receive instant alerts here the moment a price target is hit.\n\n<i>You\'re all set. </i>';
       const ok  = await sendTelegram(msg);
 
       if (ok) {
@@ -5696,7 +5703,7 @@ function showTgConnectPrompt() {
     </svg>
     <div style="font-size:1.2rem;font-weight:700;letter-spacing:0.08em;margin-bottom:10px;color:var(--text)">CONNECT TELEGRAM</div>
     <div style="font-size:0.85rem;color:var(--muted);line-height:1.6;max-width:280px;margin-bottom:28px">
-      TradeWatch delivers alerts directly to your Telegram.<br><br>
+      altradia delivers alerts directly to your Telegram.<br><br>
       To continue, open the app through the bot so your account can be linked automatically.
     </div>
     <a href="https://t.me/tradewatchalert_bot/assistant" target="_blank"
@@ -5725,101 +5732,141 @@ function showTgToast(msg) {
   }, 4000);
 }
 
-// ── SWIPE GESTURES — iOS-style edge-only back swipe ──────────────────────
-// Works like iPhone: swipe must START within 20px of the left edge,
-// tracks the finger in real time, and only commits on release if distance
-// exceeds the threshold. No false triggers from chart pan or scroll.
-(function() {
-  const EDGE_ZONE   = 20;   // px from left edge to start a back swipe
-  const COMMIT_PCT  = 0.35; // % of screen width needed to commit
-  const CANCEL_VELO = 0.3;  // if released quickly leftward, cancel
+// ── SWIPE GESTURES — iOS-style ────────────────────────────────────────────
+// BACK SWIPE  : Must start within EDGE_ZONE px of left edge → navigates back
+// FORWARD SWIPE: Full-width left swipe → navigates forward through tabs
+// Both require at least COMMIT_PCT of screen width travel to commit.
+// Axis-locks after 6px movement to never conflict with vertical scroll.
+// Blocked when any modal, menu, or menu sub-page is open.
+(function () {
+  const EDGE_ZONE  = 22;   // px from left edge required to start a back swipe
+  const COMMIT_PCT = 0.38; // fraction of screen width to commit navigation
+  const MIN_VEL    = 0.3;  // px/ms — fast flick also commits even if under distance
 
-  let tracking   = false;
-  let startX     = 0;
-  let startY     = 0;
-  let currentX   = 0;
-  let axisLocked = false; // true once we know it's horizontal
-  let isHoriz    = false;
+  // Tab order for forward/back navigation
+  const TAB_ORDER = ['watchlist', 'chart', 'journal', 'alerts'];
 
-  // Visual drag overlay so user sees the panel following their finger
+  let tracking  = false;   // are we tracking this touch?
+  let isBack    = false;   // back swipe (rightward from left edge)
+  let isFwd     = false;   // forward swipe (leftward, full width)
+  let axisLocked = false;
+  let isHoriz   = false;
+  let startX    = 0;
+  let startY    = 0;
+  let startTime = 0;
   let dragOverlay = null;
 
-  function createDragOverlay() {
-    if (dragOverlay) return;
-    dragOverlay = document.createElement('div');
-    dragOverlay.style.cssText = `
-      position:fixed;inset:0;z-index:8999;
-      pointer-events:none;
-      background:rgba(0,0,0,0);
-      transition:none;
-    `;
-    document.body.appendChild(dragOverlay);
+  function anyOverlayOpen() {
+    const menuOpen = document.getElementById('menu-panel')?.style.display === 'flex';
+    const modalOpen = document.getElementById('add-modal')?.style.display !== 'none';
+    const tgOpen = document.getElementById('tg-modal')?.style.display !== 'none';
+    // Check if any menu sub-page is open
+    const subPageOpen = !!document.querySelector('.menu-page.open');
+    return menuOpen || modalOpen || tgOpen || subPageOpen;
   }
-  function removeDragOverlay() {
+
+  function showOverlay(progress) {
+    if (!dragOverlay) {
+      dragOverlay = document.createElement('div');
+      dragOverlay.style.cssText =
+        'position:fixed;inset:0;z-index:8900;pointer-events:none;background:rgba(0,0,0,0);transition:none;';
+      document.body.appendChild(dragOverlay);
+    }
+    dragOverlay.style.background = `rgba(0,0,0,${0.12 * Math.min(progress, 1)})`;
+  }
+
+  function hideOverlay() {
     if (dragOverlay) { dragOverlay.remove(); dragOverlay = null; }
   }
 
   document.addEventListener('touchstart', e => {
-    if (!isMobileLayout()) return;
-    // Only start tracking if touch begins in the left edge zone
-    startX   = e.touches[0].clientX;
-    startY   = e.touches[0].clientY;
-    tracking = startX <= EDGE_ZONE;
+    tracking = false;
     axisLocked = false;
-    isHoriz    = false;
-    currentX   = startX;
+    isHoriz = false;
+    isBack = false;
+    isFwd = false;
 
-    // Don't interfere when modals/menu are open
-    const menuOpen   = document.getElementById('menu-panel')?.style.display === 'flex';
-    const modalOpen  = document.getElementById('add-modal')?.style.display  !== 'none';
-    const tgOpen     = document.getElementById('tg-modal')?.style.display   !== 'none';
-    if (menuOpen || modalOpen || tgOpen) { tracking = false; return; }
+    if (anyOverlayOpen()) return;
+    if (!isMobileLayout()) return;
 
-    // Need at least one page to go back to
-    if (navStack.length <= 1) { tracking = false; }
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    startTime = Date.now();
+
+    const currentTab = navStack[navStack.length - 1];
+    const tabIdx = TAB_ORDER.indexOf(currentTab);
+
+    // Back swipe: must start from left edge AND have a previous page
+    if (startX <= EDGE_ZONE && navStack.length > 1) {
+      tracking = true;
+      isBack = true;
+      return;
+    }
+
+    // Forward swipe: full-width, must have a next tab
+    if (tabIdx >= 0 && tabIdx < TAB_ORDER.length - 1) {
+      tracking = true;
+      isFwd = true;
+    }
   }, { passive: true });
 
   document.addEventListener('touchmove', e => {
     if (!tracking) return;
-    const x  = e.touches[0].clientX;
-    const y  = e.touches[0].clientY;
+
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
     const dx = x - startX;
     const dy = y - startY;
-    currentX = x;
 
+    // Axis lock: wait for at least 6px of movement before deciding
     if (!axisLocked) {
-      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; // not moved enough to decide
-      isHoriz    = Math.abs(dx) > Math.abs(dy);
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      isHoriz = Math.abs(dx) > Math.abs(dy) * 1.2;
       axisLocked = true;
-      if (!isHoriz) { tracking = false; return; } // vertical scroll — abort
+      if (!isHoriz) { tracking = false; return; } // vertical — abort
     }
 
     if (!isHoriz) return;
 
-    // Only allow rightward drag (positive dx = going back)
-    if (dx <= 0) { tracking = false; return; }
-
-    // Darken overlay proportionally
-    if (!dragOverlay) createDragOverlay();
-    const progress = Math.min(dx / (window.innerWidth * COMMIT_PCT), 1);
-    dragOverlay.style.background = `rgba(0,0,0,${0.15 * progress})`;
+    if (isBack && dx > 0) {
+      showOverlay(dx / (window.innerWidth * COMMIT_PCT));
+    } else if (isFwd && dx < 0) {
+      showOverlay(Math.abs(dx) / (window.innerWidth * COMMIT_PCT));
+    } else {
+      // Wrong direction for the gesture type — cancel
+      tracking = false;
+    }
   }, { passive: true });
 
   document.addEventListener('touchend', e => {
-    removeDragOverlay();
+    hideOverlay();
     if (!tracking || !isHoriz) { tracking = false; return; }
     tracking = false;
 
-    const dx = e.changedTouches[0].clientX - startX;
-    if (dx <= 0) return;
+    const endX = e.changedTouches[0].clientX;
+    const dx = endX - startX;
+    const elapsed = Math.max(1, Date.now() - startTime);
+    const velocity = Math.abs(dx) / elapsed; // px/ms
+    const distOk = Math.abs(dx) >= window.innerWidth * COMMIT_PCT;
+    const velOk  = velocity >= MIN_VEL && Math.abs(dx) > 40;
 
-    const committed = dx >= window.innerWidth * COMMIT_PCT;
-    if (committed) goBack();
+    if (isBack && dx > 0 && (distOk || velOk)) {
+      goBack();
+    } else if (isFwd && dx < 0 && (distOk || velOk)) {
+      const currentTab = navStack[navStack.length - 1];
+      const tabIdx = TAB_ORDER.indexOf(currentTab);
+      if (tabIdx >= 0 && tabIdx < TAB_ORDER.length - 1) {
+        const nextTab = TAB_ORDER[tabIdx + 1];
+        // For chart: only navigate forward if an asset is selected
+        if (nextTab === 'chart' && !selectedAsset) return;
+        mobileTab(nextTab);
+      }
+    }
   }, { passive: true });
 
   document.addEventListener('touchcancel', () => {
+    hideOverlay();
     tracking = false;
-    removeDragOverlay();
   }, { passive: true });
 })();
 
