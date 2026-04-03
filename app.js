@@ -1036,6 +1036,8 @@ function selectAsset(asset) {
   }
 
   selectedAsset = asset;
+  // Remember last viewed asset for next app open
+  try { localStorage.setItem('altradia_last_asset', asset.id); } catch(e) {}
 
   // Track click for dynamic Hotlist rankings (non-blocking)
   const cat = Object.entries(ASSETS).find(([, list]) => list.some(a => a.id === asset.id))?.[0]
@@ -1085,7 +1087,7 @@ function selectAsset(asset) {
 // ═══════════════════════════════════════════════
 // ── NAVIGATION HISTORY STACK ──────────────────────
 // Tracks panel history so back button/swipe works correctly
-const navStack = ['watchlist']; // start on watchlist
+const navStack = ['chart']; // start on chart
 
 // Returns true when the mobile bottom nav is active (regardless of device width)
 // This handles landscape phones, tablets, and any unusual viewport sizes correctly.
@@ -1094,7 +1096,6 @@ function isMobileLayout() {
 }
 
 function mobileTab(tab, pushState = true) {
-  setCurrentNavTab(tab); // track for swipe navigation
   if (!isMobileLayout()) return;
 
   // Close journal modal (LOG TRADE form), journal detail overlay, and
@@ -4424,96 +4425,6 @@ function playAlertSound(type = 'chime') {
 
 // ── Slide-out menu panel ─────────────────────────────────────────────────────
 
-// ═══════════════════════════════════════════════════════════════════════
-// iOS-STYLE SWIPE GESTURE SYSTEM
-// ═══════════════════════════════════════════════════════════════════════
-
-// Tab order for left/right nav swiping
-const NAV_TAB_ORDER = ['watchlist', 'chart', 'journal', 'alerts'];
-let _currentNavTab = 'watchlist';
-
-// Track current tab for swipe navigation
-function setCurrentNavTab(tab) { _currentNavTab = tab; }
-
-// ── Main content swipe handler (installed once on body) ──────────────────────
-(function installMainSwipeHandler() {
-  let _sx = 0, _sy = 0, _sTime = 0;
-  const SWIPE_MIN_X   = 70;   // minimum horizontal drag (px)
-  const SWIPE_MAX_RATIO = 0.6; // dy/dx must be < this (not too vertical)
-  const SWIPE_MAX_MS  = 350;  // must complete within this time
-
-  document.addEventListener('touchstart', (e) => {
-    // Ignore if menu or sub-page is open
-    const panel = document.getElementById('menu-panel');
-    if (panel && panel.style.transform === 'translateX(0)') return;
-    const anyPage = document.querySelector('.menu-page.open');
-    if (anyPage) return;
-
-    _sx = e.touches[0].clientX;
-    _sy = e.touches[0].clientY;
-    _sTime = Date.now();
-  }, { passive: true });
-
-  document.addEventListener('touchend', (e) => {
-    const panel = document.getElementById('menu-panel');
-    if (panel && panel.style.transform === 'translateX(0)') return;
-    const anyPage = document.querySelector('.menu-page.open');
-    if (anyPage) return;
-
-    const dx = e.changedTouches[0].clientX - _sx;
-    const dy = Math.abs(e.changedTouches[0].clientY - _sy);
-    const dt = Date.now() - _sTime;
-
-    if (Math.abs(dx) < SWIPE_MIN_X) return;   // not far enough
-    if (dy / Math.abs(dx) > SWIPE_MAX_RATIO) return; // too vertical
-    if (dt > SWIPE_MAX_MS) return;             // too slow
-
-    const idx = NAV_TAB_ORDER.indexOf(_currentNavTab);
-    if (dx < 0) {
-      // Swipe LEFT → go to next tab
-      if (idx < NAV_TAB_ORDER.length - 1) mobileTab(NAV_TAB_ORDER[idx + 1]);
-    } else {
-      // Swipe RIGHT → go to previous tab
-      if (idx > 0) mobileTab(NAV_TAB_ORDER[idx - 1]);
-    }
-  }, { passive: true });
-})();
-
-// ── Menu panel + sub-page swipe-back ─────────────────────────────────────────
-function attachSwipeBack(el, onBack, edgeOnly = false) {
-  if (el._swipeStartHandler) {
-    el.removeEventListener('touchstart', el._swipeStartHandler);
-    el.removeEventListener('touchend',   el._swipeEndHandler);
-  }
-
-  let _sx = 0, _sy = 0, _sTime = 0;
-
-  el._swipeStartHandler = (e) => {
-    _sx = e.touches[0].clientX;
-    _sy = e.touches[0].clientY;
-    _sTime = Date.now();
-  };
-
-  el._swipeEndHandler = (e) => {
-    const dx = e.changedTouches[0].clientX - _sx;
-    const dy = Math.abs(e.changedTouches[0].clientY - _sy);
-    const dt = Date.now() - _sTime;
-
-    // Must be right-swipe, sufficiently horizontal, fast enough
-    if (dx < 60) return;
-    if (dy / dx > 0.7) return;
-    if (dt > 400) return;
-
-    // Edge-only mode: only trigger if swipe starts within 28px of left edge
-    if (edgeOnly && _sx > 28) return;
-
-    onBack();
-  };
-
-  el.addEventListener('touchstart', el._swipeStartHandler, { passive: true });
-  el.addEventListener('touchend',   el._swipeEndHandler,   { passive: true });
-}
-
 function openMenuPanel() {
   const panel   = document.getElementById('menu-panel');
   const overlay = document.getElementById('menu-overlay');
@@ -4556,8 +4467,6 @@ function openMenuPanel() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       panel.style.transform = 'translateX(0)';
-      // Edge-swipe from left edge closes main menu panel
-      attachSwipeBack(panel, closeMenuPanel, true);
     });
   });
   updateMenuToggles();
@@ -4619,8 +4528,6 @@ function openMenuPage(name) {
   page.style.display = 'flex';
   requestAnimationFrame(() => requestAnimationFrame(() => {
     page.classList.add('open');
-    // Any right-swipe on a sub-page goes back (no edge restriction)
-    attachSwipeBack(page, () => closeMenuPage(name), false);
   }));
 }
 
@@ -4779,7 +4686,7 @@ function toggleTelegram() {
   updateTgModalState();
   updateTgBtn();
   if (telegramEnabled) {
-    sendTelegram('🔔 <b>TradeWatch Connected!</b>\n\nYour alerts are live. You\'ll get notified here the moment a price target is hit.\n\n<i>Stay sharp. </i>');
+    sendTelegram('🔔 <b>altradia Connected!</b>\n\nYour alerts are live. You\'ll get notified here the moment a price target is hit.\n\n<i>Stay sharp. </i>');
   }
 }
 
@@ -5213,7 +5120,7 @@ async function init() {
   initTheme();
 
   // Push initial history state so Android back button is interceptable from the start
-  window.history.replaceState({ twTab: 'watchlist' }, '', '');
+  window.history.replaceState({ twTab: 'chart' }, '', '');
 
   // Render hot list immediately with seed data so users see something right away
   // (will be updated with DB rankings after login)
@@ -5308,6 +5215,12 @@ async function init() {
   renderAlerts();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
+  // Restore last viewed asset, or default to EUR/USD for new users
+  const _lastAssetId = localStorage.getItem('altradia_last_asset') || 'EUR/USD';
+  const _defaultAsset = ALL_ASSETS.find(a => a.id === _lastAssetId)
+                     || ALL_ASSETS.find(a => a.id === 'EUR/USD');
+  if (_defaultAsset) selectAsset(_defaultAsset);
+
   // Connect Deriv WebSocket — connects and subscribes to all watchlist + hot list assets
   connectDeriv();
   setTimeout(resubscribeAllDeriv, 3000);
@@ -5352,40 +5265,25 @@ async function init() {
   refreshSelectedAssetPanel();
   renderAlerts();
 
+  // Navigate to chart as the default landing page
+  mobileTab('chart', false);
+
 }
 
 function setStatusPill(isLive) {
-  const pill = document.getElementById('status-pill');
-  if (isLive) {
-    pill.textContent = '● LIVE';
-    pill.style.borderColor = 'var(--green)';
-    pill.style.color = 'var(--green)';
-  } else {
-    pill.textContent = '◈ OFFLINE';
-    pill.style.borderColor = 'var(--red)';
-    pill.style.color = 'var(--red)';
-    pill.title = 'Live price APIs unreachable. Check your connection.';
-  }
+  // Status pill removed from UI — function kept as no-op to avoid errors
 }
 
 window.addEventListener('resize', () => {
-  if (selectedAsset && !isMobileLayout()) loadTVChart(selectedAsset);
-  if (isMobileLayout()) {
-    // Keyboard open/close on mobile fires resize — do NOT call mobileTab here
-    // as it triggers loadTVChart and resets scroll position mid-input.
-    // Only re-fit the chart canvas size if chart is already visible.
-    if (lwChart) {
-      try { lwChart.resize(
+  // Mobile-only: re-fit chart canvas when keyboard opens/closes
+  // (do NOT call mobileTab here — it resets scroll position mid-input)
+  if (lwChart) {
+    try {
+      lwChart.resize(
         document.getElementById('lw-chart').clientWidth,
         document.getElementById('lw-chart').clientHeight
-      ); } catch(e) {}
-    }
-  } else {
-    // Desktop — ensure all panels visible
-    ['panel-watchlist','panel-main','panel-alerts'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.classList.remove('mobile-active');
-    });
+      );
+    } catch(e) {}
   }
 });
 
