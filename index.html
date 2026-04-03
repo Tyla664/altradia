@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>TradeWatch — Personal Alert Dashboard</title>
+<title>altradia — Personal Alert Dashboard</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -13,23 +13,8 @@
 
 <header>
   <div class="logo">
-    <svg class="logo-mark" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <!-- Candlestick wicks -->
-      <line x1="6" y1="4" x2="6" y2="24" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
-      <line x1="14" y1="3" x2="14" y2="25" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
-      <line x1="22" y1="5" x2="22" y2="23" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
-      <!-- Candlestick bodies -->
-      <rect x="3" y="8" width="6" height="10" rx="1.5" fill="#00e676"/>
-      <rect x="11" y="6" width="6" height="8" rx="1.5" fill="#ff3d5a"/>
-      <rect x="19" y="10" width="6" height="9" rx="1.5" fill="#00e676"/>
-      <!-- Accent pulse dot -->
-      <circle cx="24" cy="7" r="2.5" fill="#00d4ff">
-        <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
-        <animate attributeName="r" values="2.5;3.2;2.5" dur="2s" repeatCount="indefinite"/>
-      </circle>
-    </svg>
     <div class="logo-wordmark">
-      <span class="logo-trade">TRADE</span><span class="logo-watch">WATCH</span>
+      <span class="logo-alt">alt</span><span class="logo-radia">r<span class="logo-radia-i">a<span class="logo-dot-i"></span>d</span>ia</span>
     </div>
   </div>
   <div class="header-right settings-row">
@@ -870,7 +855,7 @@
         <span id="menu-avatar-letter">T</span>
       </div>
       <div class="menu-profile-info">
-        <div class="menu-profile-name" id="menu-profile-name">TradeWatch User</div>
+        <div class="menu-profile-name" id="menu-profile-name">altradia User</div>
         <div class="menu-profile-plan" id="menu-profile-plan">
           <span class="menu-plan-badge">FREE</span>
         </div>
@@ -948,7 +933,7 @@
           </svg>
         </span>
         <div class="menu-item-text">
-          <span class="menu-item-label">About TradeWatch</span>
+          <span class="menu-item-label">About altradia</span>
           <span class="menu-item-sub">App info &amp; version</span>
         </div>
         <svg class="menu-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -995,7 +980,7 @@
 
 <!-- ── Menu Sub-Pages (full-screen overlays) ─────────────────────────────── -->
 
-<!-- About TradeWatch -->
+<!-- About altradia -->
 <div id="menu-page-about" class="menu-page">
   <div class="menu-page-header">
     <button class="menu-page-back" onclick="closeMenuPage('about')">
@@ -1003,26 +988,19 @@
         <path d="M11 4l-6 5 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
-    <span class="menu-page-title">About TradeWatch</span>
+    <span class="menu-page-title">About altradia</span>
   </div>
   <div class="menu-page-body">
     <div class="menu-page-section">
       <div class="menu-page-logo-row">
-        <svg width="36" height="36" viewBox="0 0 28 28" fill="none">
-          <line x1="6" y1="4" x2="6" y2="24" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="14" y1="3" x2="14" y2="25" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="22" y1="5" x2="22" y2="23" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
-          <rect x="3" y="8" width="6" height="10" rx="1.5" fill="#00e676"/>
-          <rect x="11" y="6" width="6" height="8" rx="1.5" fill="#ff3d5a"/>
-          <rect x="19" y="10" width="6" height="9" rx="1.5" fill="#00e676"/>
-          <circle cx="24" cy="7" r="2.5" fill="#00d4ff"/>
-        </svg>
+        <div class="altradia-logo-large">
+          <span class="logo-alt">alt</span><span class="logo-radia">r<span class="logo-radia-i">a<span class="logo-dot-i"></span>d</span>ia</span>
+        </div>
         <div>
-          <div style="font-weight:800;font-size:1.1rem;letter-spacing:0.04em"><span style="color:var(--text)">TRADE</span><span style="color:var(--accent)">WATCH</span></div>
           <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted);letter-spacing:0.1em">VERSION 1.0.0</div>
         </div>
       </div>
-      <p class="menu-page-desc">TradeWatch is a real-time price alert and trade journaling app built for active traders. Set precision alerts on any asset, track your trade setups, and receive instant Telegram notifications — even when the app is closed.</p>
+      <p class="menu-page-desc">altradia is a real-time price alert and trade journaling app built for active traders. Set precision alerts on any asset, track your trade setups, and receive instant Telegram notifications — even when the app is closed.</p>
     </div>
     <div class="menu-page-section">
       <div class="menu-page-section-title">FEATURES</div>
@@ -1038,7 +1016,7 @@
     </div>
     <div class="menu-page-section">
       <div class="menu-page-section-title">BUILT FOR TRADERS</div>
-      <p class="menu-page-desc">Whether you trade forex, crypto, indices or stocks — TradeWatch keeps you in the loop on every price move that matters to your setup. No noise, just precision alerts when it counts.</p>
+      <p class="menu-page-desc">Whether you trade forex, crypto, indices or stocks — altradia keeps you in the loop on every price move that matters to your setup. No noise, just precision alerts when it counts.</p>
     </div>
   </div>
 </div>
@@ -1108,13 +1086,13 @@
   </div>
   <div class="menu-page-body">
     <div class="menu-page-section">
-      <p class="menu-page-desc">Earn commissions by referring traders to TradeWatch. Partner with brokers and prop firms to grow your income while helping other traders access professional-grade tools.</p>
+      <p class="menu-page-desc">Earn commissions by referring traders to altradia. Partner with brokers and prop firms to grow your income while helping other traders access professional-grade tools.</p>
     </div>
     <div class="menu-page-section">
       <div class="menu-page-section-title">HOW IT WORKS</div>
       <div class="menu-page-feature-list">
         <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="var(--accent)" stroke-width="1.5"/><text x="7" y="10.5" text-anchor="middle" font-size="7" fill="var(--accent)" font-family="monospace" font-weight="bold">1</text></svg> Share your unique referral link with fellow traders</div>
-        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="var(--accent)" stroke-width="1.5"/><text x="7" y="10.5" text-anchor="middle" font-size="7" fill="var(--accent)" font-family="monospace" font-weight="bold">2</text></svg> They sign up and subscribe to TradeWatch</div>
+        <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="var(--accent)" stroke-width="1.5"/><text x="7" y="10.5" text-anchor="middle" font-size="7" fill="var(--accent)" font-family="monospace" font-weight="bold">2</text></svg> They sign up and subscribe to altradia</div>
         <div class="menu-page-feature"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="var(--accent)" stroke-width="1.5"/><text x="7" y="10.5" text-anchor="middle" font-size="7" fill="var(--accent)" font-family="monospace" font-weight="bold">3</text></svg> You earn a recurring commission every month</div>
       </div>
     </div>
@@ -1157,8 +1135,8 @@
       <div class="faq-a">For a breakout-retest setup, price must first break through the entry level (phase 1), then come back to retest it (phase 2 — entry fires). This prevents false triggers when price is already past entry when you set the alert.</div>
     </div>
     <div class="faq-item">
-      <div class="faq-q">Can I use TradeWatch without the app open?</div>
-      <div class="faq-a">Yes. TradeWatch monitors your alerts in the background every minute, checking all price levels and sending Telegram notifications even when the app is completely closed.</div>
+      <div class="faq-q">Can I use altradia without the app open?</div>
+      <div class="faq-a">Yes. altradia monitors your alerts in the background every minute, checking all price levels and sending Telegram notifications even when the app is completely closed.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q">How do I log a trade?</div>
@@ -1183,7 +1161,7 @@
   </div>
   <div class="menu-page-body">
     <div class="menu-page-section">
-      <p class="menu-page-desc">Connect your trading account to TradeWatch and let the app automatically monitor your open trades, update your journal, and fire alerts based on real positions — no manual entry needed.</p>
+      <p class="menu-page-desc">Connect your trading account to altradia and let the app automatically monitor your open trades, update your journal, and fire alerts based on real positions — no manual entry needed.</p>
     </div>
     <div class="menu-page-section">
       <div class="menu-page-section-title">SUPPORTED PLATFORMS</div>
