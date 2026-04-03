@@ -13,21 +13,29 @@
 
 <header>
   <div class="logo">
-    <div class="logo-wordmark">
-      <span class="logo-alt">alt</span><span class="logo-radia">r<span class="logo-radia-i">a<span class="logo-dot-i"></span>d</span>ia</span>
-    </div>
+    <svg class="altradia-logo" viewBox="0 0 200 44" xmlns="http://www.w3.org/2000/svg" height="32" aria-label="altradia">
+      <defs>
+        <linearGradient id="radia-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#2d8a3e"/>
+          <stop offset="100%" stop-color="#115c28"/>
+        </linearGradient>
+      </defs>
+      <text y="36" font-family="'Syne','Arial',sans-serif" font-weight="800" font-size="40">
+        <tspan fill="#025a91">alt</tspan><tspan fill="url(#radia-grad)">radia</tspan>
+      </text>
+    </svg>
   </div>
-  <div class="header-right settings-row">
+  <!-- Status pill centered separately, button pinned right -->
+  <div class="status-pill-wrapper">
     <div class="status-pill" id="status-pill">◌ CONNECTING</div>
-    <!-- Hamburger menu button — always pinned to right edge -->
-    <button class="icon-btn menu-hamburger-btn" id="menu-btn" title="Menu" onclick="openMenuPanel()">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        <line x1="2" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
-    </button>
   </div>
+  <button class="icon-btn menu-btn-fixed" id="menu-btn" title="Menu" onclick="openMenuPanel()">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <line x1="2" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+  </button>
 </header>
 
 <!-- Telegram Setup Modal -->
@@ -829,19 +837,9 @@
       </svg>
     </button>
     <button class="menu-settings-btn" onclick="openMenuPage('settings')" title="Settings">
-      <!-- Multi-gear SVG matching the reference image -->
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <!-- Large gear (bottom-left) -->
-        <path d="M9.5 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" stroke="currentColor" stroke-width="1.4"/>
-        <path d="M6.5 7v1.2M6.5 15.8V17M2.6 9.2l1 .6M9.9 14.2l1 .6M2.6 14.8l1-.6M9.9 9.8l1-.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-        <!-- Small gear (top-right) -->
-        <path d="M20.5 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" stroke="currentColor" stroke-width="1.3"/>
-        <path d="M18.5 2.5V4M18.5 8v1.5M15.7 3.7l1 1M21.3 8.3l1 1M14.8 6h1.5M21 6h1.5M15.7 8.3l1-1M21.3 3.7l1-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-        <!-- Tiny gear (bottom-right) -->
-        <path d="M21 18a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z" stroke="currentColor" stroke-width="1.2"/>
-        <path d="M19.5 15.5V17M19.5 19v1.5M17.4 16.4l.8.8M21.3 19.8l.8.8M16.5 18h1.5M21 18h1.5M17.4 19.6l.8-.8M21.3 16.2l.8-.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-        <!-- Connection line between gears -->
-        <line x1="10" y1="10" x2="15" y2="7" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5" opacity="0.4"/>
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.1 4.1l1.4 1.4M14.5 14.5l1.4 1.4M4.1 15.9l1.4-1.4M14.5 5.5l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
@@ -993,10 +991,17 @@
   <div class="menu-page-body">
     <div class="menu-page-section">
       <div class="menu-page-logo-row">
-        <div class="altradia-logo-large">
-          <span class="logo-alt">alt</span><span class="logo-radia">r<span class="logo-radia-i">a<span class="logo-dot-i"></span>d</span>ia</span>
-        </div>
+        <svg width="36" height="36" viewBox="0 0 28 28" fill="none">
+          <line x1="6" y1="4" x2="6" y2="24" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="14" y1="3" x2="14" y2="25" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="22" y1="5" x2="22" y2="23" stroke="#1a2d45" stroke-width="1.5" stroke-linecap="round"/>
+          <rect x="3" y="8" width="6" height="10" rx="1.5" fill="#00e676"/>
+          <rect x="11" y="6" width="6" height="8" rx="1.5" fill="#ff3d5a"/>
+          <rect x="19" y="10" width="6" height="9" rx="1.5" fill="#00e676"/>
+          <circle cx="24" cy="7" r="2.5" fill="#00d4ff"/>
+        </svg>
         <div>
+          <div style="font-weight:800;font-size:1.1rem;letter-spacing:0.04em"><span style="color:var(--text)">TRADE</span><span style="color:var(--accent)">WATCH</span></div>
           <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted);letter-spacing:0.1em">VERSION 1.0.0</div>
         </div>
       </div>
