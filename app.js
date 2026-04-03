@@ -491,7 +491,7 @@ const TELEGRAM_WORKER_URL = 'https://telegram-worker.meet-tyla.workers.dev';
 let telegramEnabled  = false;
 let telegramChatId   = localStorage.getItem('tg_chat_id') || '';
 let telegramUserName  = '';
-let telegramUserPhoto = ''; // Telegram profile picture URL
+let telegramUserPhoto = ''; // Telegram profile picture URL (from WebApp SDK)
 
 // Asset library reference
 const ASSET_LIBRARY = ALL_ASSETS;
@@ -1094,6 +1094,7 @@ function isMobileLayout() {
 }
 
 function mobileTab(tab, pushState = true) {
+  setCurrentNavTab(tab); // track for swipe navigation
   if (!isMobileLayout()) return;
 
   // Close journal modal (LOG TRADE form), journal detail overlay, and
@@ -2398,7 +2399,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
         alert.timeframe ? tgRow('Timeframe', `<b>${alert.timeframe}</b>`) : null,
         ``,
         `<i>Get ready — your trade may activate soon.</i>`,
-        `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
+        `<a href="https://t.me/tradewatchalert_bot/assistant">Open altradia →</a>`,
       ].filter(Boolean).join('\n'));
     }
   }
@@ -2422,7 +2423,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
         tgRow('Direction',     `<b>${isLong ? 'LONG' : 'SHORT'}</b>`),
         ``,
         `<i>Consider protecting your position.</i>`,
-        `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
+        `<a href="https://t.me/tradewatchalert_bot/assistant">Open altradia →</a>`,
       ].filter(Boolean).join('\n'));
     }
   }
@@ -2444,7 +2445,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
         tgRow('Current price', `<b>${formatPrice(currentPrice, alert.assetId)}</b>`),
         ``,
         `<i>Consider securing partial profits at TP1.</i>`,
-        `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
+        `<a href="https://t.me/tradewatchalert_bot/assistant">Open altradia →</a>`,
       ].filter(Boolean).join('\n'));
     }
   }
@@ -2466,7 +2467,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
         tgRow('Current price', `<b>${formatPrice(currentPrice, alert.assetId)}</b>`),
         ``,
         `<i>Decide whether to secure profits at TP2 or let it run.</i>`,
-        `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
+        `<a href="https://t.me/tradewatchalert_bot/assistant">Open altradia →</a>`,
       ].filter(Boolean).join('\n'));
     }
   }
@@ -3465,7 +3466,7 @@ function tgSetupCreatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, time
     ``,
     `<i>🖥 Open your trading platform and place your orders.</i>`,
     ``,
-    `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
+    `<a href="https://t.me/tradewatchalert_bot/assistant">Open altradia →</a>`,
   ].join('\n');
 }
 
@@ -3492,7 +3493,7 @@ function tgSetupUpdatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, time
     ``,
     ...rows,
     ``,
-    `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
+    `<a href="https://t.me/tradewatchalert_bot/assistant">Open altradia →</a>`,
   ].join('\n');
 }
 
@@ -3541,7 +3542,7 @@ function tgSetupLevelMessage(symbol, level, price, assetId, journal) {
   ].filter(Boolean);
   return [
     t.header, ``, t.body, ``, ...rows, ``, `<i>${t.action}</i>`, ``,
-    `<a href="https://t.me/tradewatchalert_bot/assistant">Open TradeWatch →</a>`,
+    `<a href="https://t.me/tradewatchalert_bot/assistant">Open altradia →</a>`,
   ].join('\n');
 }
 // ═══════════════════════════════════════════════
@@ -4423,39 +4424,94 @@ function playAlertSound(type = 'chime') {
 
 // ── Slide-out menu panel ─────────────────────────────────────────────────────
 
-// ── Swipe-back gesture (iPhone-style) ────────────────────────────────────────
-// Attaches a one-time right-swipe listener to an element.
-// panelMode=true: only fires if touch starts within leftEdge px of screen edge
-// Sub-pages: fires on any right-swipe across the page
-function attachSwipeBack(el, onBack, panelMode = false) {
-  // Remove any existing listener first to avoid stacking
-  if (el._swipeHandler) {
-    el.removeEventListener('touchstart', el._swipeHandler, { passive: true });
+// ═══════════════════════════════════════════════════════════════════════
+// iOS-STYLE SWIPE GESTURE SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+
+// Tab order for left/right nav swiping
+const NAV_TAB_ORDER = ['watchlist', 'chart', 'journal', 'alerts'];
+let _currentNavTab = 'watchlist';
+
+// Track current tab for swipe navigation
+function setCurrentNavTab(tab) { _currentNavTab = tab; }
+
+// ── Main content swipe handler (installed once on body) ──────────────────────
+(function installMainSwipeHandler() {
+  let _sx = 0, _sy = 0, _sTime = 0;
+  const SWIPE_MIN_X   = 70;   // minimum horizontal drag (px)
+  const SWIPE_MAX_RATIO = 0.6; // dy/dx must be < this (not too vertical)
+  const SWIPE_MAX_MS  = 350;  // must complete within this time
+
+  document.addEventListener('touchstart', (e) => {
+    // Ignore if menu or sub-page is open
+    const panel = document.getElementById('menu-panel');
+    if (panel && panel.style.transform === 'translateX(0)') return;
+    const anyPage = document.querySelector('.menu-page.open');
+    if (anyPage) return;
+
+    _sx = e.touches[0].clientX;
+    _sy = e.touches[0].clientY;
+    _sTime = Date.now();
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    const panel = document.getElementById('menu-panel');
+    if (panel && panel.style.transform === 'translateX(0)') return;
+    const anyPage = document.querySelector('.menu-page.open');
+    if (anyPage) return;
+
+    const dx = e.changedTouches[0].clientX - _sx;
+    const dy = Math.abs(e.changedTouches[0].clientY - _sy);
+    const dt = Date.now() - _sTime;
+
+    if (Math.abs(dx) < SWIPE_MIN_X) return;   // not far enough
+    if (dy / Math.abs(dx) > SWIPE_MAX_RATIO) return; // too vertical
+    if (dt > SWIPE_MAX_MS) return;             // too slow
+
+    const idx = NAV_TAB_ORDER.indexOf(_currentNavTab);
+    if (dx < 0) {
+      // Swipe LEFT → go to next tab
+      if (idx < NAV_TAB_ORDER.length - 1) mobileTab(NAV_TAB_ORDER[idx + 1]);
+    } else {
+      // Swipe RIGHT → go to previous tab
+      if (idx > 0) mobileTab(NAV_TAB_ORDER[idx - 1]);
+    }
+  }, { passive: true });
+})();
+
+// ── Menu panel + sub-page swipe-back ─────────────────────────────────────────
+function attachSwipeBack(el, onBack, edgeOnly = false) {
+  if (el._swipeStartHandler) {
+    el.removeEventListener('touchstart', el._swipeStartHandler);
     el.removeEventListener('touchend',   el._swipeEndHandler);
   }
 
-  let startX = 0, startY = 0;
+  let _sx = 0, _sy = 0, _sTime = 0;
 
-  el._swipeHandler = (e) => {
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
+  el._swipeStartHandler = (e) => {
+    _sx = e.touches[0].clientX;
+    _sy = e.touches[0].clientY;
+    _sTime = Date.now();
   };
 
   el._swipeEndHandler = (e) => {
-    const dx = e.changedTouches[0].clientX - startX;
-    const dy = Math.abs(e.changedTouches[0].clientY - startY);
+    const dx = e.changedTouches[0].clientX - _sx;
+    const dy = Math.abs(e.changedTouches[0].clientY - _sy);
+    const dt = Date.now() - _sTime;
 
-    // Must be a horizontal swipe (dx > dy), moving right (dx > 0)
-    if (dx < 60 || dy > dx * 0.8) return;
+    // Must be right-swipe, sufficiently horizontal, fast enough
+    if (dx < 60) return;
+    if (dy / dx > 0.7) return;
+    if (dt > 400) return;
 
-    // Panel mode: only from left edge of screen (within 30px)
-    if (panelMode && startX > 30) return;
+    // Edge-only mode: only trigger if swipe starts within 28px of left edge
+    if (edgeOnly && _sx > 28) return;
 
     onBack();
   };
 
-  el.addEventListener('touchstart', el._swipeHandler, { passive: true });
-  el.addEventListener('touchend',   el._swipeEndHandler, { passive: true });
+  el.addEventListener('touchstart', el._swipeStartHandler, { passive: true });
+  el.addEventListener('touchend',   el._swipeEndHandler,   { passive: true });
 }
 
 function openMenuPanel() {
@@ -4463,58 +4519,45 @@ function openMenuPanel() {
   const overlay = document.getElementById('menu-overlay');
   if (!panel || !overlay) return;
 
-  // ── Populate profile card ──────────────────────────────────────────────
-  const displayName = telegramUserName
-    || localStorage.getItem('tg_user_name')
-    || 'altradia User';
+  // Populate profile card with Telegram user info
+  const nameEl    = document.getElementById('menu-profile-name');
+  const avatarEl  = document.getElementById('menu-avatar-initials');
+  const planEl    = document.getElementById('menu-profile-plan');
+  if (nameEl) {
+    const displayName = telegramUserName || 'altradia User';
+    nameEl.textContent = displayName;
 
-  const nameEl   = document.getElementById('menu-profile-name');
-  const photoEl  = document.getElementById('menu-avatar-photo');
-  const letterEl = document.getElementById('menu-avatar-letter');
-  const planEl   = document.getElementById('menu-profile-plan');
+    if (avatarEl) {
+      const photoEl  = document.getElementById('menu-avatar-photo');
+      const letterEl = document.getElementById('menu-avatar-letter');
+      const photoUrl = (typeof telegramUserPhoto !== 'undefined' && telegramUserPhoto)
+        || localStorage.getItem('tg_photo_url') || '';
 
-  if (nameEl) nameEl.textContent = displayName;
-
-  // Avatar: try photo URL first, fall back to colored initial letter
-  // tgUser.photo_url is often a bot-hosted URL that may be restricted —
-  // we attempt to load it and silently fall back on any error.
-  const initial  = (displayName[0] || 'A').toUpperCase();
-  const photoUrl = telegramUserPhoto || localStorage.getItem('tg_photo_url') || '';
-
-  function showInitial() {
-    if (photoEl)  { photoEl.src = ''; photoEl.style.display = 'none'; }
-    if (letterEl) { letterEl.textContent = initial; letterEl.style.display = ''; }
-  }
-
-  function showPhoto(url) {
-    if (!photoEl) { showInitial(); return; }
-    photoEl.onload  = () => {
-      photoEl.style.display = 'block';
-      if (letterEl) letterEl.style.display = 'none';
-    };
-    photoEl.onerror = () => showInitial();
-    photoEl.src = url;
-    // If already cached (complete), fire manually
-    if (photoEl.complete && photoEl.naturalWidth > 0) {
-      photoEl.style.display = 'block';
-      if (letterEl) letterEl.style.display = 'none';
+      if (photoUrl && photoEl) {
+        photoEl.src           = photoUrl;
+        photoEl.style.display = 'block';
+        if (letterEl) letterEl.style.display = 'none';
+        photoEl.onerror = () => {
+          photoEl.style.display = 'none';
+          if (letterEl) { letterEl.textContent = (displayName[0]||'A').toUpperCase(); letterEl.style.display = ''; }
+        };
+      } else {
+        if (photoEl) photoEl.style.display = 'none';
+        if (letterEl) { letterEl.textContent = (displayName[0]||'A').toUpperCase(); letterEl.style.display = ''; }
+        if (!letterEl) avatarEl.textContent = (displayName[0]||'A').toUpperCase();
+      }
     }
   }
-
-  if (photoUrl) {
-    showPhoto(photoUrl);
-  } else {
-    showInitial();
-  }
-
+  // Plan badge — placeholder FREE until billing is live
   if (planEl) planEl.innerHTML = '<span class="menu-plan-badge">FREE</span>';
 
-  // ── Show panel ─────────────────────────────────────────────────────────
   panel.style.display   = 'flex';
   overlay.style.display = 'block';
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       panel.style.transform = 'translateX(0)';
+      // Edge-swipe from left edge closes main menu panel
+      attachSwipeBack(panel, closeMenuPanel, true);
     });
   });
   updateMenuToggles();
@@ -4576,7 +4619,8 @@ function openMenuPage(name) {
   page.style.display = 'flex';
   requestAnimationFrame(() => requestAnimationFrame(() => {
     page.classList.add('open');
-    attachSwipeBack(page, () => closeMenuPage(name));
+    // Any right-swipe on a sub-page goes back (no edge restriction)
+    attachSwipeBack(page, () => closeMenuPage(name), false);
   }));
 }
 
@@ -4660,14 +4704,14 @@ function sendBrowserNotification() {}
     if (tgUser?.id) {
       telegramChatId    = String(tgUser.id);
       telegramUserName  = tgUser.first_name || tgUser.username || 'there';
-      telegramUserPhoto = tgUser.photo_url || '';
-      localStorage.setItem('tg_chat_id',    telegramChatId);
-      localStorage.setItem('tg_user_name',  telegramUserName);
-      localStorage.setItem('tg_photo_url',  telegramUserPhoto);
+      telegramUserPhoto = tgUser.photo_url  || '';
+      localStorage.setItem('tg_chat_id',   telegramChatId);
+      localStorage.setItem('tg_user_name', telegramUserName);
+      localStorage.setItem('tg_photo_url', telegramUserPhoto);
       telegramEnabled = true;
       localStorage.setItem('tg_enabled', 'true');
     } else {
-      // Restore from localStorage on reload
+      // Restore from localStorage on reload (when not inside Telegram)
       telegramUserName  = localStorage.getItem('tg_user_name')  || '';
       telegramUserPhoto = localStorage.getItem('tg_photo_url')  || '';
     }
@@ -4735,7 +4779,7 @@ function toggleTelegram() {
   updateTgModalState();
   updateTgBtn();
   if (telegramEnabled) {
-    sendTelegram('🔔 <b>altradia Connected!</b>\n\nYour alerts are live. You\'ll get notified here the moment a price target is hit.\n\n<i>Stay sharp. </i>');
+    sendTelegram('🔔 <b>TradeWatch Connected!</b>\n\nYour alerts are live. You\'ll get notified here the moment a price target is hit.\n\n<i>Stay sharp. </i>');
   }
 }
 
@@ -4829,7 +4873,7 @@ function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, asse
   }
 
   if (note) rows.push(tgRow('Note', `<i>${note}</i>`));
-  return [header, ``, subtitle, ``, ...rows, ``, `<a href="https://t.me/tradewatchalert_bot/assistant">Dismiss in TradeWatch →</a>`].join('\n');
+  return [header, ``, subtitle, ``, ...rows, ``, `<a href="https://t.me/tradewatchalert_bot/assistant">Dismiss in altradia →</a>`].join('\n');
 }
 
 function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance) {
@@ -5732,141 +5776,101 @@ function showTgToast(msg) {
   }, 4000);
 }
 
-// ── SWIPE GESTURES — iOS-style ────────────────────────────────────────────
-// BACK SWIPE  : Must start within EDGE_ZONE px of left edge → navigates back
-// FORWARD SWIPE: Full-width left swipe → navigates forward through tabs
-// Both require at least COMMIT_PCT of screen width travel to commit.
-// Axis-locks after 6px movement to never conflict with vertical scroll.
-// Blocked when any modal, menu, or menu sub-page is open.
-(function () {
-  const EDGE_ZONE  = 22;   // px from left edge required to start a back swipe
-  const COMMIT_PCT = 0.38; // fraction of screen width to commit navigation
-  const MIN_VEL    = 0.3;  // px/ms — fast flick also commits even if under distance
+// ── SWIPE GESTURES — iOS-style edge-only back swipe ──────────────────────
+// Works like iPhone: swipe must START within 20px of the left edge,
+// tracks the finger in real time, and only commits on release if distance
+// exceeds the threshold. No false triggers from chart pan or scroll.
+(function() {
+  const EDGE_ZONE   = 20;   // px from left edge to start a back swipe
+  const COMMIT_PCT  = 0.35; // % of screen width needed to commit
+  const CANCEL_VELO = 0.3;  // if released quickly leftward, cancel
 
-  // Tab order for forward/back navigation
-  const TAB_ORDER = ['watchlist', 'chart', 'journal', 'alerts'];
+  let tracking   = false;
+  let startX     = 0;
+  let startY     = 0;
+  let currentX   = 0;
+  let axisLocked = false; // true once we know it's horizontal
+  let isHoriz    = false;
 
-  let tracking  = false;   // are we tracking this touch?
-  let isBack    = false;   // back swipe (rightward from left edge)
-  let isFwd     = false;   // forward swipe (leftward, full width)
-  let axisLocked = false;
-  let isHoriz   = false;
-  let startX    = 0;
-  let startY    = 0;
-  let startTime = 0;
+  // Visual drag overlay so user sees the panel following their finger
   let dragOverlay = null;
 
-  function anyOverlayOpen() {
-    const menuOpen = document.getElementById('menu-panel')?.style.display === 'flex';
-    const modalOpen = document.getElementById('add-modal')?.style.display !== 'none';
-    const tgOpen = document.getElementById('tg-modal')?.style.display !== 'none';
-    // Check if any menu sub-page is open
-    const subPageOpen = !!document.querySelector('.menu-page.open');
-    return menuOpen || modalOpen || tgOpen || subPageOpen;
+  function createDragOverlay() {
+    if (dragOverlay) return;
+    dragOverlay = document.createElement('div');
+    dragOverlay.style.cssText = `
+      position:fixed;inset:0;z-index:8999;
+      pointer-events:none;
+      background:rgba(0,0,0,0);
+      transition:none;
+    `;
+    document.body.appendChild(dragOverlay);
   }
-
-  function showOverlay(progress) {
-    if (!dragOverlay) {
-      dragOverlay = document.createElement('div');
-      dragOverlay.style.cssText =
-        'position:fixed;inset:0;z-index:8900;pointer-events:none;background:rgba(0,0,0,0);transition:none;';
-      document.body.appendChild(dragOverlay);
-    }
-    dragOverlay.style.background = `rgba(0,0,0,${0.12 * Math.min(progress, 1)})`;
-  }
-
-  function hideOverlay() {
+  function removeDragOverlay() {
     if (dragOverlay) { dragOverlay.remove(); dragOverlay = null; }
   }
 
   document.addEventListener('touchstart', e => {
-    tracking = false;
-    axisLocked = false;
-    isHoriz = false;
-    isBack = false;
-    isFwd = false;
-
-    if (anyOverlayOpen()) return;
     if (!isMobileLayout()) return;
+    // Only start tracking if touch begins in the left edge zone
+    startX   = e.touches[0].clientX;
+    startY   = e.touches[0].clientY;
+    tracking = startX <= EDGE_ZONE;
+    axisLocked = false;
+    isHoriz    = false;
+    currentX   = startX;
 
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    startTime = Date.now();
+    // Don't interfere when modals/menu are open
+    const menuOpen   = document.getElementById('menu-panel')?.style.display === 'flex';
+    const modalOpen  = document.getElementById('add-modal')?.style.display  !== 'none';
+    const tgOpen     = document.getElementById('tg-modal')?.style.display   !== 'none';
+    if (menuOpen || modalOpen || tgOpen) { tracking = false; return; }
 
-    const currentTab = navStack[navStack.length - 1];
-    const tabIdx = TAB_ORDER.indexOf(currentTab);
-
-    // Back swipe: must start from left edge AND have a previous page
-    if (startX <= EDGE_ZONE && navStack.length > 1) {
-      tracking = true;
-      isBack = true;
-      return;
-    }
-
-    // Forward swipe: full-width, must have a next tab
-    if (tabIdx >= 0 && tabIdx < TAB_ORDER.length - 1) {
-      tracking = true;
-      isFwd = true;
-    }
+    // Need at least one page to go back to
+    if (navStack.length <= 1) { tracking = false; }
   }, { passive: true });
 
   document.addEventListener('touchmove', e => {
     if (!tracking) return;
-
-    const x = e.touches[0].clientX;
-    const y = e.touches[0].clientY;
+    const x  = e.touches[0].clientX;
+    const y  = e.touches[0].clientY;
     const dx = x - startX;
     const dy = y - startY;
+    currentX = x;
 
-    // Axis lock: wait for at least 6px of movement before deciding
     if (!axisLocked) {
-      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-      isHoriz = Math.abs(dx) > Math.abs(dy) * 1.2;
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; // not moved enough to decide
+      isHoriz    = Math.abs(dx) > Math.abs(dy);
       axisLocked = true;
-      if (!isHoriz) { tracking = false; return; } // vertical — abort
+      if (!isHoriz) { tracking = false; return; } // vertical scroll — abort
     }
 
     if (!isHoriz) return;
 
-    if (isBack && dx > 0) {
-      showOverlay(dx / (window.innerWidth * COMMIT_PCT));
-    } else if (isFwd && dx < 0) {
-      showOverlay(Math.abs(dx) / (window.innerWidth * COMMIT_PCT));
-    } else {
-      // Wrong direction for the gesture type — cancel
-      tracking = false;
-    }
+    // Only allow rightward drag (positive dx = going back)
+    if (dx <= 0) { tracking = false; return; }
+
+    // Darken overlay proportionally
+    if (!dragOverlay) createDragOverlay();
+    const progress = Math.min(dx / (window.innerWidth * COMMIT_PCT), 1);
+    dragOverlay.style.background = `rgba(0,0,0,${0.15 * progress})`;
   }, { passive: true });
 
   document.addEventListener('touchend', e => {
-    hideOverlay();
+    removeDragOverlay();
     if (!tracking || !isHoriz) { tracking = false; return; }
     tracking = false;
 
-    const endX = e.changedTouches[0].clientX;
-    const dx = endX - startX;
-    const elapsed = Math.max(1, Date.now() - startTime);
-    const velocity = Math.abs(dx) / elapsed; // px/ms
-    const distOk = Math.abs(dx) >= window.innerWidth * COMMIT_PCT;
-    const velOk  = velocity >= MIN_VEL && Math.abs(dx) > 40;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (dx <= 0) return;
 
-    if (isBack && dx > 0 && (distOk || velOk)) {
-      goBack();
-    } else if (isFwd && dx < 0 && (distOk || velOk)) {
-      const currentTab = navStack[navStack.length - 1];
-      const tabIdx = TAB_ORDER.indexOf(currentTab);
-      if (tabIdx >= 0 && tabIdx < TAB_ORDER.length - 1) {
-        const nextTab = TAB_ORDER[tabIdx + 1];
-        // For chart: only navigate forward if an asset is selected
-        if (nextTab === 'chart' && !selectedAsset) return;
-        mobileTab(nextTab);
-      }
-    }
+    const committed = dx >= window.innerWidth * COMMIT_PCT;
+    if (committed) goBack();
   }, { passive: true });
 
   document.addEventListener('touchcancel', () => {
-    hideOverlay();
     tracking = false;
+    removeDragOverlay();
   }, { passive: true });
 })();
 
