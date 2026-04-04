@@ -791,8 +791,7 @@ async function fetchAllPrices() {
   ]);
 
   checkAlerts();
-  const el = document.getElementById('lastUpdate');
-  if (el) el.textContent = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  updateSessionDisplay();
 }
 
 
@@ -1266,6 +1265,15 @@ function mobileTab(tab, pushState = true) {
     window.history.pushState({ twTab: tab }, '', '');
   }
 
+  // ── Clear asset card selected state when leaving chart/watchlist ──────
+  // Prevents the "tap footprint" blue border persisting on cards after
+  // the user navigates to alerts, journal, etc.
+  if (tab !== 'chart' && tab !== 'watchlist') {
+    document.querySelectorAll('.asset-card.selected').forEach(card => {
+      card.classList.remove('selected');
+    });
+  }
+
   // Hide all panels
   document.getElementById('panel-watchlist').classList.remove('mobile-active');
   document.getElementById('panel-main').classList.remove('mobile-active');
@@ -1287,6 +1295,12 @@ function mobileTab(tab, pushState = true) {
 
   if (tab === 'watchlist') {
     document.getElementById('panel-watchlist').classList.add('mobile-active');
+    // Restore selected highlight for the currently viewed asset
+    if (selectedAsset) {
+      document.querySelectorAll('.asset-card').forEach(card => {
+        card.classList.toggle('selected', card.dataset.assetId === selectedAsset.id);
+      });
+    }
     // Nav highlight handled by switchWLTab caller
   } else if (tab === 'chart') {
     if (fab) fab.classList.remove('visible');
@@ -5248,7 +5262,7 @@ async function refreshAll() {
   renderWatchlist();
   refreshSelectedAssetPanel();
   checkAlerts();
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  updateSessionDisplay();
 }
 
 // 8-second UI tick — Deriv WebSocket keeps prices live between REST refreshes
@@ -5261,8 +5275,7 @@ setInterval(() => {
   }
   refreshSelectedAssetPanel();
   checkAlerts();
-  const el = document.getElementById('lastUpdate');
-  if (el) el.textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  updateSessionDisplay();
 }, 8000);
 
 // REST refresh every 60 seconds — CoinGecko + OANDA snapshot (Deriv WS covers the rest)
@@ -5276,19 +5289,192 @@ setInterval(() => {
 }, 60 * 1000);
 
 // ═══════════════════════════════════════════════
+// ALTRADIA LOADING SPLASH
+// Letters light up sequentially a→l→t→r→a→d→i→a,
+// all fade together, then restart. Dismissed by
+// calling the returned function when init is done.
+// ═══════════════════════════════════════════════
+function showAltradiaLoadingSplash() {
+  const splash = document.getElementById('altradia-splash');
+  if (!splash) return null;
+  splash.style.display = 'flex';
+
+  const letters        = splash.querySelectorAll('.splash-letter');
+  const LIGHT_DURATION = 120;  // ms per letter
+  const HOLD_AFTER     = 300;  // ms all lit before fade
+  const FADE_DURATION  = 400;  // ms fade-out
+  const RESTART_PAUSE  = 200;  // ms dark gap before restart
+
+  let animTimer = null;
+  let stopped   = false;
+
+  function runCycle(onCycleEnd) {
+    if (stopped) return;
+    letters.forEach(l => { l.classList.remove('lit', 'fade-all'); });
+    let i = 0;
+    function lightNext() {
+      if (stopped) return;
+      if (i < letters.length) {
+        letters[i].classList.add('lit');
+        i++;
+        animTimer = setTimeout(lightNext, LIGHT_DURATION);
+      } else {
+        animTimer = setTimeout(() => {
+          if (stopped) return;
+          letters.forEach(l => { l.classList.remove('lit'); l.classList.add('fade-all'); });
+          animTimer = setTimeout(() => {
+            if (stopped) return;
+            letters.forEach(l => l.classList.remove('fade-all'));
+            animTimer = setTimeout(() => {
+              if (onCycleEnd) onCycleEnd();
+            }, RESTART_PAUSE);
+          }, FADE_DURATION);
+        }, HOLD_AFTER);
+      }
+    }
+    lightNext();
+  }
+
+  function loop() { runCycle(loop); }
+  loop();
+
+  return function dismissSplash() {
+    stopped = true;
+    clearTimeout(animTimer);
+    splash.style.transition = 'opacity 0.35s ease';
+    splash.style.opacity = '0';
+    setTimeout(() => { splash.style.display = 'none'; splash.style.opacity = ''; splash.style.transition = ''; }, 370);
+  };
+}
+
+// ═══════════════════════════════════════════════
+// AUTO-GROW TEXTAREAS
+// ═══════════════════════════════════════════════
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function initAutoGrowTextareas() {
+  document.querySelectorAll('.auto-grow-textarea').forEach(el => {
+    el.addEventListener('input', () => autoGrow(el));
+    autoGrow(el); // size correctly if pre-filled
+  });
+}
+
+// ═══════════════════════════════════════════════
+// SESSION DISPLAY — replaces "UPDATED --:--"
+// Shows current open forex session(s), or a
+// countdown to the next session when market is closed.
+// ═══════════════════════════════════════════════
+const FOREX_SESSIONS = [
+  { name: 'Sydney',   open: 21, close: 6  },
+  { name: 'Tokyo',    open: 0,  close: 9  },
+  { name: 'London',   open: 7,  close: 16 },
+  { name: 'New York', open: 12, close: 21 },
+];
+
+function getForexSessionStatus() {
+  const now    = new Date();
+  const utcH   = now.getUTCHours();
+  const utcM   = now.getUTCMinutes();
+  const utcS   = now.getUTCSeconds();
+  const utcDay = now.getUTCDay(); // 0=Sun 6=Sat
+  const utcMin = utcH * 60 + utcM;
+
+  // Market closes Fri 21:00 UTC, reopens Sun 21:00 UTC
+  const isFriAfterClose = utcDay === 5 && utcMin >= 21 * 60;
+  const isSatAllDay     = utcDay === 6;
+  const isSunBeforeOpen = utcDay === 0 && utcMin < 21 * 60;
+
+  if (isFriAfterClose || isSatAllDay || isSunBeforeOpen) {
+    // Seconds until Sunday 21:00 UTC
+    const nextOpen = new Date(now);
+    let daysUntilSun = (7 - utcDay) % 7;
+    if (utcDay === 0) daysUntilSun = 0;
+    nextOpen.setUTCDate(nextOpen.getUTCDate() + daysUntilSun);
+    nextOpen.setUTCHours(21, 0, 0, 0);
+    if (nextOpen <= now) nextOpen.setUTCDate(nextOpen.getUTCDate() + 7);
+    const secsUntil = Math.max(0, Math.floor((nextOpen - now) / 1000));
+    return { open: false, sessions: [], secsUntilNext: secsUntil, nextName: 'Sydney' };
+  }
+
+  // Check active sessions
+  const active = [];
+  FOREX_SESSIONS.forEach(s => {
+    let isActive;
+    if (s.open > s.close) {
+      // crosses midnight (Sydney: 21→6)
+      isActive = utcH >= s.open || utcH < s.close;
+    } else {
+      isActive = utcH >= s.open && utcH < s.close;
+    }
+    if (isActive) active.push(s.name);
+  });
+
+  if (active.length > 0) {
+    return { open: true, sessions: active, secsUntilNext: 0, nextName: null };
+  }
+
+  // Between sessions — find nearest next open
+  let minSecs  = Infinity;
+  let nextName = '';
+  FOREX_SESSIONS.forEach(s => {
+    let secsUntil;
+    if (utcH < s.open) {
+      secsUntil = (s.open - utcH) * 3600 - utcM * 60 - utcS;
+    } else {
+      secsUntil = (24 - utcH + s.open) * 3600 - utcM * 60 - utcS;
+    }
+    if (secsUntil < minSecs) { minSecs = secsUntil; nextName = s.name; }
+  });
+  return { open: false, sessions: [], secsUntilNext: Math.max(0, minSecs), nextName };
+}
+
+function formatSessionCountdown(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`;
+  if (m > 0) return `${m}m ${String(s).padStart(2,'0')}s`;
+  return `${s}s`;
+}
+
+function updateSessionDisplay() {
+  const dotEl       = document.getElementById('session-dot');
+  const labelEl     = document.getElementById('session-label');
+  const countdownEl = document.getElementById('session-countdown');
+  if (!dotEl || !labelEl || !countdownEl) return;
+
+  const status = getForexSessionStatus();
+  if (status.open) {
+    dotEl.classList.remove('closed');
+    labelEl.textContent    = status.sessions.join(' / ');
+    countdownEl.textContent = '';
+  } else {
+    dotEl.classList.add('closed');
+    labelEl.textContent    = 'CLOSED';
+    countdownEl.textContent = status.secsUntilNext > 0
+      ? '· ' + formatSessionCountdown(status.secsUntilNext)
+      : '';
+  }
+}
+
+// ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
 async function init() {
+  // Show splash immediately — nothing else visible yet
+  const dismissSplash = showAltradiaLoadingSplash();
+
   // Apply saved theme before anything renders
   initTheme();
 
   // Push initial history state so Android back button is interceptable from the start
   window.history.replaceState({ twTab: 'chart' }, '', '');
 
-  // Render hot list immediately with seed data so users see something right away
-  // (will be updated with DB rankings after login)
+  // Seed hot list data in memory only — do NOT render to DOM yet
   HOT_LIST = { ...HOT_LIST_SEED };
-  renderHotList();
 
   await getOrCreateUser(currentTelegramId);
 
@@ -5308,16 +5494,17 @@ async function init() {
     // ── New user onboarding: show linking screen, auto send test ──
     const hasOnboarded = localStorage.getItem('tw_onboarded');
     if (!hasOnboarded) {
-      // Show the onboarding splash — it will resolve when test passes
+      if (dismissSplash) dismissSplash();
       const onboardOk = await showOnboardingScreen();
-      if (!onboardOk) return; // user is stuck on error screen — halt
+      if (!onboardOk) return;
       localStorage.setItem('tw_onboarded', '1');
     }
   } else {
-    // Not inside Telegram — show blocking connect prompt
+    // Not inside Telegram — dismiss splash and show blocking connect prompt
+    if (dismissSplash) dismissSplash();
     soundEnabled = prefs?.sound_enabled ?? true;
     showTgConnectPrompt();
-    return; // halt init until user opens via bot
+    return;
   }
   updateTgBtn();
 
@@ -5327,7 +5514,6 @@ async function init() {
   await initAlertHistory();
 
   // ── Load user's personal watchlist from DB ──────
-  // Clear all default assets — only show what the user has saved
   Object.keys(ASSETS).forEach(cat => { ASSETS[cat] = []; });
 
   const dbWatchlist = await loadWatchlist();
@@ -5336,8 +5522,7 @@ async function init() {
       const cat = row.category;
       if (!cat) return;
       if (!ASSETS[cat]) ASSETS[cat] = [];
-      if (ASSETS[cat].some(a => a.id === row.asset_id)) return; // no dupes
-      // Prefer ALL_ASSETS master for full metadata, fall back to DB row data
+      if (ASSETS[cat].some(a => a.id === row.asset_id)) return;
       const meta = ALL_ASSETS.find(a => a.id === row.asset_id);
       ASSETS[cat].push(meta || {
         id:       row.asset_id,
@@ -5350,25 +5535,19 @@ async function init() {
     });
   }
 
-  // Build hot list from DB click rankings — all categories
-  // Falls back to HOT_LIST_SEED (forex defaults) if no DB data yet.
-  // Hot list is independent of the user's personal watchlist.
+  // Build hot list from DB click rankings
   const rankings = await loadHotListRankings();
   if (rankings && Object.keys(rankings).length > 0) {
-    // Replace HOT_LIST entirely with DB-ranked results per category
     HOT_LIST = {};
     Object.entries(rankings).forEach(([cat, ids]) => {
-      // Only include assets that exist in ALL_ASSETS catalogue
       HOT_LIST[cat] = ids.filter(id => ALL_ASSETS.some(a => a.id === id));
     });
-    // Fill in seed defaults for any category missing from DB rankings
     Object.entries(HOT_LIST_SEED).forEach(([cat, ids]) => {
       if (!HOT_LIST[cat] || HOT_LIST[cat].length === 0) {
         HOT_LIST[cat] = ids;
       }
     });
   } else {
-    // No DB data yet — use seed defaults
     HOT_LIST = { ...HOT_LIST_SEED };
   }
 
@@ -5376,13 +5555,11 @@ async function init() {
   renderHotList();
   renderWatchlist();
   renderAlerts();
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
   // Restore last timeframe (before restoring asset so chart loads with correct TF)
   const _lastTF = localStorage.getItem('altradia_last_tf');
   if (_lastTF) {
     lwCurrentTF = _lastTF;
-    // Highlight the correct TF button
     document.querySelectorAll('.chart-tf-btn').forEach(b => {
       b.classList.toggle('active', b.textContent.trim() === _lastTF);
     });
@@ -5393,17 +5570,14 @@ async function init() {
                      || ALL_ASSETS.find(a => a.id === 'EUR/USD');
   if (_defaultAsset) selectAsset(_defaultAsset);
 
-  // Connect Deriv WebSocket — connects and subscribes to all watchlist + hot list assets
+  // Connect Deriv WebSocket
   connectDeriv();
   setTimeout(resubscribeAllDeriv, 3000);
 
   // ── Alert form focus tracking ─────────────────────────────────────────────
-  // Set userTypingInForm=true while any alert input is focused.
-  // This pauses chart reloads and DOM rebuilds so the page doesn't jump.
   const alertFormInputs = [
     'alert-price', 'alert-zone-low', 'alert-zone-high',
     'alert-note', 'alert-note-zone', 'alert-tap-custom',
-    // Setup alert inputs — must also block chart reloads while user types
     'setup-entry', 'setup-sl', 'setup-tp1', 'setup-tp2', 'setup-tp3',
     'setup-entry-reason', 'setup-htf-context',
   ];
@@ -5412,11 +5586,9 @@ async function init() {
     if (!el) return;
     el.addEventListener('focus', () => { userTypingInForm = true; });
     el.addEventListener('blur',  () => {
-      // Small delay so flag isn't cleared before click events process
       setTimeout(() => { userTypingInForm = false; }, 300);
     });
   });
-  // Also track all dropdowns — they don't type but interaction matters
   ['alert-condition','alert-timeframe','alert-repeat','alert-tap-tolerance',
    'setup-type','setup-timeframe','setup-emotion-before'].forEach(id => {
     const el = document.getElementById(id);
@@ -5425,19 +5597,24 @@ async function init() {
     el.addEventListener('blur',  () => { setTimeout(() => { userTypingInForm = false; }, 300); });
   });
 
-  // Initial REST fetch — CoinGecko + OANDA snapshot (Deriv WS already running)
+  // Initial REST fetch
   await fetchAllPrices();
   setStatusPill(true);
 
   // Re-subscribe Deriv with confirmed symbols now that ASSETS is fully populated
   resubscribeAllDeriv();
 
-  renderHotList();
-  renderWatchlist();
   refreshSelectedAssetPanel();
-  renderAlerts();
 
-  // Navigate to chart as the default landing page
+  // ── Auto-growing textareas ────────────────────────────────────────────────
+  initAutoGrowTextareas();
+
+  // ── Start SESSION ticker ──────────────────────────────────────────────────
+  updateSessionDisplay();
+  setInterval(updateSessionDisplay, 10000);
+
+  // ── Dismiss splash and go straight to chart — no HOTLIST flash ───────────
+  if (dismissSplash) dismissSplash();
   mobileTab('chart', false);
 
 }
