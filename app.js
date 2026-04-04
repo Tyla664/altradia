@@ -791,7 +791,6 @@ async function fetchAllPrices() {
   ]);
 
   checkAlerts();
-
   updateSessionDisplay();
 }
 
@@ -894,14 +893,23 @@ function refreshSelectedAssetPanel() {
 // Lightweight — just flips CSS classes, no full re-render.
 // ═══════════════════════════════════════════════
 function updateWatchlistSelection() {
+  // On mobile, never show .selected on watchlist cards — it causes the
+  // "footprint" effect. The selected state only makes sense on desktop
+  // where the watchlist and chart are visible side by side.
+  if (isMobileLayout()) {
+    document.querySelectorAll('.asset-card').forEach(card => {
+      card.classList.remove('selected');
+      card.style.removeProperty('--before-opacity');
+    });
+    return;
+  }
+  // Desktop: highlight the selected card normally
   document.querySelectorAll('.asset-card').forEach(card => {
     const assetId = card.dataset.assetId;
     const isSelected = selectedAsset && assetId === selectedAsset.id;
     card.classList.toggle('selected', isSelected);
-    if (isSelected) {
-      card.classList.add('selected');
-      card.style.setProperty('--before-opacity', '1');
-    }
+    if (isSelected) card.style.setProperty('--before-opacity', '1');
+    else card.style.removeProperty('--before-opacity');
   });
 }
 
@@ -922,7 +930,7 @@ function renderWatchlist() {
     container.innerHTML = '';
     assets.forEach(asset => {
       const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
-      const isSelected = selectedAsset && selectedAsset.id === asset.id;
+      const isSelected = !isMobileLayout() && selectedAsset && selectedAsset.id === asset.id;
 
       const card = document.createElement('div');
       card.className = `asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
@@ -965,7 +973,7 @@ function renderHotList() {
       const asset = Object.values(ASSETS).flat().find(a => a.id === assetId) || ALL_ASSETS.find(a => a.id === assetId);
       if (!asset) return;
       const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
-      const isSelected = selectedAsset && selectedAsset.id === asset.id;
+      const isSelected = !isMobileLayout() && selectedAsset && selectedAsset.id === asset.id;
       const inWatchlist = ASSETS[cat]?.some(a => a.id === assetId);
 
       const card = document.createElement('div');
@@ -1053,22 +1061,11 @@ function onGlobalSearch(query) {
 
   if (!resultsEl) return;
   if (!results.length) {
-    const searchBar2 = document.getElementById('global-search-bar');
-    if (searchBar2) {
-      const rect2 = searchBar2.getBoundingClientRect();
-      resultsEl.style.top = (rect2.bottom - 4) + 'px';
-    }
     resultsEl.innerHTML = '<div class="search-no-results">No assets found</div>';
     resultsEl.style.display = 'block';
     return;
   }
 
-  // Position results below the search input using fixed positioning
-  const searchBar = document.getElementById('global-search-bar');
-  if (searchBar) {
-    const rect = searchBar.getBoundingClientRect();
-    resultsEl.style.top = (rect.bottom - 4) + 'px';
-  }
   resultsEl.innerHTML = results.map(a => {
     const inWL = Object.values(ASSETS).flat().some(w => w.id === a.id);
     return `
@@ -1187,112 +1184,6 @@ function toggleChartAssetWatchlist() {
   updateChartWatchlistBtn();
 }
 
-
-// ── Auto-expanding textareas ─────────────────────────────────────────────────
-function initAutoExpand() {
-  document.querySelectorAll('textarea.auto-expand').forEach(el => {
-    el.addEventListener('input', autoExpand);
-    autoExpand.call(el); // set initial height
-  });
-}
-
-// ═══════════════════════════════════════════════
-// MARKET SESSION DISPLAY
-// ═══════════════════════════════════════════════
-
-const SESSIONS = [
-  { name: 'SYDNEY',   start: 21, end:  6, color: '#7c3aed' },
-  { name: 'TOKYO',    start:  0, end:  9, color: '#0ea5e9' },
-  { name: 'LONDON',   start:  7, end: 16, color: '#10b981' },
-  { name: 'NEW YORK', start: 12, end: 21, color: '#f59e0b' },
-];
-
-function getUTCMinutes() {
-  const now = new Date();
-  return now.getUTCHours() * 60 + now.getUTCMinutes();
-}
-
-function isForexOpen(now) {
-  const day = now.getUTCDay(); // 0=Sun, 6=Sat
-  const hm  = now.getUTCHours() * 60 + now.getUTCMinutes();
-  if (day === 6) return false;                         // all Saturday
-  if (day === 0 && hm < 21 * 60) return false;        // Sunday before 21:00 UTC
-  return true;
-}
-
-function getActiveSessions(now) {
-  const hm = now.getUTCHours() * 60 + now.getUTCMinutes();
-  return SESSIONS.filter(s => {
-    if (s.start < s.end) return hm >= s.start * 60 && hm < s.end * 60;
-    // Wraps midnight (e.g. Sydney 21:00–06:00)
-    return hm >= s.start * 60 || hm < s.end * 60;
-  });
-}
-
-function minsUntilForexOpen(now) {
-  const day = now.getUTCDay();
-  const hm  = now.getUTCHours() * 60 + now.getUTCMinutes();
-  // Forex opens Sun 21:00 UTC
-  let minsLeft;
-  if (day === 6) {
-    // Saturday — opens in (24-hm/60)*60 + 21*60 mins from now
-    minsLeft = (24 * 60 - hm) + 21 * 60;
-  } else if (day === 0 && hm < 21 * 60) {
-    // Sunday before 21:00
-    minsLeft = 21 * 60 - hm;
-  } else {
-    minsLeft = 0;
-  }
-  return minsLeft;
-}
-
-function formatCountdown(mins) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-function updateSessionDisplay() {
-  const el = document.getElementById('session-display');
-  if (!el) return;
-
-  const now = new Date();
-  if (!isForexOpen(now)) {
-    const mins = minsUntilForexOpen(now);
-    el.innerHTML = `<span style="color:var(--muted);letter-spacing:0.06em">MARKET CLOSED · OPENS IN <strong style="color:var(--text)">${formatCountdown(mins)}</strong></span>`;
-    return;
-  }
-
-  const active = getActiveSessions(now);
-  if (!active.length) {
-    el.innerHTML = `<span style="color:var(--muted)">NO ACTIVE SESSION</span>`;
-    return;
-  }
-
-  // Show all active sessions with colored dots
-  const parts = active.map(s =>
-    `<span style="color:${s.color};font-weight:700;letter-spacing:0.05em">● ${s.name}</span>`
-  ).join(' <span style="color:var(--border)">·</span> ');
-  el.innerHTML = parts;
-}
-
-// Update every 30 seconds
-updateSessionDisplay();
-setInterval(updateSessionDisplay, 30000);
-
-
-function autoExpand() {
-  this.style.height = 'auto';
-  this.style.height = Math.min(this.scrollHeight, 200) + 'px';
-}
-// Also handle dynamically created textareas via event delegation
-document.addEventListener('input', function(e) {
-  if (e.target && e.target.classList.contains('auto-expand')) {
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
-  }
-});
-
 function selectAsset(asset) {
   // Cancel any active edit when switching assets
   if (editingAlertId && selectedAsset && selectedAsset.id !== asset.id) {
@@ -1382,6 +1273,15 @@ function mobileTab(tab, pushState = true) {
     // Push a browser history state so Android back button fires popstate
     window.history.pushState({ twTab: tab }, '', '');
   }
+
+  // ── Asset card selected state: only show when on chart tab ──────────────
+  // Clear selected from ALL cards whenever navigating anywhere on mobile.
+  // The highlight is purely informational ("this is the charted asset") and
+  // should never persist as a visual footprint when browsing the watchlist.
+  document.querySelectorAll('.asset-card').forEach(card => {
+    card.classList.remove('selected');
+    card.style.removeProperty('--before-opacity');
+  });
 
   // Hide all panels
   document.getElementById('panel-watchlist').classList.remove('mobile-active');
@@ -5392,6 +5292,119 @@ setInterval(() => {
 }, 60 * 1000);
 
 // ═══════════════════════════════════════════════
+// AUTO-GROW TEXTAREAS
+// ═══════════════════════════════════════════════
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function initAutoGrowTextareas() {
+  document.querySelectorAll('.auto-grow-textarea').forEach(el => {
+    el.addEventListener('input', () => autoGrow(el));
+    autoGrow(el); // size correctly if pre-filled
+  });
+}
+
+// ═══════════════════════════════════════════════
+// SESSION DISPLAY — replaces "UPDATED --:--"
+// Shows current open forex session(s), or a
+// countdown to the next session when market is closed.
+// ═══════════════════════════════════════════════
+const FOREX_SESSIONS = [
+  { name: 'Sydney',   open: 21, close: 6  },
+  { name: 'Tokyo',    open: 0,  close: 9  },
+  { name: 'London',   open: 7,  close: 16 },
+  { name: 'New York', open: 12, close: 21 },
+];
+
+function getForexSessionStatus() {
+  const now    = new Date();
+  const utcH   = now.getUTCHours();
+  const utcM   = now.getUTCMinutes();
+  const utcS   = now.getUTCSeconds();
+  const utcDay = now.getUTCDay(); // 0=Sun 6=Sat
+  const utcMin = utcH * 60 + utcM;
+
+  // Market closes Fri 21:00 UTC, reopens Sun 21:00 UTC
+  const isFriAfterClose = utcDay === 5 && utcMin >= 21 * 60;
+  const isSatAllDay     = utcDay === 6;
+  const isSunBeforeOpen = utcDay === 0 && utcMin < 21 * 60;
+
+  if (isFriAfterClose || isSatAllDay || isSunBeforeOpen) {
+    // Seconds until Sunday 21:00 UTC
+    const nextOpen = new Date(now);
+    let daysUntilSun = (7 - utcDay) % 7;
+    if (utcDay === 0) daysUntilSun = 0;
+    nextOpen.setUTCDate(nextOpen.getUTCDate() + daysUntilSun);
+    nextOpen.setUTCHours(21, 0, 0, 0);
+    if (nextOpen <= now) nextOpen.setUTCDate(nextOpen.getUTCDate() + 7);
+    const secsUntil = Math.max(0, Math.floor((nextOpen - now) / 1000));
+    return { open: false, sessions: [], secsUntilNext: secsUntil, nextName: 'Sydney' };
+  }
+
+  // Check active sessions
+  const active = [];
+  FOREX_SESSIONS.forEach(s => {
+    let isActive;
+    if (s.open > s.close) {
+      // crosses midnight (Sydney: 21→6)
+      isActive = utcH >= s.open || utcH < s.close;
+    } else {
+      isActive = utcH >= s.open && utcH < s.close;
+    }
+    if (isActive) active.push(s.name);
+  });
+
+  if (active.length > 0) {
+    return { open: true, sessions: active, secsUntilNext: 0, nextName: null };
+  }
+
+  // Between sessions — find nearest next open
+  let minSecs  = Infinity;
+  let nextName = '';
+  FOREX_SESSIONS.forEach(s => {
+    let secsUntil;
+    if (utcH < s.open) {
+      secsUntil = (s.open - utcH) * 3600 - utcM * 60 - utcS;
+    } else {
+      secsUntil = (24 - utcH + s.open) * 3600 - utcM * 60 - utcS;
+    }
+    if (secsUntil < minSecs) { minSecs = secsUntil; nextName = s.name; }
+  });
+  return { open: false, sessions: [], secsUntilNext: Math.max(0, minSecs), nextName };
+}
+
+function formatSessionCountdown(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`;
+  if (m > 0) return `${m}m ${String(s).padStart(2,'0')}s`;
+  return `${s}s`;
+}
+
+function updateSessionDisplay() {
+  const dotEl       = document.getElementById('session-dot');
+  const labelEl     = document.getElementById('session-label');
+  const countdownEl = document.getElementById('session-countdown');
+  if (!dotEl || !labelEl || !countdownEl) return;
+
+  const status = getForexSessionStatus();
+  if (status.open) {
+    dotEl.classList.remove('closed');
+    labelEl.textContent    = status.sessions.join(' / ');
+    countdownEl.textContent = '';
+  } else {
+    dotEl.classList.add('closed');
+    labelEl.textContent    = 'CLOSED';
+    countdownEl.textContent = status.secsUntilNext > 0
+      ? '· ' + formatSessionCountdown(status.secsUntilNext)
+      : '';
+  }
+}
+
+// ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
 async function init() {
@@ -5401,7 +5414,7 @@ async function init() {
   // Push initial history state so Android back button is interceptable from the start
   window.history.replaceState({ twTab: 'chart' }, '', '');
 
-  // Seed hot list data (rendered after init completes — no early flash)
+  // Seed hot list data in memory only — do NOT render to DOM yet
   HOT_LIST = { ...HOT_LIST_SEED };
 
   await getOrCreateUser(currentTelegramId);
@@ -5422,16 +5435,15 @@ async function init() {
     // ── New user onboarding: show linking screen, auto send test ──
     const hasOnboarded = localStorage.getItem('tw_onboarded');
     if (!hasOnboarded) {
-      // Show the onboarding splash — it will resolve when test passes
       const onboardOk = await showOnboardingScreen();
-      if (!onboardOk) return; // user is stuck on error screen — halt
+      if (!onboardOk) return;
       localStorage.setItem('tw_onboarded', '1');
     }
   } else {
     // Not inside Telegram — show blocking connect prompt
     soundEnabled = prefs?.sound_enabled ?? true;
     showTgConnectPrompt();
-    return; // halt init until user opens via bot
+    return;
   }
   updateTgBtn();
 
@@ -5441,7 +5453,6 @@ async function init() {
   await initAlertHistory();
 
   // ── Load user's personal watchlist from DB ──────
-  // Clear all default assets — only show what the user has saved
   Object.keys(ASSETS).forEach(cat => { ASSETS[cat] = []; });
 
   const dbWatchlist = await loadWatchlist();
@@ -5450,8 +5461,7 @@ async function init() {
       const cat = row.category;
       if (!cat) return;
       if (!ASSETS[cat]) ASSETS[cat] = [];
-      if (ASSETS[cat].some(a => a.id === row.asset_id)) return; // no dupes
-      // Prefer ALL_ASSETS master for full metadata, fall back to DB row data
+      if (ASSETS[cat].some(a => a.id === row.asset_id)) return;
       const meta = ALL_ASSETS.find(a => a.id === row.asset_id);
       ASSETS[cat].push(meta || {
         id:       row.asset_id,
@@ -5464,25 +5474,19 @@ async function init() {
     });
   }
 
-  // Build hot list from DB click rankings — all categories
-  // Falls back to HOT_LIST_SEED (forex defaults) if no DB data yet.
-  // Hot list is independent of the user's personal watchlist.
+  // Build hot list from DB click rankings
   const rankings = await loadHotListRankings();
   if (rankings && Object.keys(rankings).length > 0) {
-    // Replace HOT_LIST entirely with DB-ranked results per category
     HOT_LIST = {};
     Object.entries(rankings).forEach(([cat, ids]) => {
-      // Only include assets that exist in ALL_ASSETS catalogue
       HOT_LIST[cat] = ids.filter(id => ALL_ASSETS.some(a => a.id === id));
     });
-    // Fill in seed defaults for any category missing from DB rankings
     Object.entries(HOT_LIST_SEED).forEach(([cat, ids]) => {
       if (!HOT_LIST[cat] || HOT_LIST[cat].length === 0) {
         HOT_LIST[cat] = ids;
       }
     });
   } else {
-    // No DB data yet — use seed defaults
     HOT_LIST = { ...HOT_LIST_SEED };
   }
 
@@ -5490,13 +5494,11 @@ async function init() {
   renderHotList();
   renderWatchlist();
   renderAlerts();
-  updateSessionDisplay();
 
-  // Restore last timeframe (before restoring asset so chart loads with correct TF)
+  // Restore last timeframe
   const _lastTF = localStorage.getItem('altradia_last_tf');
   if (_lastTF) {
     lwCurrentTF = _lastTF;
-    // Highlight the correct TF button
     document.querySelectorAll('.chart-tf-btn').forEach(b => {
       b.classList.toggle('active', b.textContent.trim() === _lastTF);
     });
@@ -5507,17 +5509,14 @@ async function init() {
                      || ALL_ASSETS.find(a => a.id === 'EUR/USD');
   if (_defaultAsset) selectAsset(_defaultAsset);
 
-  // Connect Deriv WebSocket — connects and subscribes to all watchlist + hot list assets
+  // Connect Deriv WebSocket
   connectDeriv();
   setTimeout(resubscribeAllDeriv, 3000);
 
   // ── Alert form focus tracking ─────────────────────────────────────────────
-  // Set userTypingInForm=true while any alert input is focused.
-  // This pauses chart reloads and DOM rebuilds so the page doesn't jump.
   const alertFormInputs = [
     'alert-price', 'alert-zone-low', 'alert-zone-high',
     'alert-note', 'alert-note-zone', 'alert-tap-custom',
-    // Setup alert inputs — must also block chart reloads while user types
     'setup-entry', 'setup-sl', 'setup-tp1', 'setup-tp2', 'setup-tp3',
     'setup-entry-reason', 'setup-htf-context',
   ];
@@ -5526,11 +5525,9 @@ async function init() {
     if (!el) return;
     el.addEventListener('focus', () => { userTypingInForm = true; });
     el.addEventListener('blur',  () => {
-      // Small delay so flag isn't cleared before click events process
       setTimeout(() => { userTypingInForm = false; }, 300);
     });
   });
-  // Also track all dropdowns — they don't type but interaction matters
   ['alert-condition','alert-timeframe','alert-repeat','alert-tap-tolerance',
    'setup-type','setup-timeframe','setup-emotion-before'].forEach(id => {
     const el = document.getElementById(id);
@@ -5539,23 +5536,24 @@ async function init() {
     el.addEventListener('blur',  () => { setTimeout(() => { userTypingInForm = false; }, 300); });
   });
 
-  // Initial REST fetch — CoinGecko + OANDA snapshot (Deriv WS already running)
+  // Initial REST fetch
   await fetchAllPrices();
   setStatusPill(true);
 
   // Re-subscribe Deriv with confirmed symbols now that ASSETS is fully populated
   resubscribeAllDeriv();
 
-  renderHotList();
-  renderWatchlist();
   refreshSelectedAssetPanel();
-  renderAlerts();
 
-  // Navigate to chart as the default landing page
+  // ── Auto-growing textareas ────────────────────────────────────────────────
+  initAutoGrowTextareas();
+
+  // ── Start SESSION ticker ──────────────────────────────────────────────────
+  updateSessionDisplay();
+  setInterval(updateSessionDisplay, 10000);
+
+  // Navigate straight to chart on load
   mobileTab('chart', false);
-
-  // Dismiss loading screen now that app is ready
-  if (typeof window.__stopLoader === 'function') window.__stopLoader();
 
 }
 
