@@ -893,15 +893,23 @@ function refreshSelectedAssetPanel() {
 // Lightweight — just flips CSS classes, no full re-render.
 // ═══════════════════════════════════════════════
 function updateWatchlistSelection() {
+  // On mobile, never show .selected on watchlist cards — it causes the
+  // "footprint" effect. The selected state only makes sense on desktop
+  // where the watchlist and chart are visible side by side.
+  if (isMobileLayout()) {
+    document.querySelectorAll('.asset-card').forEach(card => {
+      card.classList.remove('selected');
+      card.style.removeProperty('--before-opacity');
+    });
+    return;
+  }
+  // Desktop: highlight the selected card normally
   document.querySelectorAll('.asset-card').forEach(card => {
     const assetId = card.dataset.assetId;
     const isSelected = selectedAsset && assetId === selectedAsset.id;
     card.classList.toggle('selected', isSelected);
-    if (isSelected) {
-      card.style.setProperty('--before-opacity', '1');
-    } else {
-      card.style.removeProperty('--before-opacity');
-    }
+    if (isSelected) card.style.setProperty('--before-opacity', '1');
+    else card.style.removeProperty('--before-opacity');
   });
 }
 
@@ -922,7 +930,7 @@ function renderWatchlist() {
     container.innerHTML = '';
     assets.forEach(asset => {
       const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
-      const isSelected = selectedAsset && selectedAsset.id === asset.id;
+      const isSelected = !isMobileLayout() && selectedAsset && selectedAsset.id === asset.id;
 
       const card = document.createElement('div');
       card.className = `asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
@@ -965,7 +973,7 @@ function renderHotList() {
       const asset = Object.values(ASSETS).flat().find(a => a.id === assetId) || ALL_ASSETS.find(a => a.id === assetId);
       if (!asset) return;
       const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
-      const isSelected = selectedAsset && selectedAsset.id === asset.id;
+      const isSelected = !isMobileLayout() && selectedAsset && selectedAsset.id === asset.id;
       const inWatchlist = ASSETS[cat]?.some(a => a.id === assetId);
 
       const card = document.createElement('div');
@@ -1266,15 +1274,14 @@ function mobileTab(tab, pushState = true) {
     window.history.pushState({ twTab: tab }, '', '');
   }
 
-  // ── Clear asset card selected state when leaving chart/watchlist ──────
-  // Removes both the .selected class AND the inline --before-opacity style
-  // that causes the blue left accent bar to persist (the "footprint").
-  if (tab !== 'chart' && tab !== 'watchlist') {
-    document.querySelectorAll('.asset-card.selected').forEach(card => {
-      card.classList.remove('selected');
-      card.style.removeProperty('--before-opacity');
-    });
-  }
+  // ── Asset card selected state: only show when on chart tab ──────────────
+  // Clear selected from ALL cards whenever navigating anywhere on mobile.
+  // The highlight is purely informational ("this is the charted asset") and
+  // should never persist as a visual footprint when browsing the watchlist.
+  document.querySelectorAll('.asset-card').forEach(card => {
+    card.classList.remove('selected');
+    card.style.removeProperty('--before-opacity');
+  });
 
   // Hide all panels
   document.getElementById('panel-watchlist').classList.remove('mobile-active');
@@ -1297,15 +1304,6 @@ function mobileTab(tab, pushState = true) {
 
   if (tab === 'watchlist') {
     document.getElementById('panel-watchlist').classList.add('mobile-active');
-    // Restore selected highlight for the currently viewed asset
-    if (selectedAsset) {
-      document.querySelectorAll('.asset-card').forEach(card => {
-        const isSelected = card.dataset.assetId === selectedAsset.id;
-        card.classList.toggle('selected', isSelected);
-        if (isSelected) card.style.setProperty('--before-opacity', '1');
-        else card.style.removeProperty('--before-opacity');
-      });
-    }
     // Nav highlight handled by switchWLTab caller
   } else if (tab === 'chart') {
     if (fab) fab.classList.remove('visible');
