@@ -1456,18 +1456,21 @@ header {
     overflow: hidden;
     position: relative;
     z-index: 1;
+    /* push content below the fixed search bar */
+    padding-top: 46px;
   }
 
   .global-search-bar {
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
+    position: fixed;
+    top: calc(54px + env(safe-area-inset-top));
+    left: 0;
+    right: 0;
     width: 100%;
     padding: 7px 12px 5px;
     background: var(--bg);
-    position: relative;
-    z-index: 20;
+    z-index: 90;
     border-bottom: 1px solid var(--border);
+    box-sizing: border-box;
   }
 
   .summary-bar {
