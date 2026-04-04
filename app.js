@@ -898,8 +898,9 @@ function updateWatchlistSelection() {
     const isSelected = selectedAsset && assetId === selectedAsset.id;
     card.classList.toggle('selected', isSelected);
     if (isSelected) {
-      card.classList.add('selected');
       card.style.setProperty('--before-opacity', '1');
+    } else {
+      card.style.removeProperty('--before-opacity');
     }
   });
 }
@@ -1266,11 +1267,12 @@ function mobileTab(tab, pushState = true) {
   }
 
   // ── Clear asset card selected state when leaving chart/watchlist ──────
-  // Prevents the "tap footprint" blue border persisting on cards after
-  // the user navigates to alerts, journal, etc.
+  // Removes both the .selected class AND the inline --before-opacity style
+  // that causes the blue left accent bar to persist (the "footprint").
   if (tab !== 'chart' && tab !== 'watchlist') {
     document.querySelectorAll('.asset-card.selected').forEach(card => {
       card.classList.remove('selected');
+      card.style.removeProperty('--before-opacity');
     });
   }
 
@@ -1298,7 +1300,10 @@ function mobileTab(tab, pushState = true) {
     // Restore selected highlight for the currently viewed asset
     if (selectedAsset) {
       document.querySelectorAll('.asset-card').forEach(card => {
-        card.classList.toggle('selected', card.dataset.assetId === selectedAsset.id);
+        const isSelected = card.dataset.assetId === selectedAsset.id;
+        card.classList.toggle('selected', isSelected);
+        if (isSelected) card.style.setProperty('--before-opacity', '1');
+        else card.style.removeProperty('--before-opacity');
       });
     }
     // Nav highlight handled by switchWLTab caller
