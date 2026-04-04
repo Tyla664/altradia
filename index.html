@@ -9,7 +9,15 @@
 <!-- System fonts used — no external font import needed -->
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="app-loading">
+
+<!-- Init loading screen — shown while app boots, hidden once ready -->
+<div class="app-init-screen" id="app-init-screen">
+  <div class="app-init-logo">
+    <span class="alt">alt</span><span class="radia">radia</span>
+  </div>
+  <div class="app-init-bar"><div class="app-init-bar-fill"></div></div>
+</div>
 
 <header>
   <div class="logo">
@@ -1329,18 +1337,5 @@
   </div>
 </div>
 
-<!-- altradia init overlay — hides content until init() completes, then fades out -->
-<div id="altradia-splash">
-  <div class="splash-letters">
-    <span class="splash-letter alt-letter">a</span>
-    <span class="splash-letter alt-letter">l</span>
-    <span class="splash-letter alt-letter">t</span>
-    <span class="splash-letter radia-letter">r</span>
-    <span class="splash-letter radia-letter">a</span>
-    <span class="splash-letter radia-letter">d</span>
-    <span class="splash-letter radia-letter">i</span>
-    <span class="splash-letter radia-letter">a</span>
-  </div>
-</div>
 
 </body>
