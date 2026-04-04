@@ -5292,21 +5292,6 @@ setInterval(() => {
 }, 60 * 1000);
 
 // ═══════════════════════════════════════════════
-// APP INIT REVEAL
-// Body starts with class "app-loading" which hides
-// the app via CSS. Call revealApp() when init done.
-// ═══════════════════════════════════════════════
-function revealApp() {
-  document.body.classList.remove('app-loading');
-  const screen = document.getElementById('app-init-screen');
-  if (screen) {
-    screen.style.transition = 'opacity 0.35s ease';
-    screen.style.opacity = '0';
-    setTimeout(() => { screen.style.display = 'none'; }, 370);
-  }
-}
-
-// ═══════════════════════════════════════════════
 // AUTO-GROW TEXTAREAS
 // ═══════════════════════════════════════════════
 function autoGrow(el) {
@@ -5423,9 +5408,6 @@ function updateSessionDisplay() {
 // INIT
 // ═══════════════════════════════════════════════
 async function init() {
-  // Body has class "app-loading" from HTML — hides all content.
-  // revealApp() removes it when we're ready to show the chart.
-
   // Apply saved theme before anything renders
   initTheme();
 
@@ -5453,14 +5435,12 @@ async function init() {
     // ── New user onboarding: show linking screen, auto send test ──
     const hasOnboarded = localStorage.getItem('tw_onboarded');
     if (!hasOnboarded) {
-      revealApp();
       const onboardOk = await showOnboardingScreen();
       if (!onboardOk) return;
       localStorage.setItem('tw_onboarded', '1');
     }
   } else {
-    // Not inside Telegram — reveal app and show blocking connect prompt
-    revealApp();
+    // Not inside Telegram — show blocking connect prompt
     soundEnabled = prefs?.sound_enabled ?? true;
     showTgConnectPrompt();
     return;
@@ -5572,9 +5552,8 @@ async function init() {
   updateSessionDisplay();
   setInterval(updateSessionDisplay, 10000);
 
-  // ── Reveal app and go straight to chart — no HOTLIST flash ───────────────
+  // Navigate straight to chart on load
   mobileTab('chart', false);
-  revealApp();
 
 }
 
