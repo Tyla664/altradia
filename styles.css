@@ -1458,6 +1458,23 @@ header {
     z-index: 1;
   }
 
+  .global-search-bar {
+    position: relative;
+    flex-shrink: 0;
+    width: 100%;
+    padding: 7px 12px 5px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    box-sizing: border-box;
+  }
+
+  .panels-wrap {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+
   .summary-bar {
     display: flex;
     padding: 0 12px;
@@ -1508,12 +1525,6 @@ header {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
-  .panels-wrap {
-    position: relative;
-    flex: 1;
-    overflow: hidden;
-    min-height: 0;
-  }
 
   .panel, .main-panel {
     position: absolute;
@@ -1525,6 +1536,8 @@ header {
     padding: 0;
     border: none;
     scroll-behavior: smooth;
+    /* Ensure scroll position 0 shows content from the very top of the panel */
+    scroll-padding-top: 0;
   }
   .panel.mobile-active,
   .main-panel.mobile-active { display: block; }
@@ -1576,7 +1589,7 @@ header {
     user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
-  .asset-card:active { transform: scale(0.98); border-color: var(--accent); }
+  .asset-card:active { transform: scale(0.98); border-color: var(--accent); transition: none; }
   .asset-card:hover { transform: none; }
   .asset-card:hover::before { opacity: 0; }
   .asset-card.selected::before { opacity: 1; }
@@ -1751,6 +1764,69 @@ header {
 } /* end @media all */
 
 /* ══════════════════════════════════════════════════
+   AUTO-GROW TEXTAREAS (alert & journal note fields)
+   ══════════════════════════════════════════════════ */
+.auto-grow-textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  padding: 10px 12px;
+  border-radius: 8px;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  min-height: 44px;
+  line-height: 1.45;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+  display: block;
+}
+.auto-grow-textarea:focus { border-color: var(--accent); }
+.auto-grow-textarea::placeholder { color: var(--muted); }
+
+@media all {
+  .auto-grow-textarea {
+    font-size: 1rem;
+    padding: 13px 14px;
+    border-radius: 8px;
+    min-height: 50px;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════
+   SESSION DISPLAY in summary bar
+   ══════════════════════════════════════════════════ */
+#session-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+#session-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--green);
+}
+#session-dot.closed { background: var(--muted); }
+#session-label {
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+#session-countdown {
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  color: var(--muted);
+}
+
+/* ══════════════════════════════════════════════════
    LIGHT THEME
    ══════════════════════════════════════════════════ */
 [data-theme="light"] {
@@ -1853,7 +1929,7 @@ header {
   padding: 8px 16px 4px;
   background: var(--bg);
   flex-shrink: 0;
-  /* No z-index here — only the dropdown results need z-index */
+  border-bottom: 1px solid var(--border);
 }
 .global-search-input-wrap {
   display: flex; align-items: center; gap: 8px;
@@ -1879,14 +1955,13 @@ header {
   flex-shrink: 0;
 }
 .global-search-results {
-  position: fixed;
-  left: 16px; right: 16px;
+  position: absolute; left: 16px; right: 16px; top: calc(100% - 4px);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  z-index: 9999;
-  max-height: 55vh;
+  z-index: 999;
+  max-height: 320px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -1941,44 +2016,3 @@ header {
   box-shadow: 0 8px 24px rgba(0,0,0,0.12);
 }
 [data-theme="light"] .search-result-item:active { background: #f0f4f8; }
-
-/* ── Remove tap footprint on all interactive elements ── */
-button, a, [onclick], .asset-card, .hot-card, .menu-item,
-.menu-action-card, .menu-profile-card, .mobile-nav-btn,
-.search-result-item, .alert-item, .journal-card,
-.chart-tf-btn, .alert-tab-btn, .wl-tab-btn {
-  -webkit-tap-highlight-color: transparent;
-  outline: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-/* Only show focus ring when navigating with keyboard */
-button:focus:not(:focus-visible),
-a:focus:not(:focus-visible) { outline: none; box-shadow: none; }
-
-/* ── Auto-expanding textarea ── */
-textarea.auto-expand {
-  width: 100%;
-  resize: none;
-  overflow: hidden;
-  min-height: 38px;
-  font-family: var(--sans);
-  font-size: 0.88rem;
-  line-height: 1.4;
-  padding: 9px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  transition: border-color 0.15s;
-  display: block;
-}
-textarea.auto-expand:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-textarea.auto-expand::placeholder { color: var(--muted); }
-[data-theme="light"] textarea.auto-expand {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
