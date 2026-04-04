@@ -5289,77 +5289,18 @@ setInterval(() => {
 }, 60 * 1000);
 
 // ═══════════════════════════════════════════════
-// ALTRADIA LOADING SPLASH
-// Covers the screen while init() runs.
-// Letters animate via CSS keyframes injected here.
-// Returns a dismiss function. Also has a hard 8-second
-// max lifetime — can never hang the app.
+// APP INIT REVEAL
+// Body starts with class "app-loading" which hides
+// the app via CSS. Call revealApp() when init done.
 // ═══════════════════════════════════════════════
-function showAltradiaLoadingSplash() {
-  const splash = document.getElementById('altradia-splash');
-  if (!splash) return () => {};
-
-  const letters = Array.from(splash.querySelectorAll('.splash-letter'));
-  const PER     = 110;  // ms per letter light-up
-  const HOLD    = 280;  // ms all lit
-  const FADE    = 350;  // ms all fade out
-  const GAP     = 150;  // ms gap before restart
-  const CYCLE   = letters.length * PER + HOLD + FADE + GAP;
-
-  // Inject a single <style> block with CSS keyframes per letter
-  const styleId = 'splash-anim-style';
-  if (!document.getElementById(styleId)) {
-    const rules = letters.map((_, i) => {
-      const startPct  = Math.round((i * PER / CYCLE) * 1000) / 10;
-      const onPct     = Math.round(((i * PER + PER * 0.5) / CYCLE) * 1000) / 10;
-      const holdPct   = Math.round(((letters.length * PER + HOLD * 0.5) / CYCLE) * 1000) / 10;
-      const fadeStart = Math.round(((letters.length * PER + HOLD) / CYCLE) * 1000) / 10;
-      const fadeEnd   = Math.round(((letters.length * PER + HOLD + FADE) / CYCLE) * 1000) / 10;
-      return `
-        @keyframes sl${i} {
-          0%          { opacity: 0.1; }
-          ${startPct}%{ opacity: 0.1; }
-          ${onPct}%   { opacity: 1;   }
-          ${holdPct}% { opacity: 1;   }
-          ${fadeStart}%{ opacity: 1;  }
-          ${fadeEnd}% { opacity: 0.1; }
-          100%        { opacity: 0.1; }
-        }`;
-    }).join('\n');
-    const s = document.createElement('style');
-    s.id = styleId;
-    s.textContent = rules;
-    document.head.appendChild(s);
+function revealApp() {
+  document.body.classList.remove('app-loading');
+  const screen = document.getElementById('app-init-screen');
+  if (screen) {
+    screen.style.transition = 'opacity 0.35s ease';
+    screen.style.opacity = '0';
+    setTimeout(() => { screen.style.display = 'none'; }, 370);
   }
-
-  // Apply animation to each letter
-  letters.forEach((el, i) => {
-    el.style.animation = `sl${i} ${CYCLE}ms ease-in-out infinite`;
-  });
-
-  let dismissed = false;
-
-  function dismiss() {
-    if (dismissed) return;
-    dismissed = true;
-    // Stop animations
-    letters.forEach(el => { el.style.animation = 'none'; el.style.opacity = '0.1'; });
-    // Fade out the overlay
-    splash.classList.add('dismissed');
-    setTimeout(() => {
-      splash.style.display = 'none';
-      splash.classList.remove('dismissed');
-    }, 420);
-  }
-
-  // Hard safety timeout — dismiss after 8s no matter what
-  const safetyTimer = setTimeout(dismiss, 8000);
-
-  // Return wrapped dismiss that also clears the safety timer
-  return function () {
-    clearTimeout(safetyTimer);
-    dismiss();
-  };
 }
 
 // ═══════════════════════════════════════════════
@@ -5479,8 +5420,8 @@ function updateSessionDisplay() {
 // INIT
 // ═══════════════════════════════════════════════
 async function init() {
-  // Show splash immediately — nothing else visible yet
-  const dismissSplash = showAltradiaLoadingSplash();
+  // Body has class "app-loading" from HTML — hides all content.
+  // revealApp() removes it when we're ready to show the chart.
 
   // Apply saved theme before anything renders
   initTheme();
@@ -5509,14 +5450,14 @@ async function init() {
     // ── New user onboarding: show linking screen, auto send test ──
     const hasOnboarded = localStorage.getItem('tw_onboarded');
     if (!hasOnboarded) {
-      if (dismissSplash) dismissSplash();
+      revealApp();
       const onboardOk = await showOnboardingScreen();
       if (!onboardOk) return;
       localStorage.setItem('tw_onboarded', '1');
     }
   } else {
-    // Not inside Telegram — dismiss splash and show blocking connect prompt
-    if (dismissSplash) dismissSplash();
+    // Not inside Telegram — reveal app and show blocking connect prompt
+    revealApp();
     soundEnabled = prefs?.sound_enabled ?? true;
     showTgConnectPrompt();
     return;
@@ -5571,7 +5512,7 @@ async function init() {
   renderWatchlist();
   renderAlerts();
 
-  // Restore last timeframe (before restoring asset so chart loads with correct TF)
+  // Restore last timeframe
   const _lastTF = localStorage.getItem('altradia_last_tf');
   if (_lastTF) {
     lwCurrentTF = _lastTF;
@@ -5628,9 +5569,9 @@ async function init() {
   updateSessionDisplay();
   setInterval(updateSessionDisplay, 10000);
 
-  // ── Dismiss splash and go straight to chart — no HOTLIST flash ───────────
-  if (dismissSplash) dismissSplash();
+  // ── Reveal app and go straight to chart — no HOTLIST flash ───────────────
   mobileTab('chart', false);
+  revealApp();
 
 }
 
