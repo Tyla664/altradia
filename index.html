@@ -1347,13 +1347,51 @@
       </button>
     </div>
 
+    <!-- Telegram Notification Types -->
+    <div class="settings-section-title">TELEGRAM MESSAGE TYPES</div>
+    <div class="settings-group">
+      <div class="settings-row" style="cursor:default">
+        <div class="settings-row-text">
+          <span class="settings-row-label">Proximity Warnings</span>
+          <span class="settings-row-sub">Price approaching your entry, SL or TP level</span>
+        </div>
+        <div class="menu-toggle-pill on" id="tg-notif-proximity" onclick="toggleTgNotifPref('proximity')" style="cursor:pointer"></div>
+      </div>
+      <div class="settings-row-divider"></div>
+      <div class="settings-row" style="cursor:default">
+        <div class="settings-row-text">
+          <span class="settings-row-label">Alert Confirmations</span>
+          <span class="settings-row-sub">Message when you set or edit an alert</span>
+        </div>
+        <div class="menu-toggle-pill on" id="tg-notif-confirmation" onclick="toggleTgNotifPref('confirmation')" style="cursor:pointer"></div>
+      </div>
+      <div class="settings-row-divider"></div>
+      <div class="settings-row" style="cursor:default">
+        <div class="settings-row-text">
+          <span class="settings-row-label">Queued Trade Activation</span>
+          <span class="settings-row-sub">Message when a setup alert's entry is hit</span>
+        </div>
+        <div class="menu-toggle-pill on" id="tg-notif-queued" onclick="toggleTgNotifPref('queued')" style="cursor:pointer"></div>
+      </div>
+      <div class="settings-row-divider"></div>
+      <div class="settings-row" style="cursor:default">
+        <div class="settings-row-text">
+          <span class="settings-row-label">Repeating Zone Alerts</span>
+          <span class="settings-row-sub">Repeat messages for zone alerts with interval set</span>
+        </div>
+        <div class="menu-toggle-pill on" id="tg-notif-other" onclick="toggleTgNotifPref('other')" style="cursor:pointer"></div>
+      </div>
+    </div>
+
     <!-- Discipline -->
     <div class="settings-section-title">DISCIPLINE</div>
     <div class="settings-group">
       <div class="settings-row" style="cursor:default">
         <span class="settings-row-icon">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M9 2L3 7v9h4v-5h4v5h4V7L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
+            <path d="M9 2L1.5 15.5h15L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
+            <line x1="9" y1="7.5" x2="9" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="9" cy="13.5" r="0.8" fill="currentColor"/>
           </svg>
         </span>
         <div class="settings-row-text">
