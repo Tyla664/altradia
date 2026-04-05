@@ -1443,11 +1443,24 @@ header {
 
   .global-search-bar {
     padding: 7px 12px 8px;
-    background: transparent;
-    border-bottom: none;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
     width: 100%;
     box-sizing: border-box;
+    animation: searchSlideDown 0.18s ease;
   }
+  @keyframes searchSlideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .header-search-btn { color: var(--muted); }
+  .header-search-btn.active { color: var(--accent); }
   .logo { font-size: 0.95rem; gap: 7px; }
   .logo-mark { width: 22px; height: 22px; }
   .logo-wordmark { font-size: 0.95rem; }
@@ -1473,20 +1486,10 @@ header {
   .app {
     display: flex;
     flex-direction: column;
-    height: calc(100dvh - 54px - 46px - env(safe-area-inset-top));
+    height: calc(100dvh - 54px - env(safe-area-inset-top));
     overflow: hidden;
     position: relative;
     z-index: 1;
-  }
-
-  .global-search-bar {
-    position: relative;
-    flex-shrink: 0;
-    width: 100%;
-    padding: 7px 12px 5px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    box-sizing: border-box;
   }
 
   .panels-wrap {
