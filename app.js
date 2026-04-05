@@ -466,9 +466,17 @@ let navigateToChartOnSelect = false;
 
 // Feature state
 let slStreakWarningEnabled = false;
-let slStreakThreshold      = 3;   // warn after this many consecutive SLs
-let consecutiveSlCount     = 0;   // current streak counter
-let watchlistGrouped       = true; // true = show category headers
+let slStreakThreshold      = 3;
+let consecutiveSlCount     = 0;
+let watchlistGrouped       = true;
+
+// Telegram notification preferences (all on by default)
+let tgNotifPrefs = {
+  proximity:    true,  // price approaching alert level
+  confirmation: true,  // alert set / edited confirmation
+  queued:       true,  // trade setup watching (queued, not yet active)
+  other:        true,  // any other non-critical messages
+};
 
 // ═══════════════════════════════════════════════
 // HOT LIST
@@ -1000,16 +1008,18 @@ function renderWatchlist() {
       card.className = `asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
       card.dataset.assetId = asset.id;
       card.style.marginBottom = '8px';
+      // In flat view we manage the right side inline so badge and × never collide.
+      // We suppress the CSS-absolute .asset-remove by overriding its position via a wrapper.
       card.innerHTML = `
-        <button class="asset-remove" title="Remove from watchlist" onclick="removeAssetFromWatchlist('${asset.id}','${cat}',event)"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
         <div class="asset-left">
           <div class="asset-symbol">${asset.symbol}</div>
           <div class="asset-name">${asset.name}</div>
         </div>
-        <div style="margin-left:auto;padding-right:${hasAlert ? '28px' : '4px'}">
-          <span style="font-family:var(--mono);font-size:0.5rem;letter-spacing:0.08em;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px">${catLabel}</span>
-        </div>
-        ${hasAlert ? '<div class="asset-right" style="position:absolute;right:36px;top:50%;transform:translateY(-50%)"><div class="alert-dot" title="Alert active"></div></div>' : ''}`;
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0">
+          ${hasAlert ? '<div class="alert-dot" title="Alert active" style="position:static;top:auto;right:auto"></div>' : ''}
+          <span style="font-family:var(--mono);font-size:0.5rem;letter-spacing:0.08em;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;white-space:nowrap">${catLabel}</span>
+          <button style="background:none;border:none;color:var(--red);cursor:pointer;padding:6px;display:flex;align-items:center;flex-shrink:0;-webkit-tap-highlight-color:transparent" onclick="removeAssetFromWatchlist('${asset.id}','${cat}',event)"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        </div>`;
       card.onclick = (e) => {
         if (e.target.classList.contains('asset-remove') || e.target.closest('.asset-remove')) return;
         navigateToChartOnSelect = true;
@@ -1212,6 +1222,18 @@ function toggleHeaderSearch() {
     setTimeout(() => document.getElementById('global-search-input')?.focus(), 50);
   }
 }
+
+// Collapse search bar when tapping anywhere outside the header
+document.addEventListener('touchstart', (e) => {
+  const bar = document.getElementById('global-search-bar');
+  if (!bar || bar.style.display === 'none') return;
+  const header = document.querySelector('header');
+  if (header && !header.contains(e.target)) {
+    bar.style.display = 'none';
+    document.getElementById('header-search-btn')?.classList.remove('active');
+    clearGlobalSearch();
+  }
+}, { passive: true });
 
 // Close search results when tapping outside
 document.addEventListener('touchstart', (e) => {
@@ -2113,7 +2135,7 @@ async function createAlert() {
     showToast('Alert Created', `${assetInfo.symbol} ${condition} ${formatPrice(targetPrice, assetId)}${tfLabel} is now active.`, 'success');
   }
 
-  if (telegramEnabled) {
+  if (telegramEnabled && tgNotifPrefs.confirmation) {
     sendTelegram(tgCreatedMessage(assetInfo.symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance));
   }
 
@@ -2699,7 +2721,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       j.proxWarnedEntry = true;
       noteDirty = true;
       const distPct = (dist * 100).toFixed(2);
-      sendTelegram([
+      if (tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>ENTRY APPROACHING — ${alert.symbol}</b>`,
         ``,
         `Price is within ${distPct}% of your entry level.`,
@@ -2724,7 +2746,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       j.proxWarnedSL = true;
       noteDirty = true;
       const distPct = (dist * 100).toFixed(2);
-      sendTelegram([
+      if (tgNotifPrefs.proximity) sendTelegram([
         `⚠️ <b>STOP LOSS APPROACHING — ${alert.symbol}</b>`,
         ``,
         `Price is within ${distPct}% of your stop loss.`,
@@ -2747,7 +2769,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       j.proxWarnedTP1 = true;
       noteDirty = true;
       const distPct = (dist * 100).toFixed(2);
-      sendTelegram([
+      if (tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>TP1 APPROACHING — ${alert.symbol}</b>`,
         ``,
         `Price is within ${distPct}% of your first take profit.`,
@@ -2769,7 +2791,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       j.proxWarnedTP2 = true;
       noteDirty = true;
       const distPct = (dist * 100).toFixed(2);
-      sendTelegram([
+      if (tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>TP2 APPROACHING — ${alert.symbol}</b>`,
         ``,
         `Price is within ${distPct}% of your second take profit.`,
@@ -2887,7 +2909,7 @@ function checkSetupLevels(alert, currentPrice) {
       alert.lastTriggeredAt = now; // update in-memory too
       renderAlerts();
       showToast(`ENTRY HIT — ${alert.symbol}`, 'Price reached your entry. Your trade may now be active.', 'info');
-      if (telegramEnabled && telegramChatId) {
+      if (telegramEnabled && telegramChatId && tgNotifPrefs.queued) {
         sendTelegram(tgSetupLevelMessage(alert.symbol, 'entry_hit', currentPrice, alert.assetId, j));
       }
       return;
@@ -3108,7 +3130,8 @@ function checkAlerts() {
     showToast(`ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
     playAlertSound(alert.sound || selectedAlertSound);
     const isRepeating = isZone && (alert.repeatInterval || 0) > 0;
-    if (telegramEnabled && !isRepeating) {
+    // Main trigger always sends. Repeating zone re-fires use the 'other' preference.
+    if (telegramEnabled && (!isRepeating || tgNotifPrefs.other)) {
       sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition,
         alert.targetPrice, currentPrice, alert.assetId,
         alert.note, alert.timeframe, alert.zoneLow, alert.zoneHigh,
@@ -3278,7 +3301,7 @@ async function createSetupAlert() {
       renderAlerts();
       showToast('Setup Updated', `${existing.symbol} setup alert updated.`, 'success');
       // Send Telegram update notification with new values
-      if (telegramEnabled && telegramChatId) {
+      if (telegramEnabled && telegramChatId && tgNotifPrefs.confirmation) {
         const uj = JSON.parse(existing.note);
         sendTelegram(tgSetupUpdatedMessage(
           existing.symbol, uj.direction, existing.targetPrice,
@@ -3385,7 +3408,7 @@ async function createSetupAlert() {
   } catch(e) {
     console.warn('createSetupAlert: DB save failed', e);
   }
-  if (telegramEnabled && telegramChatId) {
+  if (telegramEnabled && telegramChatId && tgNotifPrefs.confirmation) {
     sendTelegram(tgSetupCreatedMessage(selectedAsset.symbol, setupDirection, entry, sl, tp1, tp2, tp3, timeframe, journal));
   }
 }
@@ -4338,7 +4361,7 @@ async function renderJournal() {
     tp1_hit:     { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1,5 3.5,7.5 9,2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> TP1 HIT',     cls: 'joutcome-tp1-hit' },
     breakeven:   { label: 'BREAKEVEN',   cls: 'joutcome-breakeven' },
     sl_hit:      { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1.5" y="1.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><line x1="3.2" y1="3.2" x2="6.8" y2="6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="6.8" y1="3.2" x2="3.2" y2="6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> SL HIT',      cls: 'joutcome-sl-hit' },
-    manual_exit: { label: 'MANUAL EXIT', cls: 'joutcome-manual-exit' },
+    manual_exit: { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.4"/><line x1="5" y1="2.5" x2="5" y2="5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="5" y1="7" x2="5" y2="7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> CLOSED', cls: 'joutcome-manual-exit' },
   };
 
   listEl.innerHTML = '';
@@ -4456,16 +4479,17 @@ function exportJournalCSV() {
   ].map(v => `"${v}"`).join(','));
 
   const csv  = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url  = URL.createObjectURL(blob);
+
+  // Telegram WebView blocks createObjectURL — use data URI instead
+  const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
   const a    = document.createElement('a');
   const filterLabel = { all:'all-time', '7':'7-days', '30':'30-days', '90':'3-months' }[filter] || filter;
-  a.href     = url;
+  a.href     = dataUri;
   a.download = `altradia-journal-${filterLabel}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => document.body.removeChild(a), 100);
   showToast('Exported', `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} exported to CSV.`, 'success');
 }
 
@@ -4487,8 +4511,8 @@ function openJournalDetail(entryId) {
     tp1_hit:     { label: 'TP1 HIT',     cls: 'joutcome-tp1-hit' },
     breakeven:   { label: 'BREAKEVEN',   cls: 'joutcome-breakeven' },
     sl_hit:      { label: 'SL HIT',      cls: 'joutcome-sl-hit' },
-    manual_exit: { label: 'MANUAL EXIT', cls: 'joutcome-manual-exit' },
-  }[entry.outcome] || { label: 'MANUAL EXIT', cls: 'joutcome-manual-exit' };
+    manual_exit: { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.4"/><line x1="5" y1="2.5" x2="5" y2="5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="5" y1="7" x2="5" y2="7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> CLOSED', cls: 'joutcome-manual-exit' },
+  }[entry.outcome] || { label: '⊘ CLOSED', cls: 'joutcome-manual-exit' };
 
   const dir = entry.direction === 'long' ? '▲ LONG' : '▼ SHORT';
   const dirColor = entry.direction === 'long' ? 'var(--green)' : 'var(--red)';
@@ -4902,6 +4926,13 @@ function updateMenuToggles() {
   if (wlSub)    wlSub.textContent = watchlistGrouped
     ? 'Assets grouped by Forex, Crypto, etc.'
     : 'All assets listed flat with category badge';
+
+  // Telegram notification preferences
+  const prefKeys = ['proximity','confirmation','queued','other'];
+  prefKeys.forEach(key => {
+    const el = document.getElementById(`tg-notif-${key}`);
+    if (el) el.classList.toggle('on', tgNotifPrefs[key]);
+  });
 }
 
 // ─── SL STREAK WARNING ────────────────────────────────────────────────────────
@@ -4950,6 +4981,20 @@ function toggleWatchlistGrouping() {
   localStorage.setItem('wl_grouped', watchlistGrouped ? '1' : '0');
   updateMenuToggles();
   renderWatchlist();
+}
+
+// ─── TELEGRAM NOTIFICATION PREFERENCES ───────────────────────────────────────
+function toggleTgNotifPref(key) {
+  tgNotifPrefs[key] = !tgNotifPrefs[key];
+  try { localStorage.setItem('tg_notif_prefs', JSON.stringify(tgNotifPrefs)); } catch(e) {}
+  updateMenuToggles();
+}
+
+function loadTgNotifPrefs() {
+  try {
+    const saved = localStorage.getItem('tg_notif_prefs');
+    if (saved) tgNotifPrefs = { ...tgNotifPrefs, ...JSON.parse(saved) };
+  } catch(e) {}
 }
 
 function openMenuAbout()        { openMenuPage('about'); }
@@ -5685,6 +5730,7 @@ async function init() {
   slStreakWarningEnabled = localStorage.getItem('sl_streak_enabled')   === '1';
   slStreakThreshold      = parseInt(localStorage.getItem('sl_streak_threshold') || '3', 10);
   watchlistGrouped       = localStorage.getItem('wl_grouped') !== '0'; // default true
+  loadTgNotifPrefs();
 
   // Push initial history state so Android back button is interceptable from the start
   window.history.replaceState({ twTab: 'chart' }, '', '');
@@ -6172,7 +6218,7 @@ async function saveEditedAlert() {
   showToast('Alert Updated', `${alert.symbol} alert has been updated.`, 'success');
 
   // Telegram notification — inform user their alert was updated
-  if (telegramEnabled && telegramChatId) {
+  if (telegramEnabled && telegramChatId && tgNotifPrefs.confirmation) {
     sendTelegram(tgEditedMessage(
       alert.symbol, condition, targetPrice, alert.assetId,
       note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance
