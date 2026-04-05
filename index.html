@@ -37,16 +37,25 @@
     <div class="status-pill-wrapper">
       <div class="status-pill" id="status-pill">◌ CONNECTING</div>
     </div>
-    <button class="icon-btn menu-btn-fixed" id="menu-btn" title="Menu" onclick="openMenuPanel()">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        <line x1="2" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
-    </button>
+    <div class="header-actions">
+      <!-- Search icon button — toggles the search bar below -->
+      <button class="icon-btn header-search-btn" id="header-search-btn" title="Search" onclick="toggleHeaderSearch()">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.6"/>
+          <line x1="12.5" y1="12.5" x2="16" y2="16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="icon-btn menu-btn-fixed" id="menu-btn" title="Menu" onclick="openMenuPanel()">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <line x1="2" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
   </div>
-  <!-- Search bar below logo row, still inside header -->
-  <div class="global-search-bar" id="global-search-bar">
+  <!-- Collapsible search bar — hidden by default, shown when search icon tapped -->
+  <div class="global-search-bar" id="global-search-bar" style="display:none">
     <div class="global-search-input-wrap">
       <svg class="global-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
         <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
@@ -535,6 +544,7 @@
     <!-- Tab switcher -->
     <div class="alert-tabs" style="padding:0 20px">
       <button class="alert-tab-btn active" id="atab-active" onclick="switchAlertTab('active')">ACTIVE</button>
+      <button class="alert-tab-btn" id="atab-trades" onclick="switchAlertTab('trades')">TRADES</button>
       <button class="alert-tab-btn" id="atab-history" onclick="switchAlertTab('history')">HISTORY</button>
     </div>
     <!-- Active alerts view -->
@@ -549,6 +559,8 @@
         <p>No alerts yet.<br>Select an asset and set a<br>price target to get started.</p>
       </div>
     </div>
+    <!-- Trade setup alerts view -->
+    <div id="alerts-trades" style="display:none;padding:0 0 72px 0"></div>
     <!-- History view (hidden by default) -->
     <div id="alerts-history" style="display:none;padding:0 20px 72px 20px;position:relative">
       <div class="history-filters">
@@ -582,6 +594,9 @@
         <option value="30">30 DAYS</option>
         <option value="90">3 MONTHS</option>
       </select>
+      <button onclick="exportJournalCSV()" title="Export to CSV" style="background:var(--surface);color:var(--muted);font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.06em;padding:4px 8px;border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:4px">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v6M2.5 5l3 3 3-3M1 9h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>CSV
+      </button>
       <button onclick="openJournalEntryForm()" style="background:var(--accent);color:#000;font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.08em;padding:4px 10px;border:none;border-radius:6px;cursor:pointer">+ LOG TRADE</button>
     </div>
   </div>
@@ -1330,6 +1345,60 @@
           <path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
+    </div>
+
+    <!-- Discipline -->
+    <div class="settings-section-title">DISCIPLINE</div>
+    <div class="settings-group">
+      <div class="settings-row" style="cursor:default">
+        <span class="settings-row-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M9 2L3 7v9h4v-5h4v5h4V7L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </span>
+        <div class="settings-row-text">
+          <span class="settings-row-label">SL Streak Warning</span>
+          <span class="settings-row-sub" id="sl-streak-sub">Warn after 3 consecutive stop losses</span>
+        </div>
+        <div class="menu-toggle-pill" id="sl-streak-toggle" onclick="toggleSlStreakWarning()" style="cursor:pointer"></div>
+      </div>
+      <div class="settings-row-divider"></div>
+      <div class="settings-row sl-streak-count-row" id="sl-streak-count-row" style="cursor:default;display:none">
+        <span class="settings-row-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <text x="9" y="13" text-anchor="middle" font-size="9" fill="currentColor" font-family="monospace" id="sl-streak-icon-num">3</text>
+          </svg>
+        </span>
+        <div class="settings-row-text">
+          <span class="settings-row-label">Consecutive SLs to trigger</span>
+          <span class="settings-row-sub">Send Telegram warning after this many SLs in a row</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <button onclick="adjustSlStreak(-1)" style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">−</button>
+          <span id="sl-streak-count-display" style="font-family:var(--mono);font-size:0.9rem;font-weight:700;color:var(--text);min-width:20px;text-align:center">3</span>
+          <button onclick="adjustSlStreak(1)" style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Watchlist -->
+    <div class="settings-section-title">WATCHLIST</div>
+    <div class="settings-group">
+      <div class="settings-row" style="cursor:default">
+        <span class="settings-row-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="3" width="14" height="3" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"/>
+            <rect x="2" y="8" width="14" height="3" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"/>
+            <rect x="2" y="13" width="14" height="3" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"/>
+          </svg>
+        </span>
+        <div class="settings-row-text">
+          <span class="settings-row-label">Group by Category</span>
+          <span class="settings-row-sub" id="wl-group-sub">Assets grouped by Forex, Crypto, etc.</span>
+        </div>
+        <div class="menu-toggle-pill on" id="wl-group-toggle" onclick="toggleWatchlistGrouping()" style="cursor:pointer"></div>
+      </div>
     </div>
 
     <!-- More coming -->
