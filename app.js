@@ -5756,6 +5756,9 @@ async function init() {
     // ── New user onboarding: show linking screen, auto send test ──
     const hasOnboarded = localStorage.getItem('tw_onboarded');
     if (!hasOnboarded) {
+      // Show consent disclaimer first — user must agree before proceeding
+      const consented = await showConsentDisclaimer();
+      if (!consented) return; // user declined — halt
       revealApp();
       const onboardOk = await showOnboardingScreen();
       if (!onboardOk) return;
@@ -5930,6 +5933,87 @@ function cancelEditAlert() {
   ['alert-price','alert-zone-low','alert-zone-high','alert-note','alert-note-zone'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.userEdited; }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// CONSENT DISCLAIMER
+// Shown once to new users before onboarding.
+// They must tick a checkbox to proceed.
+// ═══════════════════════════════════════════════
+function showConsentDisclaimer() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.id = 'consent-overlay';
+
+    overlay.innerHTML = `
+      <div class="consent-scroll">
+        <div style="margin-bottom:24px">
+          <svg viewBox="0 0 240 44" xmlns="http://www.w3.org/2000/svg" height="28" aria-label="altradia" style="display:block;margin-bottom:20px">
+            <defs>
+              <linearGradient id="consent-radia-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#2d8a3e"/>
+                <stop offset="100%" stop-color="#115c28"/>
+              </linearGradient>
+            </defs>
+            <text y="36" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Arial,sans-serif" font-weight="800" font-size="40">
+              <tspan fill="#025a91">alt</tspan><tspan fill="url(#consent-radia-grad)">radia</tspan>
+            </text>
+          </svg>
+          <div style="font-size:1.3rem;font-weight:800;color:var(--text);margin-bottom:6px">Before You Continue</div>
+          <div style="font-size:0.82rem;color:var(--muted);line-height:1.5">When creating an account or using Altradia's Telegram Mini App, you will be asked to confirm your agreement with our legal policies. This consent ensures transparency and compliance with data protection standards.</div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:0 0 20px">
+
+        <div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:8px">Consent Statement</div>
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">By continuing, you acknowledge and agree to the following:</div>
+        <ul style="padding-left:18px;margin:0 0 16px;display:flex;flex-direction:column;gap:8px">
+          <li style="font-size:0.82rem;color:var(--text);line-height:1.5">You have read and understood Altradia's <strong>Terms of Use</strong>, <strong>Privacy Policy</strong>, and <strong>Cookies Policy</strong>.</li>
+          <li style="font-size:0.82rem;color:var(--text);line-height:1.5">You consent to Altradia processing your data as described in these policies, including the use of session identifiers, broker integration data, and alert preferences.</li>
+          <li style="font-size:0.82rem;color:var(--text);line-height:1.5">You understand that Altradia does not provide financial advice and that alerts are informational only.</li>
+          <li style="font-size:0.82rem;color:var(--text);line-height:1.5">You may withdraw consent at any time by discontinuing use of the app or requesting account deletion.</li>
+        </ul>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:0 0 20px">
+
+        <div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:8px">User Action</div>
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">To proceed, you must check the box below:</div>
+      </div>
+
+      <div class="consent-footer">
+        <div class="consent-check-row" id="consent-check-row">
+          <div class="consent-checkbox" id="consent-checkbox"></div>
+          <div class="consent-check-label">I agree to Altradia's Terms of Use, Privacy Policy, and Cookies Policy.</div>
+        </div>
+        <button class="consent-proceed-btn" id="consent-proceed-btn">CONTINUE TO ALTRADIA</button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    let agreed = false;
+
+    const checkRow = overlay.querySelector('#consent-check-row');
+    const checkbox = overlay.querySelector('#consent-checkbox');
+    const proceedBtn = overlay.querySelector('#consent-proceed-btn');
+
+    checkRow.addEventListener('click', () => {
+      agreed = !agreed;
+      checkbox.classList.toggle('checked', agreed);
+      proceedBtn.classList.toggle('enabled', agreed);
+    });
+
+    proceedBtn.addEventListener('click', () => {
+      if (!agreed) return;
+      localStorage.setItem('tw_consented', '1');
+      overlay.style.transition = 'opacity 0.3s ease';
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.remove();
+        resolve(true);
+      }, 320);
+    });
   });
 }
 
