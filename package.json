@@ -4,7 +4,7 @@
   "description": "Telegram customer support bot for Altradia",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node altradia-alert-bot.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.61.0"
