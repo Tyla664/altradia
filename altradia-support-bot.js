@@ -14,7 +14,7 @@
  */
 
 const TelegramBot = require('node-telegram-bot-api');
-const bot = new TelegramBot('8676225445:AAFWHTJvrrUxBxJ43XQDK7MwL-j-8Giczv0', { polling: true });
+const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 // ── User context store (in-memory; replace with DB in production) ──────────────
 const userContexts = {}; // { chatId: { altradiaUserId, firstName } }
@@ -250,3 +250,14 @@ bot.on('message', (msg) => {
     `Type /help to see available commands, or /agent to speak with a live support agent.`
   );
 });
+
+// Keep-alive ping for Render free instance
+const http = require("http");
+
+setInterval(() => {
+  http.get("https://altradia-support-bot.onrender.com", (res) => {
+    console.log("Keep-alive ping sent, status:", res.statusCode);
+  }).on("error", (err) => {
+    console.error("Keep-alive ping failed:", err.message);
+  });
+}, 5 * 60 * 1000); // every 5 minutes
