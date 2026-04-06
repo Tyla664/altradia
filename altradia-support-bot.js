@@ -266,7 +266,7 @@ http.createServer((req, res) => {
 
 // Keep-alive ping for Render free instance
 setInterval(() => {
-  http.get("https://altradia-support-bot.onrender.com", (res) => {
+  http.get("https://altradia.onrender.com", (res) => {
     console.log("Keep-alive ping sent, status:", res.statusCode);
   }).on("error", (err) => {
     console.error("Keep-alive ping failed:", err.message);
