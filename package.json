@@ -2,7 +2,7 @@
   "name": "altradia-alert-bot",
   "version": "1.0.0",
   "description": "Telegram customer support bot for Altradia",
-  "main": "app.js",
+  "main": "altradia-alert-bot.js",
   "scripts": {
     "start": "node altradia-alert-bot.js"
   },
