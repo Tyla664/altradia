@@ -251,13 +251,24 @@ bot.on('message', (msg) => {
   );
 });
 
-// Keep-alive ping for Render free instance
-const http = require("http");
+// --- Bot logic above ---
 
+// Tiny HTTP server for Render
+const http = require("http");
+const PORT = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Bot is running\n");
+}).listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
+
+// Keep-alive ping for Render free instance
 setInterval(() => {
   http.get("https://altradia-support-bot.onrender.com", (res) => {
     console.log("Keep-alive ping sent, status:", res.statusCode);
   }).on("error", (err) => {
     console.error("Keep-alive ping failed:", err.message);
   });
-}, 5 * 60 * 1000); // every 5 minutes
+}, 5 * 60 * 1000); // every 5 minutes 
