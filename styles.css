@@ -1565,10 +1565,9 @@ header {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     display: none;
-    padding: 0;
+    padding: 0 0 calc(72px + env(safe-area-inset-bottom)) 0;
     border: none;
     scroll-behavior: smooth;
-    /* Ensure scroll position 0 shows content from the very top of the panel */
     scroll-padding-top: 0;
   }
   .panel.mobile-active,
@@ -1594,7 +1593,9 @@ header {
   .watchlist-panel {
     background: var(--surface);
     top: 0 !important;
-    padding: 0 0 calc(60px + env(safe-area-inset-bottom) + 16px) 0;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 0 calc(72px + env(safe-area-inset-bottom) + 16px) 0;
   }
   .wl-panel-content { padding-top: 0; }
   .market-group { padding: 0 16px; margin-bottom: 12px; }
