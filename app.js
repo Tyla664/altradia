@@ -53,73 +53,72 @@ const ASSETS = {
 const ALL_ASSETS = [
 
   // ════════════════════════════════════════════
-  // CRYPTO — CoinGecko primary (spot prices)
-  //          Deriv secondary  (CFD tick)
+  // CRYPTO — OANDA primary (where available), CoinGecko fallback
+  //          Deriv secondary for tick streaming on supported pairs
   // ════════════════════════════════════════════
-  { id:'bitcoin',       symbol:'BTC',    name:'Bitcoin',           cat:'crypto', sources:['coingecko','deriv'], cgId:'bitcoin',       derivSym:'cryBTCUSD'  },
-  { id:'ethereum',      symbol:'ETH',    name:'Ethereum',          cat:'crypto', sources:['coingecko','deriv'], cgId:'ethereum',      derivSym:'cryETHUSD'  },
-  { id:'solana',        symbol:'SOL',    name:'Solana',            cat:'crypto', sources:['coingecko','deriv'], cgId:'solana',        derivSym:'crySOLUSD'  },
-  { id:'ripple',        symbol:'XRP',    name:'XRP',               cat:'crypto', sources:['coingecko','deriv'], cgId:'ripple',        derivSym:'cryXRPUSD'  },
-  { id:'binancecoin',   symbol:'BNB',    name:'BNB',               cat:'crypto', sources:['coingecko'],        cgId:'binancecoin'                          },
-  { id:'dogecoin',      symbol:'DOGE',   name:'Dogecoin',          cat:'crypto', sources:['coingecko','deriv'], cgId:'dogecoin',      derivSym:'cryDOGEUSD' },
-  { id:'cardano',       symbol:'ADA',    name:'Cardano',           cat:'crypto', sources:['coingecko','deriv'], cgId:'cardano',       derivSym:'cryADAUSD'  },
-  { id:'avalanche-2',   symbol:'AVAX',   name:'Avalanche',         cat:'crypto', sources:['coingecko'],        cgId:'avalanche-2'                          },
-  { id:'chainlink',     symbol:'LINK',   name:'Chainlink',         cat:'crypto', sources:['coingecko'],        cgId:'chainlink'                            },
-  { id:'litecoin',      symbol:'LTC',    name:'Litecoin',          cat:'crypto', sources:['coingecko','deriv'], cgId:'litecoin',      derivSym:'cryLTCUSD'  },
-  { id:'polkadot',      symbol:'DOT',    name:'Polkadot',          cat:'crypto', sources:['coingecko'],        cgId:'polkadot'                             },
-  { id:'shiba-inu',     symbol:'SHIB',   name:'Shiba Inu',         cat:'crypto', sources:['coingecko'],        cgId:'shiba-inu'                            },
-  { id:'uniswap',       symbol:'UNI',    name:'Uniswap',           cat:'crypto', sources:['coingecko'],        cgId:'uniswap'                              },
-  { id:'cosmos',        symbol:'ATOM',   name:'Cosmos',            cat:'crypto', sources:['coingecko'],        cgId:'cosmos'                               },
-  { id:'stellar',       symbol:'XLM',    name:'Stellar',           cat:'crypto', sources:['coingecko'],        cgId:'stellar'                              },
-  { id:'monero',        symbol:'XMR',    name:'Monero',            cat:'crypto', sources:['coingecko'],        cgId:'monero'                               },
-  { id:'tron',          symbol:'TRX',    name:'TRON',              cat:'crypto', sources:['coingecko'],        cgId:'tron'                                 },
-  { id:'aave',          symbol:'AAVE',   name:'Aave',              cat:'crypto', sources:['coingecko'],        cgId:'aave'                                 },
-  { id:'near',          symbol:'NEAR',   name:'NEAR Protocol',     cat:'crypto', sources:['coingecko'],        cgId:'near'                                 },
-  { id:'aptos',         symbol:'APT',    name:'Aptos',             cat:'crypto', sources:['coingecko'],        cgId:'aptos'                                },
-  { id:'arbitrum',      symbol:'ARB',    name:'Arbitrum',          cat:'crypto', sources:['coingecko'],        cgId:'arbitrum'                             },
-  { id:'optimism',      symbol:'OP',     name:'Optimism',          cat:'crypto', sources:['coingecko'],        cgId:'optimism'                             },
-  { id:'sui',           symbol:'SUI',    name:'Sui',               cat:'crypto', sources:['coingecko'],        cgId:'sui'                                  },
-  { id:'toncoin',       symbol:'TON',    name:'Toncoin',           cat:'crypto', sources:['coingecko'],        cgId:'toncoin'                              },
-  { id:'pepe',          symbol:'PEPE',   name:'Pepe',              cat:'crypto', sources:['coingecko'],        cgId:'pepe'                                 },
-  { id:'bonk',          symbol:'BONK',   name:'Bonk',              cat:'crypto', sources:['coingecko'],        cgId:'bonk'                                 },
-  { id:'maker',         symbol:'MKR',    name:'MakerDAO',          cat:'crypto', sources:['coingecko'],        cgId:'maker'                                },
-  { id:'kaspa',         symbol:'KAS',    name:'Kaspa',             cat:'crypto', sources:['coingecko'],        cgId:'kaspa'                                },
-  { id:'render-token',  symbol:'RENDER', name:'Render',            cat:'crypto', sources:['coingecko'],        cgId:'render-token'                         },
-  { id:'fetch-ai',      symbol:'FET',    name:'Fetch.AI',          cat:'crypto', sources:['coingecko'],        cgId:'fetch-ai'                             },
-  { id:'worldcoin-wld', symbol:'WLD',    name:'Worldcoin',         cat:'crypto', sources:['coingecko'],        cgId:'worldcoin-wld'                        },
-  { id:'celestia',      symbol:'TIA',    name:'Celestia',          cat:'crypto', sources:['coingecko'],        cgId:'celestia'                             },
-  { id:'starknet',      symbol:'STRK',   name:'Starknet',          cat:'crypto', sources:['coingecko'],        cgId:'starknet'                             },
-  { id:'hedera',        symbol:'HBAR',   name:'Hedera',            cat:'crypto', sources:['coingecko'],        cgId:'hedera-hashgraph'                     },
-  { id:'vechain',       symbol:'VET',    name:'VeChain',           cat:'crypto', sources:['coingecko'],        cgId:'vechain'                              },
-  { id:'algorand',      symbol:'ALGO',   name:'Algorand',          cat:'crypto', sources:['coingecko'],        cgId:'algorand'                             },
-  { id:'internet-computer', symbol:'ICP',name:'ICP',              cat:'crypto', sources:['coingecko'],        cgId:'internet-computer'                    },
-  { id:'filecoin',      symbol:'FIL',    name:'Filecoin',          cat:'crypto', sources:['coingecko'],        cgId:'filecoin'                             },
-  { id:'injective-protocol',symbol:'INJ',name:'Injective',        cat:'crypto', sources:['coingecko'],        cgId:'injective-protocol'                   },
-  { id:'sei-network',   symbol:'SEI',    name:'Sei',               cat:'crypto', sources:['coingecko'],        cgId:'sei-network'                          },
-  { id:'immutable-x',   symbol:'IMX',   name:'Immutable X',       cat:'crypto', sources:['coingecko'],        cgId:'immutable-x'                          },
-  { id:'polygon',       symbol:'MATIC',  name:'Polygon',           cat:'crypto', sources:['coingecko'],        cgId:'matic-network'                        },
+  { id:'bitcoin',       symbol:'BTC',    name:'Bitcoin',           cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'bitcoin',       derivSym:'cryBTCUSD',  oandaSym:'BTC_USD' },
+  { id:'ethereum',      symbol:'ETH',    name:'Ethereum',          cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'ethereum',      derivSym:'cryETHUSD',  oandaSym:'ETH_USD' },
+  { id:'solana',        symbol:'SOL',    name:'Solana',            cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'solana',        derivSym:'crySOLUSD',  oandaSym:'SOL_USD' },
+  { id:'ripple',        symbol:'XRP',    name:'XRP',               cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'ripple',        derivSym:'cryXRPUSD',  oandaSym:'XRP_USD' },
+  { id:'binancecoin',   symbol:'BNB',    name:'BNB',               cat:'crypto', sources:['coingecko'],                cgId:'binancecoin'                          },
+  { id:'dogecoin',      symbol:'DOGE',   name:'Dogecoin',          cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'dogecoin',      derivSym:'cryDOGEUSD', oandaSym:'DOGE_USD'},
+  { id:'cardano',       symbol:'ADA',    name:'Cardano',           cat:'crypto', sources:['coingecko','deriv'],         cgId:'cardano',       derivSym:'cryADAUSD'  },
+  { id:'avalanche-2',   symbol:'AVAX',   name:'Avalanche',         cat:'crypto', sources:['coingecko'],                cgId:'avalanche-2'                          },
+  { id:'chainlink',     symbol:'LINK',   name:'Chainlink',         cat:'crypto', sources:['coingecko'],                cgId:'chainlink'                            },
+  { id:'litecoin',      symbol:'LTC',    name:'Litecoin',          cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'litecoin',      derivSym:'cryLTCUSD',  oandaSym:'LTC_USD' },
+  { id:'polkadot',      symbol:'DOT',    name:'Polkadot',          cat:'crypto', sources:['coingecko'],                cgId:'polkadot'                             },
+  { id:'shiba-inu',     symbol:'SHIB',   name:'Shiba Inu',         cat:'crypto', sources:['coingecko'],                cgId:'shiba-inu'                            },
+  { id:'uniswap',       symbol:'UNI',    name:'Uniswap',           cat:'crypto', sources:['coingecko'],                cgId:'uniswap'                              },
+  { id:'cosmos',        symbol:'ATOM',   name:'Cosmos',            cat:'crypto', sources:['coingecko'],                cgId:'cosmos'                               },
+  { id:'stellar',       symbol:'XLM',    name:'Stellar',           cat:'crypto', sources:['coingecko'],                cgId:'stellar'                              },
+  { id:'monero',        symbol:'XMR',    name:'Monero',            cat:'crypto', sources:['coingecko'],                cgId:'monero'                               },
+  { id:'tron',          symbol:'TRX',    name:'TRON',              cat:'crypto', sources:['coingecko'],                cgId:'tron'                                 },
+  { id:'aave',          symbol:'AAVE',   name:'Aave',              cat:'crypto', sources:['coingecko'],                cgId:'aave'                                 },
+  { id:'near',          symbol:'NEAR',   name:'NEAR Protocol',     cat:'crypto', sources:['coingecko'],                cgId:'near'                                 },
+  { id:'aptos',         symbol:'APT',    name:'Aptos',             cat:'crypto', sources:['coingecko'],                cgId:'aptos'                                },
+  { id:'arbitrum',      symbol:'ARB',    name:'Arbitrum',          cat:'crypto', sources:['coingecko'],                cgId:'arbitrum'                             },
+  { id:'optimism',      symbol:'OP',     name:'Optimism',          cat:'crypto', sources:['coingecko'],                cgId:'optimism'                             },
+  { id:'sui',           symbol:'SUI',    name:'Sui',               cat:'crypto', sources:['coingecko'],                cgId:'sui'                                  },
+  { id:'toncoin',       symbol:'TON',    name:'Toncoin',           cat:'crypto', sources:['coingecko'],                cgId:'toncoin'                              },
+  { id:'pepe',          symbol:'PEPE',   name:'Pepe',              cat:'crypto', sources:['coingecko'],                cgId:'pepe'                                 },
+  { id:'bonk',          symbol:'BONK',   name:'Bonk',              cat:'crypto', sources:['coingecko'],                cgId:'bonk'                                 },
+  { id:'maker',         symbol:'MKR',    name:'MakerDAO',          cat:'crypto', sources:['coingecko'],                cgId:'maker'                                },
+  { id:'kaspa',         symbol:'KAS',    name:'Kaspa',             cat:'crypto', sources:['coingecko'],                cgId:'kaspa'                                },
+  { id:'render-token',  symbol:'RENDER', name:'Render',            cat:'crypto', sources:['coingecko'],                cgId:'render-token'                         },
+  { id:'fetch-ai',      symbol:'FET',    name:'Fetch.AI',          cat:'crypto', sources:['coingecko'],                cgId:'fetch-ai'                             },
+  { id:'worldcoin-wld', symbol:'WLD',    name:'Worldcoin',         cat:'crypto', sources:['coingecko'],                cgId:'worldcoin-wld'                        },
+  { id:'celestia',      symbol:'TIA',    name:'Celestia',          cat:'crypto', sources:['coingecko'],                cgId:'celestia'                             },
+  { id:'starknet',      symbol:'STRK',   name:'Starknet',          cat:'crypto', sources:['coingecko'],                cgId:'starknet'                             },
+  { id:'hedera',        symbol:'HBAR',   name:'Hedera',            cat:'crypto', sources:['coingecko'],                cgId:'hedera-hashgraph'                     },
+  { id:'vechain',       symbol:'VET',    name:'VeChain',           cat:'crypto', sources:['coingecko'],                cgId:'vechain'                              },
+  { id:'algorand',      symbol:'ALGO',   name:'Algorand',          cat:'crypto', sources:['coingecko'],                cgId:'algorand'                             },
+  { id:'internet-computer', symbol:'ICP',name:'ICP',              cat:'crypto', sources:['coingecko'],                cgId:'internet-computer'                    },
+  { id:'filecoin',      symbol:'FIL',    name:'Filecoin',          cat:'crypto', sources:['coingecko'],                cgId:'filecoin'                             },
+  { id:'injective-protocol',symbol:'INJ',name:'Injective',        cat:'crypto', sources:['coingecko'],                cgId:'injective-protocol'                   },
+  { id:'sei-network',   symbol:'SEI',    name:'Sei',               cat:'crypto', sources:['coingecko'],                cgId:'sei-network'                          },
+  { id:'immutable-x',   symbol:'IMX',   name:'Immutable X',       cat:'crypto', sources:['coingecko'],                cgId:'immutable-x'                          },
+  { id:'polygon',       symbol:'MATIC',  name:'Polygon',           cat:'crypto', sources:['coingecko'],                cgId:'matic-network'                        },
 
   // ════════════════════════════════════════════
-  // FOREX — Deriv primary + OANDA secondary
-  // Available on: OANDA ✓  Deriv ✓  FXCM ✓  IG ✓
+  // FOREX — OANDA primary, Deriv secondary
   // ════════════════════════════════════════════
 
   // ── Major Pairs ──────────────────────────────
-  { id:'EUR/USD', symbol:'EUR/USD', name:'Euro / US Dollar',             cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURUSD', oandaSym:'EUR_USD' },
-  { id:'GBP/USD', symbol:'GBP/USD', name:'British Pound / US Dollar',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPUSD', oandaSym:'GBP_USD' },
-  { id:'USD/JPY', symbol:'USD/JPY', name:'US Dollar / Japanese Yen',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDJPY', oandaSym:'USD_JPY' },
-  { id:'AUD/USD', symbol:'AUD/USD', name:'Australian Dollar / USD',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDUSD', oandaSym:'AUD_USD' },
-  { id:'USD/CAD', symbol:'USD/CAD', name:'US Dollar / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCAD', oandaSym:'USD_CAD' },
-  { id:'USD/CHF', symbol:'USD/CHF', name:'US Dollar / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCHF', oandaSym:'USD_CHF' },
-  { id:'NZD/USD', symbol:'NZD/USD', name:'New Zealand Dollar / USD',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDUSD', oandaSym:'NZD_USD' },
+  { id:'EUR/USD', symbol:'EUR/USD', name:'Euro / US Dollar',             cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURUSD', oandaSym:'EUR_USD' },
+  { id:'GBP/USD', symbol:'GBP/USD', name:'British Pound / US Dollar',   cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPUSD', oandaSym:'GBP_USD' },
+  { id:'USD/JPY', symbol:'USD/JPY', name:'US Dollar / Japanese Yen',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDJPY', oandaSym:'USD_JPY' },
+  { id:'AUD/USD', symbol:'AUD/USD', name:'Australian Dollar / USD',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDUSD', oandaSym:'AUD_USD' },
+  { id:'USD/CAD', symbol:'USD/CAD', name:'US Dollar / Canadian Dollar', cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDCAD', oandaSym:'USD_CAD' },
+  { id:'USD/CHF', symbol:'USD/CHF', name:'US Dollar / Swiss Franc',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDCHF', oandaSym:'USD_CHF' },
+  { id:'NZD/USD', symbol:'NZD/USD', name:'New Zealand Dollar / USD',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxNZDUSD', oandaSym:'NZD_USD' },
 
   // ── Euro Crosses ──────────────────────────────
-  { id:'EUR/GBP', symbol:'EUR/GBP', name:'Euro / British Pound',         cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURGBP', oandaSym:'EUR_GBP' },
-  { id:'EUR/JPY', symbol:'EUR/JPY', name:'Euro / Japanese Yen',          cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURJPY', oandaSym:'EUR_JPY' },
-  { id:'EUR/CHF', symbol:'EUR/CHF', name:'Euro / Swiss Franc',           cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURCHF', oandaSym:'EUR_CHF' },
-  { id:'EUR/CAD', symbol:'EUR/CAD', name:'Euro / Canadian Dollar',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURCAD', oandaSym:'EUR_CAD' },
-  { id:'EUR/AUD', symbol:'EUR/AUD', name:'Euro / Australian Dollar',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURAUD', oandaSym:'EUR_AUD' },
-  { id:'EUR/NZD', symbol:'EUR/NZD', name:'Euro / New Zealand Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURNZD', oandaSym:'EUR_NZD' },
+  { id:'EUR/GBP', symbol:'EUR/GBP', name:'Euro / British Pound',         cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURGBP', oandaSym:'EUR_GBP' },
+  { id:'EUR/JPY', symbol:'EUR/JPY', name:'Euro / Japanese Yen',          cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURJPY', oandaSym:'EUR_JPY' },
+  { id:'EUR/CHF', symbol:'EUR/CHF', name:'Euro / Swiss Franc',           cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURCHF', oandaSym:'EUR_CHF' },
+  { id:'EUR/CAD', symbol:'EUR/CAD', name:'Euro / Canadian Dollar',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURCAD', oandaSym:'EUR_CAD' },
+  { id:'EUR/AUD', symbol:'EUR/AUD', name:'Euro / Australian Dollar',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURAUD', oandaSym:'EUR_AUD' },
+  { id:'EUR/NZD', symbol:'EUR/NZD', name:'Euro / New Zealand Dollar',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURNZD', oandaSym:'EUR_NZD' },
   { id:'EUR/SEK', symbol:'EUR/SEK', name:'Euro / Swedish Krona',         cat:'forex', sources:['oanda'],                              oandaSym:'EUR_SEK' },
   { id:'EUR/NOK', symbol:'EUR/NOK', name:'Euro / Norwegian Krone',       cat:'forex', sources:['oanda'],                              oandaSym:'EUR_NOK' },
   { id:'EUR/DKK', symbol:'EUR/DKK', name:'Euro / Danish Krone',          cat:'forex', sources:['oanda'],                              oandaSym:'EUR_DKK' },
@@ -132,28 +131,28 @@ const ALL_ASSETS = [
   { id:'EUR/ZAR', symbol:'EUR/ZAR', name:'Euro / South African Rand',    cat:'forex', sources:['oanda'],                              oandaSym:'EUR_ZAR' },
 
   // ── GBP Crosses ──────────────────────────────
-  { id:'GBP/JPY', symbol:'GBP/JPY', name:'British Pound / Japanese Yen',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPJPY', oandaSym:'GBP_JPY' },
-  { id:'GBP/CHF', symbol:'GBP/CHF', name:'British Pound / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPCHF', oandaSym:'GBP_CHF' },
-  { id:'GBP/CAD', symbol:'GBP/CAD', name:'British Pound / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPCAD', oandaSym:'GBP_CAD' },
-  { id:'GBP/AUD', symbol:'GBP/AUD', name:'British Pound / Australian Dollar',cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPAUD', oandaSym:'GBP_AUD' },
-  { id:'GBP/NZD', symbol:'GBP/NZD', name:'British Pound / New Zealand Dollar',cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPNZD', oandaSym:'GBP_NZD' },
+  { id:'GBP/JPY', symbol:'GBP/JPY', name:'British Pound / Japanese Yen',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPJPY', oandaSym:'GBP_JPY' },
+  { id:'GBP/CHF', symbol:'GBP/CHF', name:'British Pound / Swiss Franc',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPCHF', oandaSym:'GBP_CHF' },
+  { id:'GBP/CAD', symbol:'GBP/CAD', name:'British Pound / Canadian Dollar', cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPCAD', oandaSym:'GBP_CAD' },
+  { id:'GBP/AUD', symbol:'GBP/AUD', name:'British Pound / Australian Dollar',cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPAUD', oandaSym:'GBP_AUD' },
+  { id:'GBP/NZD', symbol:'GBP/NZD', name:'British Pound / New Zealand Dollar',cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPNZD', oandaSym:'GBP_NZD' },
   { id:'GBP/SGD', symbol:'GBP/SGD', name:'British Pound / Singapore Dollar', cat:'forex', sources:['oanda'],                               oandaSym:'GBP_SGD' },
 
   // ── AUD Crosses ──────────────────────────────
-  { id:'AUD/JPY', symbol:'AUD/JPY', name:'Australian Dollar / Japanese Yen',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDJPY', oandaSym:'AUD_JPY' },
-  { id:'AUD/CAD', symbol:'AUD/CAD', name:'Australian Dollar / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDCAD', oandaSym:'AUD_CAD' },
-  { id:'AUD/CHF', symbol:'AUD/CHF', name:'Australian Dollar / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDCHF', oandaSym:'AUD_CHF' },
-  { id:'AUD/NZD', symbol:'AUD/NZD', name:'Australian Dollar / New Zealand Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDNZD', oandaSym:'AUD_NZD' },
+  { id:'AUD/JPY', symbol:'AUD/JPY', name:'Australian Dollar / Japanese Yen',   cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDJPY', oandaSym:'AUD_JPY' },
+  { id:'AUD/CAD', symbol:'AUD/CAD', name:'Australian Dollar / Canadian Dollar', cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDCAD', oandaSym:'AUD_CAD' },
+  { id:'AUD/CHF', symbol:'AUD/CHF', name:'Australian Dollar / Swiss Franc',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDCHF', oandaSym:'AUD_CHF' },
+  { id:'AUD/NZD', symbol:'AUD/NZD', name:'Australian Dollar / New Zealand Dollar', cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDNZD', oandaSym:'AUD_NZD' },
   { id:'AUD/SGD', symbol:'AUD/SGD', name:'Australian Dollar / Singapore Dollar',cat:'forex', sources:['oanda'],                              oandaSym:'AUD_SGD' },
 
   // ── NZD Crosses ──────────────────────────────
-  { id:'NZD/JPY', symbol:'NZD/JPY', name:'New Zealand Dollar / Japanese Yen',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDJPY', oandaSym:'NZD_JPY' },
-  { id:'NZD/CAD', symbol:'NZD/CAD', name:'New Zealand Dollar / Canadian Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDCAD', oandaSym:'NZD_CAD' },
-  { id:'NZD/CHF', symbol:'NZD/CHF', name:'New Zealand Dollar / Swiss Franc',        cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDCHF', oandaSym:'NZD_CHF' },
+  { id:'NZD/JPY', symbol:'NZD/JPY', name:'New Zealand Dollar / Japanese Yen',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxNZDJPY', oandaSym:'NZD_JPY' },
+  { id:'NZD/CAD', symbol:'NZD/CAD', name:'New Zealand Dollar / Canadian Dollar',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxNZDCAD', oandaSym:'NZD_CAD' },
+  { id:'NZD/CHF', symbol:'NZD/CHF', name:'New Zealand Dollar / Swiss Franc',        cat:'forex', sources:['oanda','deriv'], derivSym:'frxNZDCHF', oandaSym:'NZD_CHF' },
   { id:'NZD/SGD', symbol:'NZD/SGD', name:'New Zealand Dollar / Singapore Dollar',   cat:'forex', sources:['oanda'],                              oandaSym:'NZD_SGD' },
 
   // ── CAD Crosses ──────────────────────────────
-  { id:'CAD/JPY', symbol:'CAD/JPY', name:'Canadian Dollar / Japanese Yen',  cat:'forex', sources:['deriv','oanda'], derivSym:'frxCADJPY', oandaSym:'CAD_JPY' },
+  { id:'CAD/JPY', symbol:'CAD/JPY', name:'Canadian Dollar / Japanese Yen',  cat:'forex', sources:['oanda','deriv'], derivSym:'frxCADJPY', oandaSym:'CAD_JPY' },
   { id:'CAD/CHF', symbol:'CAD/CHF', name:'Canadian Dollar / Swiss Franc',   cat:'forex', sources:['oanda'],                              oandaSym:'CAD_CHF' },
   { id:'CAD/SGD', symbol:'CAD/SGD', name:'Canadian Dollar / Singapore Dollar', cat:'forex', sources:['oanda'],                           oandaSym:'CAD_SGD' },
 
@@ -167,16 +166,16 @@ const ALL_ASSETS = [
   { id:'HKD/JPY', symbol:'HKD/JPY', name:'Hong Kong Dollar / Japanese Yen', cat:'forex', sources:['oanda'],        oandaSym:'HKD_JPY' },
 
   // ── USD Emerging & Exotics ────────────────────
-  { id:'USD/SGD', symbol:'USD/SGD', name:'US Dollar / Singapore Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDSGD', oandaSym:'USD_SGD' },
-  { id:'USD/HKD', symbol:'USD/HKD', name:'US Dollar / Hong Kong Dollar',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDHKD', oandaSym:'USD_HKD' },
-  { id:'USD/MXN', symbol:'USD/MXN', name:'US Dollar / Mexican Peso',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDMXN', oandaSym:'USD_MXN' },
-  { id:'USD/ZAR', symbol:'USD/ZAR', name:'US Dollar / South African Rand', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDZAR', oandaSym:'USD_ZAR' },
-  { id:'USD/TRY', symbol:'USD/TRY', name:'US Dollar / Turkish Lira',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDTRY', oandaSym:'USD_TRY' },
+  { id:'USD/SGD', symbol:'USD/SGD', name:'US Dollar / Singapore Dollar',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDSGD', oandaSym:'USD_SGD' },
+  { id:'USD/HKD', symbol:'USD/HKD', name:'US Dollar / Hong Kong Dollar',   cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDHKD', oandaSym:'USD_HKD' },
+  { id:'USD/MXN', symbol:'USD/MXN', name:'US Dollar / Mexican Peso',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDMXN', oandaSym:'USD_MXN' },
+  { id:'USD/ZAR', symbol:'USD/ZAR', name:'US Dollar / South African Rand', cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDZAR', oandaSym:'USD_ZAR' },
+  { id:'USD/TRY', symbol:'USD/TRY', name:'US Dollar / Turkish Lira',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDTRY', oandaSym:'USD_TRY' },
   { id:'USD/SEK', symbol:'USD/SEK', name:'US Dollar / Swedish Krona',      cat:'forex', sources:['oanda'],                              oandaSym:'USD_SEK' },
   { id:'USD/NOK', symbol:'USD/NOK', name:'US Dollar / Norwegian Krone',    cat:'forex', sources:['oanda'],                              oandaSym:'USD_NOK' },
   { id:'USD/DKK', symbol:'USD/DKK', name:'US Dollar / Danish Krone',       cat:'forex', sources:['oanda'],                              oandaSym:'USD_DKK' },
-  { id:'USD/INR', symbol:'USD/INR', name:'US Dollar / Indian Rupee',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDINR', oandaSym:'USD_INR' },
-  { id:'USD/CNH', symbol:'USD/CNH', name:'US Dollar / Offshore Chinese Yuan', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCNH', oandaSym:'USD_CNH' },
+  { id:'USD/INR', symbol:'USD/INR', name:'US Dollar / Indian Rupee',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDINR', oandaSym:'USD_INR' },
+  { id:'USD/CNH', symbol:'USD/CNH', name:'US Dollar / Offshore Chinese Yuan', cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDCNH', oandaSym:'USD_CNH' },
   { id:'USD/BRL', symbol:'USD/BRL', name:'US Dollar / Brazilian Real',     cat:'forex', sources:['oanda'],                              oandaSym:'USD_BRL' },
   { id:'USD/KRW', symbol:'USD/KRW', name:'US Dollar / South Korean Won',   cat:'forex', sources:['oanda'],                              oandaSym:'USD_KRW' },
   { id:'USD/IDR', symbol:'USD/IDR', name:'US Dollar / Indonesian Rupiah',  cat:'forex', sources:['oanda'],                              oandaSym:'USD_IDR' },
@@ -203,18 +202,18 @@ const ALL_ASSETS = [
   { id:'USD/RUB', symbol:'USD/RUB', name:'US Dollar / Russian Ruble',      cat:'forex', sources:['deriv'],          derivSym:'frxUSDRUB'                   },
 
   // ── XAG/XAU treated as Forex on brokers ──────
-  { id:'XAU/USD', symbol:'XAU/USD', name:'Gold Spot',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxXAUUSD', oandaSym:'XAU_USD' },
-  { id:'XAG/USD', symbol:'XAG/USD', name:'Silver Spot',  cat:'forex', sources:['deriv','oanda'], derivSym:'frxXAGUSD', oandaSym:'XAG_USD' },
+  { id:'XAU/USD', symbol:'XAU/USD', name:'Gold Spot',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxXAUUSD', oandaSym:'XAU_USD' },
+  { id:'XAG/USD', symbol:'XAG/USD', name:'Silver Spot',  cat:'forex', sources:['oanda','deriv'], derivSym:'frxXAGUSD', oandaSym:'XAG_USD' },
   { id:'XPD/USD', symbol:'XPD/USD', name:'Palladium Spot', cat:'forex', sources:['oanda'],       oandaSym:'XPD_USD' },
   { id:'XPT/USD', symbol:'XPT/USD', name:'Platinum Spot',  cat:'forex', sources:['oanda'],       oandaSym:'XPT_USD' },
 
   // ════════════════════════════════════════════
   // COMMODITIES — Deriv primary, OANDA secondary
   // ════════════════════════════════════════════
-  { id:'WTI/USD',   symbol:'WTI/USD',  name:'WTI Crude Oil',        cat:'commodities', sources:['deriv','oanda'], derivSym:'WTIUSD',   oandaSym:'WTICO_USD'  },
-  { id:'BRENT/USD', symbol:'BCO/USD',  name:'Brent Crude Oil',      cat:'commodities', sources:['deriv','oanda'], derivSym:'BCOUSD',   oandaSym:'BCO_USD'    },
+  { id:'WTI/USD',   symbol:'WTI/USD',  name:'WTI Crude Oil',        cat:'commodities', sources:['oanda','deriv'], derivSym:'WTIUSD',   oandaSym:'WTICO_USD'  },
+  { id:'BRENT/USD', symbol:'BCO/USD',  name:'Brent Crude Oil',      cat:'commodities', sources:['oanda','deriv'], derivSym:'BCOUSD',   oandaSym:'BCO_USD'    },
   { id:'XNG/USD',   symbol:'XNG/USD',  name:'Natural Gas',          cat:'commodities', sources:['deriv'],         derivSym:'NATGASUSD'                       },
-  { id:'COPPER',    symbol:'XCU/USD',  name:'Copper',               cat:'commodities', sources:['deriv','oanda'], derivSym:'XCUUSD',   oandaSym:'XCU_USD'    },
+  { id:'COPPER',    symbol:'XCU/USD',  name:'Copper',               cat:'commodities', sources:['oanda','deriv'], derivSym:'XCUUSD',   oandaSym:'XCU_USD'    },
   { id:'WHEAT',     symbol:'WHEAT',    name:'Wheat',                cat:'commodities', sources:['deriv'],         derivSym:'WHEATUSD'                        },
   { id:'CORN',      symbol:'CORN',     name:'Corn',                 cat:'commodities', sources:['deriv'],         derivSym:'CORNUSD'                         },
   { id:'SOYBEAN',   symbol:'SOYBEAN',  name:'Soybeans',             cat:'commodities', sources:['deriv'],         derivSym:'SOYBEANUSD'                      },
@@ -229,9 +228,9 @@ const ALL_ASSETS = [
   // ════════════════════════════════════════════
 
   // ── US Indices (Deriv covers the main 3 + DXY) ───────────────────────────
-  { id:'SPX',    symbol:'S&P 500',  name:'S&P 500',              cat:'indices', sources:['deriv','oanda'], derivSym:'US500',    oandaSym:'SPX500_USD' },
-  { id:'DJI',    symbol:'US30',     name:'US 30 (Wall Street)',  cat:'indices', sources:['deriv','oanda'], derivSym:'US30',     oandaSym:'US30_USD'   },
-  { id:'NDX',    symbol:'NDX 100',  name:'NASDAQ 100',           cat:'indices', sources:['deriv','oanda'], derivSym:'USTEC',    oandaSym:'NAS100_USD' },
+  { id:'SPX',    symbol:'S&P 500',  name:'S&P 500',              cat:'indices', sources:['oanda','deriv'], derivSym:'US500',    oandaSym:'SPX500_USD' },
+  { id:'DJI',    symbol:'US30',     name:'US 30 (Wall Street)',  cat:'indices', sources:['oanda','deriv'], derivSym:'US30',     oandaSym:'US30_USD'   },
+  { id:'NDX',    symbol:'NDX 100',  name:'NASDAQ 100',           cat:'indices', sources:['oanda','deriv'], derivSym:'USTEC',    oandaSym:'NAS100_USD' },
   { id:'DXY',    symbol:'DXY',      name:'US Dollar Index',      cat:'indices', sources:['deriv'],         derivSym:'DXY'                            },
   { id:'IXIC',   symbol:'NASDAQ',   name:'NASDAQ Composite',     cat:'indices', sources:['unavailable']                                              },
   { id:'RUT',    symbol:'Russell',  name:'Russell 2000',         cat:'indices', sources:['unavailable']                                              },
@@ -240,9 +239,9 @@ const ALL_ASSETS = [
   { id:'TYX',    symbol:'US30Y',    name:'US 30-Year Treasury',  cat:'indices', sources:['unavailable']                                              },
 
   // ── European Indices ──────────────────────────
-  { id:'FTSE',    symbol:'FTSE 100', name:'FTSE 100 (UK)',        cat:'indices', sources:['deriv','oanda'], derivSym:'UK100',    oandaSym:'UK100_GBP' },
-  { id:'DAX',     symbol:'DAX 40',   name:'DAX 40 (Germany)',     cat:'indices', sources:['deriv','oanda'], derivSym:'DE40',     oandaSym:'DE30_EUR'  },
-  { id:'CAC',     symbol:'CAC 40',   name:'CAC 40 (France)',      cat:'indices', sources:['deriv','oanda'], derivSym:'FR40',     oandaSym:'FR40_EUR'  },
+  { id:'FTSE',    symbol:'FTSE 100', name:'FTSE 100 (UK)',        cat:'indices', sources:['oanda','deriv'], derivSym:'UK100',    oandaSym:'UK100_GBP' },
+  { id:'DAX',     symbol:'DAX 40',   name:'DAX 40 (Germany)',     cat:'indices', sources:['oanda','deriv'], derivSym:'DE40',     oandaSym:'DE30_EUR'  },
+  { id:'CAC',     symbol:'CAC 40',   name:'CAC 40 (France)',      cat:'indices', sources:['oanda','deriv'], derivSym:'FR40',     oandaSym:'FR40_EUR'  },
   { id:'IBEX',    symbol:'IBEX 35',  name:'IBEX 35 (Spain)',      cat:'indices', sources:['oanda'],                              oandaSym:'ES35_EUR'  },
   { id:'FTSEMIB', symbol:'FTSE MIB', name:'FTSE MIB (Italy)',    cat:'indices', sources:['oanda'],                              oandaSym:'IT40_EUR'  },
   { id:'AEX',     symbol:'AEX',      name:'AEX (Netherlands)',    cat:'indices', sources:['oanda'],                              oandaSym:'NL25_EUR'  },
@@ -267,9 +266,9 @@ const ALL_ASSETS = [
   { id:'IPSA',    symbol:'IPSA',     name:'IPSA (Chile)',          cat:'indices', sources:['unavailable']                                             },
 
   // ── Asia-Pacific ──────────────────────────────
-  { id:'N225',    symbol:'Nikkei',    name:'Nikkei 225 (Japan)',     cat:'indices', sources:['deriv','oanda'], derivSym:'JP225',   oandaSym:'JP225_USD' },
-  { id:'HSI',     symbol:'Hang Seng', name:'Hang Seng (HK)',         cat:'indices', sources:['deriv','oanda'], derivSym:'HK33',    oandaSym:'HK33_HKD'  },
-  { id:'ASX200',  symbol:'ASX 200',   name:'ASX 200 (Australia)',    cat:'indices', sources:['deriv','oanda'], derivSym:'AUS200',  oandaSym:'AU200_AUD' },
+  { id:'N225',    symbol:'Nikkei',    name:'Nikkei 225 (Japan)',     cat:'indices', sources:['oanda','deriv'], derivSym:'JP225',   oandaSym:'JP225_USD' },
+  { id:'HSI',     symbol:'Hang Seng', name:'Hang Seng (HK)',         cat:'indices', sources:['oanda','deriv'], derivSym:'HK33',    oandaSym:'HK33_HKD'  },
+  { id:'ASX200',  symbol:'ASX 200',   name:'ASX 200 (Australia)',    cat:'indices', sources:['oanda','deriv'], derivSym:'AUS200',  oandaSym:'AU200_AUD' },
   { id:'TOPIX',   symbol:'TOPIX',     name:'TOPIX (Japan)',           cat:'indices', sources:['unavailable']                                             },
   { id:'SHCOMP',  symbol:'SSE',       name:'Shanghai Composite',     cat:'indices', sources:['unavailable']                                             },
   { id:'CSI300',  symbol:'CSI 300',   name:'CSI 300 (China)',        cat:'indices', sources:['unavailable']                                             },
@@ -623,13 +622,14 @@ function makeDerivWS(symbols, retryRef) {
           high:   prev && prev.high ? Math.max(prev.high, newPrice) : newPrice,
           low:    prev && prev.low  ? Math.min(prev.low,  newPrice) : newPrice,
           open:   (prev && prev.open) || newPrice,
+          lastClose: prev?.lastClose || newPrice, // preserve candle close from chart data
           vol: '—', mcap: '—', live: true, src: 'deriv',
         };
         prices[asset.id] = newPrice;
 
-        // ── Real-time setup level check on every live tick ──────────────
-        // Ensures brief TP/SL wicks are never missed by the 8s poll.
-        // Throttled: max once per 2s per asset to avoid excessive calls.
+        // ── Real-time alert check on every live tick ──────────────────────
+        // Setup alerts: checked every tick (throttled 2s) to catch brief wicks.
+        // Zone/above/below: also checked on tick so they're not delayed 8s.
         const _tickNow = Date.now();
         const _throttleKey = 'lastSetupCheck_' + asset.id;
         if (!window[_throttleKey] || (_tickNow - window[_throttleKey]) >= 2000) {
@@ -637,13 +637,16 @@ function makeDerivWS(symbols, retryRef) {
           const _nowDate = new Date(_tickNow);
           if (isMarketOpenForAsset(asset.id, _nowDate)) {
             alerts.forEach(al => {
-              if (al.condition === 'setup' && al.assetId === asset.id && al.status === 'active') {
+              if (al.status !== 'active' || al.assetId !== asset.id) return;
+              if (al.condition === 'setup') {
                 checkSetupLevels(al, newPrice);
+              } else if (al.condition === 'zone' || al.condition === 'above' || al.condition === 'below' || al.condition === 'tap') {
+                // Run full checkAlerts logic for this specific alert inline
+                checkSingleAlert(al, newPrice, _tickNow, _nowDate);
               }
             });
           }
         }
-        // (Cooldown logic inside checkSetupLevels uses lastTriggeredAt shared with Edge Function)
       }
     } catch(e) {}
   };
@@ -729,11 +732,13 @@ async function fetchOandaSnapshot(assets) {
       const prev = priceData[asset.id];
       priceData[asset.id] = {
         price,
-        change: prev?.open ? (((price - prev.open) / prev.open) * 100).toFixed(4) : '0.0000',
-        high:   prev?.high  ? Math.max(prev.high, price) : price,
-        low:    prev?.low   ? Math.min(prev.low,  price) : price,
-        open:   prev?.open  || price,
-        vol:    '—', mcap: '—', live: true, src: 'oanda',
+        change:    prev?.open ? (((price - prev.open) / prev.open) * 100).toFixed(4) : '0.0000',
+        high:      prev?.high  ? Math.max(prev.high, price) : price,
+        low:       prev?.low   ? Math.min(prev.low,  price) : price,
+        open:      prev?.open  || price,
+        // lastClose: carry forward from chart candles; OANDA mid = good approximation
+        lastClose: prev?.lastClose || price,
+        vol:       '—', mcap: '—', live: true, src: 'oanda',
       };
       prices[asset.id] = price;
     });
@@ -764,15 +769,18 @@ async function fetchCryptoPrices(assets) {
       const asset = ASSET_BY_CG.get(coin.id);
       if (!asset) return;
       const price = coin.current_price;
+      const cgPrev = priceData[asset.id];
       priceData[asset.id] = {
         price,
-        change: coin.price_change_percentage_24h?.toFixed(4) || '0.0000',
-        high:   coin.high_24h,
-        low:    coin.low_24h,
-        open:   coin.current_price - (coin.price_change_24h || 0),
-        vol:    coin.total_volume ? formatVol(coin.total_volume) : '—',
-        mcap:   coin.market_cap   ? formatVol(coin.market_cap)   : '—',
-        live:   true, src: 'coingecko',
+        change:    coin.price_change_percentage_24h?.toFixed(4) || '0.0000',
+        high:      coin.high_24h,
+        low:       coin.low_24h,
+        open:      coin.current_price - (coin.price_change_24h || 0),
+        // lastClose: CoinGecko gives 24h open; use it as the last confirmed session close
+        lastClose: cgPrev?.lastClose || (coin.current_price - (coin.price_change_24h || 0)),
+        vol:       coin.total_volume ? formatVol(coin.total_volume) : '—',
+        mcap:      coin.market_cap   ? formatVol(coin.market_cap)   : '—',
+        live: true, src: 'coingecko',
       };
       prices[asset.id] = price;
     });
@@ -787,22 +795,22 @@ async function fetchCryptoPrices(assets) {
 // This REST fetch fills initial prices + OHLC.
 // ═══════════════════════════════════════════════
 async function fetchAllPrices() {
-  // Collect all assets currently needed (watchlist + hot list assets)
+  // Collect all assets currently needed
   const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
   const hotIds     = new Set(Object.values(HOT_LIST).flat());
   const allNeeded  = [...new Set([...watchedIds, ...hotIds])].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
 
-  // Partition by source — skip 'unavailable' assets entirely
-  const cryptoAssets = allNeeded.filter(a => a.sources?.includes('coingecko'));
-  // OANDA: fetch for ALL assets with oandaSym (including deriv+oanda) for initial price
-  // Deriv WS will take over with ticks once connected; OANDA gives us the first snapshot
-  const oandaAssets  = allNeeded.filter(a => OANDA_KEY && a.oandaSym && a.cat !== 'crypto');
-  // Note: Deriv assets are handled by the persistent WebSocket (connectDeriv)
-  // This REST call only handles CoinGecko + OANDA initial snapshots
+  // OANDA: primary source for ALL assets that have an oandaSym (forex + major crypto)
+  const oandaAssets  = OANDA_KEY ? allNeeded.filter(a => a.oandaSym) : [];
+
+  // CoinGecko: fallback for crypto assets without oandaSym, or if OANDA fails
+  // Only fetch crypto that won't be covered by OANDA
+  const oandaCryptoIds = new Set(oandaAssets.filter(a => a.cat === 'crypto').map(a => a.id));
+  const cgAssets = allNeeded.filter(a => a.sources?.includes('coingecko') && !oandaCryptoIds.has(a.id));
 
   await Promise.all([
-    cryptoAssets.length ? fetchCryptoPrices(cryptoAssets) : Promise.resolve(),
-    oandaAssets.length  ? fetchOandaSnapshot(oandaAssets) : Promise.resolve(),
+    oandaAssets.length ? fetchOandaSnapshot(oandaAssets) : Promise.resolve(),
+    cgAssets.length    ? fetchCryptoPrices(cgAssets)     : Promise.resolve(),
   ]);
 
   checkAlerts();
@@ -813,17 +821,19 @@ async function fetchAllPrices() {
 // ═══════════════════════════════════════════════
 async function fetchSingleAsset(asset) {
   if (!asset) return;
+  // OANDA is now primary for all asset types that have an oandaSym
+  if (OANDA_KEY && asset.oandaSym) {
+    await fetchOandaSnapshot([asset]);
+    return;
+  }
+  // CoinGecko fallback for crypto without OANDA symbol
   if (asset.sources?.includes('coingecko')) {
     await fetchCryptoPrices([asset]); return;
   }
-  if (OANDA_KEY && asset.oandaSym && !asset.sources?.includes('deriv')) {
-    await fetchOandaSnapshot([asset]); return;
-  }
-  // Deriv assets: covered by WebSocket subscription — subscribe if not already
+  // Deriv WS for remaining assets
   if (asset.derivSym) {
     subscribeDerivAsset(asset);
   }
-  // unavailable: no live price source — price stays blank
 }
 
 // Format a triggeredAt value (ISO string, timestamp, or locale string) → readable time
@@ -1648,6 +1658,14 @@ async function loadLWChart(asset, force = false) {
   hideChartMsg();
   try {
     lwSeries.setData(candles);
+
+    // Store the last completed candle close — used by above/below alert trigger
+    // to require a candle CLOSE beyond the level, not just a wick touch
+    const lastCandle = candles[candles.length - 1];
+    if (lastCandle && asset?.id) {
+      if (!priceData[asset.id]) priceData[asset.id] = {};
+      priceData[asset.id].lastClose = lastCandle.close;
+    }
     // Show last ~80 candles on screen by default, but allow scrolling back
     const ts = lwChart.timeScale();
     ts.fitContent();
@@ -3069,104 +3087,101 @@ function checkSetupLevels(alert, currentPrice) {
   }
 }
 
+// ── Check a single non-setup alert against a given price ─────────────────────
+// Used by the Deriv tick handler to check zone/above/below/tap alerts in real-time
+function checkSingleAlert(alert, currentPrice, now, nowDate) {
+  if (alert.status !== 'active') return;
+  if (!isMarketOpenForAsset(alert.assetId, nowDate)) return;
+
+  const isZone = alert.condition === 'zone';
+  const isTap  = alert.condition === 'tap';
+  let fired = false;
+
+  if (isZone) {
+    const inZone = currentPrice >= alert.zoneLow && currentPrice <= alert.zoneHigh;
+    if (!inZone) {
+      if (alert.zoneTriggeredOnce) {
+        alert.zoneTriggeredOnce = false;
+        updateAlert(alert.id, { last_triggered_at: null });
+      }
+      return;
+    }
+    const repeatMs  = (alert.repeatInterval || 0) * 60 * 1000;
+    const lastFired = alert.lastTriggeredAt || 0;
+    if (repeatMs === 0) {
+      if (alert.zoneTriggeredOnce) return;
+      alert.zoneTriggeredOnce = true;
+      alert.status = 'triggered';
+    } else {
+      if (now - lastFired < repeatMs) return;
+      alert.lastTriggeredAt = now;
+      alert.zoneTriggeredOnce = true;
+      updateAlert(alert.id, { last_triggered_at: new Date().toISOString() });
+    }
+    fired = true;
+  } else if (isTap) {
+    const tol = (alert.tapTolerance || 0.2) / 100;
+    const withinRange = Math.abs(currentPrice - alert.targetPrice) / alert.targetPrice <= tol;
+    if (!withinRange) { alert.tapTriggeredOnce = false; return; }
+    if (alert.tapTriggeredOnce) return;
+    alert.tapTriggeredOnce = true;
+    alert.status = 'triggered';
+    fired = true;
+  } else {
+    // Above/below: use lastClose for candle-close confirmation
+    const candleClose = priceData[alert.assetId]?.lastClose || currentPrice;
+    fired =
+      (alert.condition === 'above' && candleClose >= alert.targetPrice) ||
+      (alert.condition === 'below' && candleClose <= alert.targetPrice);
+    if (!fired) return;
+    alert.status = 'triggered';
+  }
+
+  if (!fired) return;
+
+  alert.triggeredDirection = alert.condition;
+  alert.triggeredAt        = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  alert.triggeredPrice     = currentPrice;
+  triggeredToday++;
+
+  if (!isZone || (alert.repeatInterval || 0) === 0) {
+    updateAlert(alert.id, {
+      status: 'triggered', triggered_at: new Date().toISOString(),
+      triggered_price: currentPrice, triggered_direction: alert.condition,
+    });
+  }
+
+  const tfLabel = alert.timeframe ? ` [${alert.timeframe}]` : '';
+  let msg;
+  if (isZone) {
+    msg = `Entered zone ${formatPrice(alert.zoneLow, alert.assetId)}–${formatPrice(alert.zoneHigh, alert.assetId)}${tfLabel}`;
+  } else if (isTap) {
+    msg = `Tapped ${formatPrice(alert.targetPrice, alert.assetId)} (±${alert.tapTolerance}%)${tfLabel}`;
+  } else {
+    msg = `${alert.condition === 'above' ? 'Candle closed above' : 'Candle closed below'} ${formatPrice(alert.targetPrice, alert.assetId)}${tfLabel}`;
+  }
+
+  showToast(`ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
+  playAlertSound(alert.sound || selectedAlertSound);
+  const isRepeating = isZone && (alert.repeatInterval || 0) > 0;
+  if (telegramEnabled && (!isRepeating || tgNotifPrefs.other)) {
+    sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition,
+      alert.targetPrice, currentPrice, alert.assetId,
+      alert.note, alert.timeframe, alert.zoneLow, alert.zoneHigh,
+      alert.repeatInterval, alert.tapTolerance));
+  }
+  renderAlerts();
+}
+
 function checkAlerts() {
   const now = Date.now();
   const nowDate = new Date(now);
   alerts.forEach(alert => {
     if (alert.status !== 'active') return;
-
-    // Don't fire on stale weekend/after-hours prices
     if (!isMarketOpenForAsset(alert.assetId, nowDate)) return;
-
     const currentPrice = priceData[alert.assetId]?.price || prices[alert.assetId];
     if (!currentPrice) return;
-
-    // ── Setup alerts: handled entirely by frontend level checker ──────────
-    // Never let them fall through to above/below logic in Edge Function or here
-    if (alert.condition === 'setup') {
-      checkSetupLevels(alert, currentPrice);
-      return;
-    }
-
-    const isZone      = alert.condition === 'zone';
-    const isTap       = alert.condition === 'tap';
-    let fired = false;
-
-    if (isZone) {
-      const inZone = currentPrice >= alert.zoneLow && currentPrice <= alert.zoneHigh;
-      if (!inZone) {
-        // Price left the zone — reset so it can fire again on re-entry
-        if (alert.zoneTriggeredOnce) {
-          alert.zoneTriggeredOnce = false;
-          updateAlert(alert.id, { last_triggered_at: null });
-        }
-        return;
-      }
-      const repeatMs = (alert.repeatInterval || 0) * 60 * 1000;
-      const lastFired = alert.lastTriggeredAt || 0;
-      if (repeatMs === 0) {
-        if (alert.zoneTriggeredOnce) return;
-        alert.zoneTriggeredOnce = true;
-        alert.status = 'triggered';
-      } else {
-        if (now - lastFired < repeatMs) return;
-        alert.lastTriggeredAt = now;
-        alert.zoneTriggeredOnce = true;
-        // Persist so badge survives reload
-        updateAlert(alert.id, { last_triggered_at: new Date().toISOString() });
-      }
-      fired = true;
-    } else if (isTap) {
-      const tol = (alert.tapTolerance || 0.2) / 100;
-      const withinRange = Math.abs(currentPrice - alert.targetPrice) / alert.targetPrice <= tol;
-      if (!withinRange) { alert.tapTriggeredOnce = false; return; }
-      if (alert.tapTriggeredOnce) return;
-      alert.tapTriggeredOnce = true;
-      alert.status = 'triggered';
-      fired = true;
-    } else {
-      fired =
-        (alert.condition === 'above' && currentPrice >= alert.targetPrice) ||
-        (alert.condition === 'below' && currentPrice <= alert.targetPrice);
-      if (!fired) return;
-      alert.status = 'triggered';
-    }
-
-    alert.triggeredDirection = alert.condition;
-    alert.triggeredAt    = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12: true});
-    alert.triggeredPrice = currentPrice;
-    triggeredToday++;
-
-    if (!isZone || (alert.repeatInterval || 0) === 0) {
-      updateAlert(alert.id, {
-        status:          'triggered',
-        triggered_at:    new Date().toISOString(),
-        triggered_price: currentPrice,
-        triggered_direction: alert.condition,
-      });
-    }
-
-    const tfLabel = alert.timeframe ? ` [${alert.timeframe}]` : '';
-    let msg;
-    if (isZone) {
-      msg = `Entered zone ${formatPrice(alert.zoneLow, alert.assetId)}–${formatPrice(alert.zoneHigh, alert.assetId)}${tfLabel} | Current price: ${formatPrice(currentPrice, alert.assetId)}`;
-    } else if (isTap) {
-      msg = `Tapped ${formatPrice(alert.targetPrice, alert.assetId)} (±${alert.tapTolerance}%)${tfLabel} | Current: ${formatPrice(currentPrice, alert.assetId)}`;
-    } else {
-      msg = `${alert.condition === 'above' ? 'Rose above' : 'Fell below'} ${formatPrice(alert.targetPrice, alert.assetId)}${tfLabel} | Current: ${formatPrice(currentPrice, alert.assetId)}`;
-    }
-
-    showToast(`ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
-    playAlertSound(alert.sound || selectedAlertSound);
-    const isRepeating = isZone && (alert.repeatInterval || 0) > 0;
-    // Main trigger always sends. Repeating zone re-fires use the 'other' preference.
-    if (telegramEnabled && (!isRepeating || tgNotifPrefs.other)) {
-      sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition,
-        alert.targetPrice, currentPrice, alert.assetId,
-        alert.note, alert.timeframe, alert.zoneLow, alert.zoneHigh,
-        alert.repeatInterval, alert.tapTolerance));
-    }
-    renderAlerts();
+    checkSingleAlert(alert, currentPrice, now, nowDate);
   });
 }
 
@@ -3451,6 +3466,17 @@ function getJournal(alert) {
 function getSetupBadge(alert) {
   const j = getJournal(alert);
   const status = j.tradeStatus || 'watching';
+
+  // Detect breakeven: SL hit but SL ≈ entry price (within 0.1%)
+  if (status === 'sl_hit' && j.sl != null && alert.targetPrice != null) {
+    const slNum    = parseFloat(j.sl);
+    const entryNum = parseFloat(alert.targetPrice);
+    if (!isNaN(slNum) && !isNaN(entryNum) && entryNum > 0 &&
+        Math.abs(slNum - entryNum) / entryNum < 0.001) {
+      return { cls: 'badge-breakeven', label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="4.5" x2="9" y2="4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="1" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.45"/></svg> BREAKEVEN' };
+    }
+  }
+
   switch (status) {
     case 'watching':  return { cls: 'badge-watching', label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><ellipse cx="5" cy="5" rx="4" ry="2.5" stroke="currentColor" stroke-width="1.4"/><circle cx="5" cy="5" r="1.2" fill="currentColor"/></svg> WATCHING' };
     case 'entry_hit': return { cls: 'badge-running',  label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polygon points="2,1.5 9,5 2,8.5" fill="currentColor"/></svg> ENTRY HIT' };
@@ -4474,12 +4500,19 @@ function logTradeFromAlert(alertId) {
   let j = {};
   try { j = JSON.parse(alert.note || '{}'); } catch(e) {}
 
-  // Map trade status to outcome
+  // Detect breakeven: SL was hit but SL price ≈ entry price
+  // Use 0.1% tolerance to handle floating-point imprecision
+  const slPrice    = parseFloat(j.sl);
+  const entryPrice = parseFloat(alert.targetPrice);
+  const isBreakeven = j.tradeStatus === 'sl_hit' &&
+    !isNaN(slPrice) && !isNaN(entryPrice) && entryPrice > 0 &&
+    Math.abs(slPrice - entryPrice) / entryPrice < 0.001; // within 0.1%
+
   const outcomeMap = {
     full_tp:  'full_tp',
     tp2_hit:  'tp2_hit',
     tp1_hit:  'tp1_hit',
-    sl_hit:   'sl_hit',
+    sl_hit:   isBreakeven ? 'breakeven' : 'sl_hit',
     running:  'manual_exit',
     watching: 'manual_exit',
   };
@@ -4555,7 +4588,7 @@ async function renderJournal() {
     full_tp:     { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polygon points="5,1 6.2,3.8 9.3,3.8 6.8,5.8 7.7,8.8 5,7 2.3,8.8 3.2,5.8 0.7,3.8 3.8,3.8" fill="currentColor"/></svg> FULL TP',     cls: 'joutcome-full-tp' },
     tp2_hit:     { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1,5 3.5,7.5 9,2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> TP2 HIT',     cls: 'joutcome-tp2-hit' },
     tp1_hit:     { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1,5 3.5,7.5 9,2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> TP1 HIT',     cls: 'joutcome-tp1-hit' },
-    breakeven:   { label: 'BREAKEVEN',   cls: 'joutcome-breakeven' },
+    breakeven:   { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="4.5" x2="9" y2="4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="1" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.45"/></svg> BREAKEVEN', cls: 'joutcome-breakeven' },
     sl_hit:      { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1.5" y="1.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><line x1="3.2" y1="3.2" x2="6.8" y2="6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="6.8" y1="3.2" x2="3.2" y2="6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> SL HIT',      cls: 'joutcome-sl-hit' },
     manual_exit: { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.4"/><line x1="5" y1="2.5" x2="5" y2="5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="5" y1="7" x2="5" y2="7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> CLOSED', cls: 'joutcome-manual-exit' },
   };
@@ -4705,7 +4738,7 @@ function openJournalDetail(entryId) {
     full_tp:     { label: 'FULL TP',     cls: 'joutcome-full-tp' },
     tp2_hit:     { label: 'TP2 HIT',     cls: 'joutcome-tp2-hit' },
     tp1_hit:     { label: 'TP1 HIT',     cls: 'joutcome-tp1-hit' },
-    breakeven:   { label: 'BREAKEVEN',   cls: 'joutcome-breakeven' },
+    breakeven:   { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="4.5" x2="9" y2="4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="1" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.45"/></svg> BREAKEVEN', cls: 'joutcome-breakeven' },
     sl_hit:      { label: 'SL HIT',      cls: 'joutcome-sl-hit' },
     manual_exit: { label: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.4"/><line x1="5" y1="2.5" x2="5" y2="5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="5" y1="7" x2="5" y2="7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> CLOSED', cls: 'joutcome-manual-exit' },
   }[entry.outcome] || { label: '⊘ CLOSED', cls: 'joutcome-manual-exit' };
@@ -5303,10 +5336,9 @@ function renderAffiliateDashboard() {
 
 function copyReferralLink() {
   const userId  = telegramChatId || localStorage.getItem('tg_chat_id') || 'user';
-  // Telegram Mini App deep link — opens the app with startapp param
-  // Bot username: altradia_support_bot, app short name: altradia
+  // Telegram Mini App deep link — opens the app via the main bot
   // When a new user opens this link, their referrer ID is passed via startapp
-  const refLink = `https://t.me/altradia_support_bot/altradia?startapp=ref_${userId}`;
+  const refLink = `https://t.me/tradewatchalert_bot/assistant?startapp=ref_${userId}`;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(refLink)
       .then(() => showToast('Link Copied!', 'Share it with traders to earn commissions.', 'success'))
@@ -6778,9 +6810,11 @@ function showTgToast(msg) {
       return;
     }
 
-    // Priority 2: menu panel visible
+    // Priority 2: menu panel visible (uses style.display + transform, not .open class)
     const menuPanel = document.getElementById('menu-panel');
-    const menuVisible = menuPanel && (menuPanel.style.display === 'flex' || menuPanel.classList.contains('open'));
+    const menuVisible = menuPanel &&
+      menuPanel.style.display === 'flex' &&
+      menuPanel.style.transform !== 'translateX(100%)';
     if (menuVisible) {
       mode     = 'menupanel';
       tracking = true;
@@ -6852,12 +6886,13 @@ function showTgToast(msg) {
       const panel = document.getElementById('menu-panel');
       if (panel) {
         if (committed) {
-          slideOut(panel, () => {
-            panel.classList.remove('open');
-            panel.style.display = 'none';
-          });
+          // Use the app's own close function for correct cleanup
+          closeMenuPanel();
         } else {
-          snapBack(panel);
+          // Snap back to open position
+          panel.style.transition = 'transform 0.22s ease';
+          panel.style.transform  = 'translateX(0)';
+          setTimeout(() => { panel.style.transition = ''; }, 230);
         }
       }
 
@@ -6868,8 +6903,14 @@ function showTgToast(msg) {
 
   document.addEventListener('touchcancel', () => {
     if (activePage) { snapBack(activePage); activePage = null; }
-    const panel = document.getElementById('menu-panel');
-    if (panel && mode === 'menupanel') snapBack(panel);
+    if (mode === 'menupanel') {
+      const panel = document.getElementById('menu-panel');
+      if (panel) {
+        panel.style.transition = 'transform 0.22s ease';
+        panel.style.transform  = 'translateX(0)';
+        setTimeout(() => { panel.style.transition = ''; }, 230);
+      }
+    }
     tracking = false; mode = null;
   }, { passive: true });
 })();
