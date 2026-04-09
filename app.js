@@ -800,39 +800,106 @@ async function fetchAllPrices() {
   const hotIds     = new Set(Object.values(HOT_LIST).flat());
   const allNeeded  = [...new Set([...watchedIds, ...hotIds])].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
 
-  // CoinGecko: ALL crypto assets — fast, reliable, always refreshed
+  // CoinGecko: ALL crypto — always reliable
   const cgAssets = allNeeded.filter(a => a.sources?.includes('coingecko'));
 
-  // Deriv WS handles real-time ticks for forex/indices/synthetics — no REST needed for those.
-  // OANDA: snapshot for non-Deriv assets only (stocks CFD that don't have a derivSym)
-  const oandaOnly = OANDA_KEY
-    ? allNeeded.filter(a => a.oandaSym && !a.derivSym)
-    : [];
+  // Deriv REST snapshots for forex/indices/commodities/synthetics
+  // Fetch ticks_history count:1 directly — same as WS does but via one-shot connections
+  // This guarantees prices on init even before the persistent WS ticks arrive
+  const derivAssets = allNeeded.filter(a =>
+    a.derivSym && !a.sources?.includes('coingecko')
+  );
 
-  await Promise.all([
-    cgAssets.length  ? fetchCryptoPrices(cgAssets) : Promise.resolve(),
-    oandaOnly.length ? fetchOandaSnapshot(oandaOnly) : Promise.resolve(),
-  ]);
+  const promises = [
+    cgAssets.length ? fetchCryptoPrices(cgAssets) : Promise.resolve(),
+  ];
+
+  // Batch Deriv snapshot: one price per asset via ticks_history REST
+  if (derivAssets.length) {
+    promises.push(fetchDerivSnapshots(derivAssets));
+  }
+
+  await Promise.all(promises);
 
   checkAlerts();
   updateSessionDisplay();
+}
+
+// Fetch last tick price for each Deriv asset via one-shot WS calls (batched)
+async function fetchDerivSnapshots(assets) {
+  if (!assets.length) return;
+  // Use a single one-shot WS and batch all requests
+  return new Promise(resolve => {
+    let pending = assets.length;
+    const done = () => { if (--pending <= 0) resolve(); };
+    const timeout = setTimeout(resolve, 8000); // 8s max wait
+
+    try {
+      const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+      ws.onopen = () => {
+        assets.forEach(a => {
+          ws.send(JSON.stringify({
+            ticks_history: a.derivSym,
+            end: 'latest', count: 1, style: 'ticks',
+          }));
+        });
+      };
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.msg_type === 'history' && msg.history?.prices?.length) {
+            const sym   = msg.echo_req?.ticks_history;
+            const asset = sym ? ASSET_BY_DERIV.get(sym) : null;
+            if (asset) {
+              const price = parseFloat(msg.history.prices[msg.history.prices.length - 1]);
+              if (price) {
+                const prev = priceData[asset.id];
+                // Only set if we don't already have a live tick (don't overwrite fresher data)
+                if (!prev?.price || prev.src === 'deriv_snap') {
+                  priceData[asset.id] = {
+                    price,
+                    change: prev?.open ? (((price - prev.open) / prev.open) * 100).toFixed(4) : '0.0000',
+                    high:   prev?.high ? Math.max(prev.high, price) : price,
+                    low:    prev?.low  ? Math.min(prev.low,  price) : price,
+                    open:   prev?.open || price,
+                    lastClose: prev?.lastClose || price,
+                    vol: '—', mcap: '—', live: true, src: 'deriv_snap',
+                  };
+                  prices[asset.id] = price;
+                }
+              }
+            }
+            done();
+          } else if (msg.error) {
+            done();
+          }
+        } catch(e) { done(); }
+      };
+      ws.onerror = () => { clearTimeout(timeout); resolve(); };
+      ws.onclose = () => { clearTimeout(timeout); resolve(); };
+      // Close after all responses or timeout
+      const closeTimer = setTimeout(() => { try { ws.close(); } catch(e) {} }, 7000);
+    } catch(e) { resolve(); }
+  });
 }
 
 
 // ═══════════════════════════════════════════════
 async function fetchSingleAsset(asset) {
   if (!asset) return;
-  // Crypto: CoinGecko for instant price, then Deriv WS for live ticks
+  // Crypto: CoinGecko for instant price, then subscribe Deriv for live ticks
   if (asset.sources?.includes('coingecko')) {
     await fetchCryptoPrices([asset]);
-    if (asset.derivSym) subscribeDerivAsset(asset); // also subscribe for ticks
+    if (asset.derivSym) subscribeDerivAsset(asset);
     return;
   }
-  // Forex/indices/synthetics: Deriv WS subscription (ticks_history fires immediately)
+  // Forex/indices/commodities/synthetics: Deriv snapshot + live subscription
   if (asset.derivSym) {
-    subscribeDerivAsset(asset); return;
+    fetchDerivSnapshots([asset]); // fire-and-forget snapshot for immediate price
+    subscribeDerivAsset(asset);   // subscribe for live ticks on top
+    return;
   }
-  // Stocks/CFD with no Deriv: OANDA fallback
+  // Stocks CFD with no Deriv symbol: OANDA only
   if (OANDA_KEY && asset.oandaSym) {
     await fetchOandaSnapshot([asset]);
   }
@@ -5391,6 +5458,78 @@ function renderPayoutHistory() {
 // Connects MT4/MT5 accounts via Supabase Edge Function
 // ════════════════════════════════════════════════════════════
 
+
+// ═══════════════════════════════════════════════════════════════
+// BROKER SERVER NAME RESOLVER
+// Converts MT4/MT5 display names like "ICMarkets-Live01" to real
+// hostnames like "live01.icmarkets.com" that MTAPI can connect to.
+// Users just paste what they see in MT4/MT5 — we handle the rest.
+// ═══════════════════════════════════════════════════════════════
+
+const BS_BROKER_PATTERNS = [
+  // [regex, transform(match) → hostname]
+  [/^ICMarkets[^-]*-(.+)$/i,        m => `${m[1].toLowerCase().replace(/\s+/g,'')}.icmarkets.com`],
+  [/^Pepperstone[^-]*-(.+)$/i,      m => `${m[1].toLowerCase().replace(/\s+/g,'')}.pepperstone.com`],
+  [/^Exness[^-]*-(.+)$/i,           m => `${m[1].toLowerCase().replace(/\s+/g,'')}.exness.com`],
+  [/^XM[^-]*-(.+)$/i,               m => `${m[1].toLowerCase().replace(/\s+/g,'-')}.xm.com`],
+  [/^FPMarkets[^-]*-(.+)$/i,        m => `${m[1].toLowerCase().replace(/\s+/g,'')}.fpmarkets.com`],
+  [/^Vantage[^-]*-(.+)$/i,          m => `${m[1].toLowerCase().replace(/\s+/g,'')}.vantagemarkets.com`],
+  [/^Tickmill[^-]*-(.+)$/i,         m => `${m[1].toLowerCase().replace(/\s+/g,'')}.tickmill.com`],
+  [/^EightCap[^-]*-(.+)$/i,         m => `${m[1].toLowerCase().replace(/\s+/g,'')}.eightcap.com`],
+  [/^Axi[^-]*-(.+)$/i,              m => `${m[1].toLowerCase().replace(/\s+/g,'')}.axi.com`],
+  [/^FXTM[^-]*-(.+)$/i,             m => `${m[1].toLowerCase().replace(/\s+/g,'')}.fxtm.com`],
+  [/^HF[^-]*-(.+)$/i,               m => `${m[1].toLowerCase().replace(/\s+/g,'')}.hfm.com`],
+  [/^HotForex[^-]*-(.+)$/i,         m => `${m[1].toLowerCase().replace(/\s+/g,'')}.hotforex.com`],
+  [/^FBS[^-]*-(.+)$/i,              m => `${m[1].toLowerCase().replace(/\s+/g,'')}.fbs.com`],
+  [/^RoboForex[^-]*-(.+)$/i,        m => `${m[1].toLowerCase().replace(/\s+/g,'')}.roboforex.com`],
+  [/^OctaFX[^-]*-(.+)$/i,           m => `${m[1].toLowerCase().replace(/\s+/g,'')}.octafx.com`],
+  [/^OctaMarkets[^-]*-(.+)$/i,      m => `${m[1].toLowerCase().replace(/\s+/g,'')}.octamarkets.com`],
+  [/^Deriv[^-]*-(.+)$/i,            m => `${m[1].toLowerCase().replace(/\s+/g,'')}.deriv.com`],
+  [/^OANDA[^-]*-(.+)$/i,            m => `${m[1].toLowerCase().replace(/\s+/g,'')}.oanda.com`],
+  [/^ThinkMarkets[^-]*-(.+)$/i,     m => `${m[1].toLowerCase().replace(/\s+/g,'')}.thinkmarkets.com`],
+  [/^ActivTrades[^-]*-(.+)$/i,      m => `${m[1].toLowerCase().replace(/\s+/g,'')}.activtrades.com`],
+  [/^FXCM[^-]*-(.+)$/i,             m => `${m[1].toLowerCase().replace(/\s+/g,'')}.fxcm.com`],
+  [/^Admiral[^-]*-(.+)$/i,          m => `${m[1].toLowerCase().replace(/\s+/g,'')}.admiralmarkets.com`],
+  [/^FTMO[^-]*-(.+)$/i,             m => `${m[1].toLowerCase().replace(/\s+/g,'')}.ftmo.com`],
+  [/^MyFundedFX[^-]*-(.+)$/i,       m => `${m[1].toLowerCase().replace(/\s+/g,'')}.myfundedfx.tech`],
+  [/^The5ers?[^-]*-(.+)$/i,         m => `${m[1].toLowerCase().replace(/\s+/g,'')}.the5ers.com`],
+  [/^BlueberryMarkets[^-]*-(.+)$/i, m => `${m[1].toLowerCase().replace(/\s+/g,'')}.blueberrymarkets.com`],
+  // Generic: BrokerName-Label → label.brokername.com
+  [/^([A-Za-z0-9]+)[^-]*-(.+)$/,    m => `${m[2].toLowerCase().replace(/\s+/g,'')}.${m[1].toLowerCase()}.com`],
+];
+
+// Direct map for brokers with unusual display→hostname patterns
+const BS_KNOWN_SERVERS = {
+  'assexmarketsglobal-trade':  'trade.assexmarketsglobal.com',
+  'assexmarkets-trade':        'trade.assexmarkets.com',
+  'assexmarkets-live':         'live.assexmarkets.com',
+  'metaquotes-demo':           'demo.mt5.metaquotes.net',
+  'metaquotes-demo4':          'demo.mt4.metaquotes.net',
+};
+
+function resolveServerHostname(input) {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return trimmed;
+
+  // Already a real hostname (has dots, no spaces, not "Name-Label" format)
+  if (trimmed.includes('.') && !trimmed.includes(' ')) {
+    return trimmed.split(':')[0]; // strip port if present
+  }
+
+  // Direct known map (case-insensitive, spaces stripped)
+  const key = trimmed.toLowerCase().replace(/\s+/g, '');
+  if (BS_KNOWN_SERVERS[key]) return BS_KNOWN_SERVERS[key];
+
+  // Pattern matching
+  for (const [pattern, transform] of BS_BROKER_PATTERNS) {
+    const m = trimmed.match(pattern);
+    if (m) return transform(m);
+  }
+
+  // Fallback — return as-is and let MTAPI try it
+  return trimmed;
+}
+
 const BS_EDGE = 'https://etugovdinpbqiygsbemc.supabase.co/functions/v1/broker-sync';
 let _bsPlatform     = 'MT4';
 let _bsConnectionId = null;
@@ -5437,7 +5576,8 @@ function bsTogglePassword() {
 }
 
 async function bsConnect() {
-  const server   = document.getElementById('bs-server')?.value.trim();
+  const serverRaw = document.getElementById('bs-server')?.value.trim();
+  const server    = resolveServerHostname(serverRaw);
   const login    = document.getElementById('bs-login')?.value.trim();
   const password = document.getElementById('bs-password')?.value;
   const broker   = document.getElementById('bs-broker-name')?.value.trim();
@@ -5467,7 +5607,11 @@ async function bsConnect() {
     const data = await resp.json();
 
     if (!resp.ok || !data.ok) {
-      if (errEl) { errEl.textContent = data.error || 'Connection failed. Check your server address, login, and password.'; errEl.style.display = 'block'; }
+      if (errEl) {
+        const errMsg = data.error || 'Connection failed. Check your server address, login, and password.';
+        errEl.innerHTML = errMsg.replace(/\n•/g, '<br>•').replace(/\n/g, '<br>');
+        errEl.style.display = 'block';
+      }
       if (btn) btn.disabled = false;
       if (label) label.textContent = 'Connect Account';
       if (icon) icon.innerHTML = '<path d="M8 1v6M8 9v6M1 8h6M9 8h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>';
