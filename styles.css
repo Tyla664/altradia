@@ -2449,3 +2449,187 @@ header {
   box-shadow: 0 8px 24px rgba(0,0,0,0.12);
 }
 [data-theme="light"] .search-result-item:active { background: #f0f4f8; }
+
+
+/* ═══════════════════════════════════════════════
+   BROKER SYNC PAGE
+   ═══════════════════════════════════════════════ */
+.bs-hero {
+  text-align: center;
+  padding: 20px 0 24px;
+}
+.bs-hero-icon {
+  width: 72px; height: 72px;
+  background: rgba(0,212,255,0.07);
+  border: 1px solid rgba(0,212,255,0.2);
+  border-radius: 20px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+}
+.bs-hero-title {
+  font-size: 1.05rem; font-weight: 700;
+  color: var(--text); margin-bottom: 8px;
+}
+.bs-hero-sub {
+  font-size: 0.8rem; color: var(--muted);
+  line-height: 1.5; max-width: 280px; margin: 0 auto;
+}
+
+.bs-field-group { margin-bottom: 16px; }
+.bs-input {
+  width: 100%; padding: 11px 13px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; color: var(--text);
+  font-family: var(--sans); font-size: 0.88rem;
+  outline: none; transition: border-color 0.15s;
+  -webkit-appearance: none; box-sizing: border-box;
+}
+.bs-input:focus { border-color: var(--accent); }
+.bs-input::placeholder { color: var(--muted); }
+.bs-field-hint {
+  font-family: var(--mono); font-size: 0.6rem;
+  color: var(--muted); margin-top: 5px; line-height: 1.4;
+}
+
+.bs-platform-row {
+  display: flex; gap: 8px; margin-top: 6px;
+}
+.bs-platform-btn {
+  flex: 1; padding: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; color: var(--muted);
+  font-family: var(--mono); font-size: 0.78rem;
+  font-weight: 700; letter-spacing: 0.08em;
+  cursor: pointer; transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.bs-platform-btn.active {
+  background: rgba(0,212,255,0.1);
+  border-color: var(--accent); color: var(--accent);
+}
+
+.bs-badge-readonly {
+  font-family: var(--mono); font-size: 0.55rem;
+  background: rgba(0,230,118,0.12); color: var(--green);
+  border: 1px solid rgba(0,230,118,0.3);
+  padding: 1px 5px; border-radius: 4px;
+  letter-spacing: 0.04em; vertical-align: middle;
+}
+
+.bs-password-wrap {
+  position: relative; display: flex; align-items: center;
+}
+.bs-password-wrap .bs-input { padding-right: 44px; }
+.bs-eye-btn {
+  position: absolute; right: 10px;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); padding: 4px;
+  display: flex; align-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bs-error-box {
+  background: rgba(255,61,90,0.08);
+  border: 1px solid rgba(255,61,90,0.3);
+  border-radius: 9px; padding: 10px 13px;
+  font-size: 0.8rem; color: var(--red);
+  line-height: 1.4; margin-bottom: 12px;
+}
+
+.bs-connect-btn {
+  width: 100%; padding: 14px;
+  background: var(--accent); border: none; border-radius: 11px;
+  color: #000; font-family: var(--mono); font-size: 0.8rem;
+  font-weight: 800; letter-spacing: 0.08em;
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: center; gap: 8px;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.bs-connect-btn:disabled { opacity: 0.5; pointer-events: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.bs-security-note {
+  display: flex; align-items: flex-start; gap: 7px;
+  font-size: 0.7rem; color: var(--muted);
+  line-height: 1.4; margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.15);
+  border-radius: 8px;
+}
+.bs-security-note svg { flex-shrink: 0; margin-top: 1px; }
+
+/* Connected account card */
+.bs-account-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px;
+}
+.bs-account-top {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+}
+.bs-conn-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted); flex-shrink: 0;
+  transition: background 0.3s;
+}
+.bs-conn-dot.live {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(0,230,118,0.5);
+}
+.bs-account-info { flex: 1; }
+.bs-account-name { font-weight: 700; font-size: 0.9rem; color: var(--text); }
+.bs-account-sub  { font-family: var(--mono); font-size: 0.62rem; color: var(--muted); }
+.bs-account-badge {
+  font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+  background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.3);
+  color: var(--accent); padding: 3px 8px; border-radius: 6px;
+  letter-spacing: 0.08em;
+}
+.bs-account-stats {
+  display: flex; align-items: center; margin-bottom: 10px;
+}
+.bs-stat { flex: 1; text-align: center; }
+.bs-stat-val { font-family: var(--mono); font-size: 0.84rem; font-weight: 700; color: var(--text); }
+.bs-stat-lbl { font-family: var(--mono); font-size: 0.55rem; color: var(--muted); letter-spacing: 0.08em; margin-top: 2px; }
+.bs-stat-div { width: 1px; height: 32px; background: var(--border); }
+.bs-last-sync { font-family: var(--mono); font-size: 0.6rem; color: var(--muted); text-align: right; }
+
+/* Synced trade rows */
+.bs-trade-row {
+  display: flex; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border); gap: 10px;
+}
+.bs-trade-row:last-child { border-bottom: none; }
+.bs-trade-dir {
+  font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+  padding: 3px 7px; border-radius: 5px; flex-shrink: 0;
+}
+.bs-trade-dir.long  { background: rgba(0,230,118,0.12); color: var(--green); }
+.bs-trade-dir.short { background: rgba(255,61,90,0.12);  color: var(--red); }
+.bs-trade-info { flex: 1; min-width: 0; }
+.bs-trade-sym    { font-weight: 700; font-size: 0.84rem; color: var(--text); }
+.bs-trade-detail { font-family: var(--mono); font-size: 0.6rem; color: var(--muted); }
+.bs-trade-pnl    { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; flex-shrink: 0; text-align: right; }
+.bs-trade-pnl.pos { color: var(--green); }
+.bs-trade-pnl.neg { color: var(--red); }
+
+/* Action buttons */
+.bs-action-btn {
+  flex: 1; padding: 11px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; color: var(--text);
+  font-family: var(--mono); font-size: 0.68rem;
+  font-weight: 700; letter-spacing: 0.06em;
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: center; gap: 6px;
+  transition: border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.bs-action-btn:active { background: var(--surface2); }
+.bs-action-btn-red { color: var(--red); border-color: rgba(255,61,90,0.3); }
+.bs-action-btn-red:active { background: rgba(255,61,90,0.08); }
+
+[data-theme="light"] .bs-security-note { background: rgba(0,0,0,0.04); }
+[data-theme="light"] .bs-input { background: #f8fafc; border-color: #cbd5e1; }
+[data-theme="light"] .bs-account-card { background: #f8fafc; } 
