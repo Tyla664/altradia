@@ -5602,7 +5602,7 @@ async function bsConnect() {
     const resp = await fetch(`${BS_EDGE}/connect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: JSON.stringify({ platform: _bsPlatform, server, port: 443, login, password, brokerName: broker }),
+      body: JSON.stringify({ platform: _bsPlatform, server, port: 443, login, password, brokerName: broker, userId: currentUserId }),
     });
     const data = await resp.json();
 
@@ -5687,7 +5687,7 @@ async function bsManualPoll() {
     const resp = await fetch(`${BS_EDGE}/poll`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: '{}',
+      body: JSON.stringify({ userId: currentUserId }),
     });
     const data = await resp.json();
     if (data.ok) {
@@ -5714,7 +5714,7 @@ async function bsDisconnect() {
     await fetch(`${BS_EDGE}/disconnect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: JSON.stringify({ connectionId: _bsConnectionId }),
+      body: JSON.stringify({ connectionId: _bsConnectionId, userId: currentUserId }),
     });
   } catch {}
   _bsConnectionId = null;
@@ -5734,7 +5734,7 @@ async function loadBrokerSyncPage() {
     const resp = await fetch(`${BS_EDGE}/list`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: '{}',
+      body: JSON.stringify({ userId: currentUserId }),
     });
     const data = await resp.json();
     const active = (data.connections || []).find(c => c.status === 'connected');
@@ -5759,11 +5759,9 @@ async function loadBrokerSyncPage() {
 }
 
 async function getSupabaseJWT() {
-  if (typeof db !== 'undefined' && db.auth) {
-    const { data } = await db.auth.getSession();
-    return data?.session?.access_token || '';
-  }
-  return '';
+  // This app uses Telegram-based auth (not Supabase JWT).
+  // We pass the anon key so the Edge Function can verify the userId against the DB.
+  return (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
 }
 
 function openMenuPage(name) {
