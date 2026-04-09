@@ -56,16 +56,16 @@ const ALL_ASSETS = [
   // CRYPTO — OANDA primary (where available), CoinGecko fallback
   //          Deriv secondary for tick streaming on supported pairs
   // ════════════════════════════════════════════
-  { id:'bitcoin',       symbol:'BTC',    name:'Bitcoin',           cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'bitcoin',       derivSym:'cryBTCUSD',  oandaSym:'BTC_USD' },
-  { id:'ethereum',      symbol:'ETH',    name:'Ethereum',          cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'ethereum',      derivSym:'cryETHUSD',  oandaSym:'ETH_USD' },
-  { id:'solana',        symbol:'SOL',    name:'Solana',            cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'solana',        derivSym:'crySOLUSD',  oandaSym:'SOL_USD' },
-  { id:'ripple',        symbol:'XRP',    name:'XRP',               cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'ripple',        derivSym:'cryXRPUSD',  oandaSym:'XRP_USD' },
+  { id:'bitcoin',       symbol:'BTC',    name:'Bitcoin',           cat:'crypto', sources:['deriv','coingecko','oanda'], cgId:'bitcoin',       derivSym:'cryBTCUSD',  oandaSym:'BTC_USD' },
+  { id:'ethereum',      symbol:'ETH',    name:'Ethereum',          cat:'crypto', sources:['deriv','coingecko','oanda'], cgId:'ethereum',      derivSym:'cryETHUSD',  oandaSym:'ETH_USD' },
+  { id:'solana',        symbol:'SOL',    name:'Solana',            cat:'crypto', sources:['deriv','coingecko','oanda'], cgId:'solana',        derivSym:'crySOLUSD',  oandaSym:'SOL_USD' },
+  { id:'ripple',        symbol:'XRP',    name:'XRP',               cat:'crypto', sources:['deriv','coingecko','oanda'], cgId:'ripple',        derivSym:'cryXRPUSD',  oandaSym:'XRP_USD' },
   { id:'binancecoin',   symbol:'BNB',    name:'BNB',               cat:'crypto', sources:['coingecko'],                cgId:'binancecoin'                          },
-  { id:'dogecoin',      symbol:'DOGE',   name:'Dogecoin',          cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'dogecoin',      derivSym:'cryDOGEUSD', oandaSym:'DOGE_USD'},
+  { id:'dogecoin',      symbol:'DOGE',   name:'Dogecoin',          cat:'crypto', sources:['deriv','coingecko','oanda'], cgId:'dogecoin',      derivSym:'cryDOGEUSD', oandaSym:'DOGE_USD'},
   { id:'cardano',       symbol:'ADA',    name:'Cardano',           cat:'crypto', sources:['coingecko','deriv'],         cgId:'cardano',       derivSym:'cryADAUSD'  },
   { id:'avalanche-2',   symbol:'AVAX',   name:'Avalanche',         cat:'crypto', sources:['coingecko'],                cgId:'avalanche-2'                          },
   { id:'chainlink',     symbol:'LINK',   name:'Chainlink',         cat:'crypto', sources:['coingecko'],                cgId:'chainlink'                            },
-  { id:'litecoin',      symbol:'LTC',    name:'Litecoin',          cat:'crypto', sources:['oanda','coingecko','deriv'], cgId:'litecoin',      derivSym:'cryLTCUSD',  oandaSym:'LTC_USD' },
+  { id:'litecoin',      symbol:'LTC',    name:'Litecoin',          cat:'crypto', sources:['deriv','coingecko','oanda'], cgId:'litecoin',      derivSym:'cryLTCUSD',  oandaSym:'LTC_USD' },
   { id:'polkadot',      symbol:'DOT',    name:'Polkadot',          cat:'crypto', sources:['coingecko'],                cgId:'polkadot'                             },
   { id:'shiba-inu',     symbol:'SHIB',   name:'Shiba Inu',         cat:'crypto', sources:['coingecko'],                cgId:'shiba-inu'                            },
   { id:'uniswap',       symbol:'UNI',    name:'Uniswap',           cat:'crypto', sources:['coingecko'],                cgId:'uniswap'                              },
@@ -104,21 +104,21 @@ const ALL_ASSETS = [
   // ════════════════════════════════════════════
 
   // ── Major Pairs ──────────────────────────────
-  { id:'EUR/USD', symbol:'EUR/USD', name:'Euro / US Dollar',             cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURUSD', oandaSym:'EUR_USD' },
-  { id:'GBP/USD', symbol:'GBP/USD', name:'British Pound / US Dollar',   cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPUSD', oandaSym:'GBP_USD' },
-  { id:'USD/JPY', symbol:'USD/JPY', name:'US Dollar / Japanese Yen',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDJPY', oandaSym:'USD_JPY' },
-  { id:'AUD/USD', symbol:'AUD/USD', name:'Australian Dollar / USD',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDUSD', oandaSym:'AUD_USD' },
-  { id:'USD/CAD', symbol:'USD/CAD', name:'US Dollar / Canadian Dollar', cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDCAD', oandaSym:'USD_CAD' },
-  { id:'USD/CHF', symbol:'USD/CHF', name:'US Dollar / Swiss Franc',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDCHF', oandaSym:'USD_CHF' },
-  { id:'NZD/USD', symbol:'NZD/USD', name:'New Zealand Dollar / USD',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxNZDUSD', oandaSym:'NZD_USD' },
+  { id:'EUR/USD', symbol:'EUR/USD', name:'Euro / US Dollar',             cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURUSD', oandaSym:'EUR_USD' },
+  { id:'GBP/USD', symbol:'GBP/USD', name:'British Pound / US Dollar',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPUSD', oandaSym:'GBP_USD' },
+  { id:'USD/JPY', symbol:'USD/JPY', name:'US Dollar / Japanese Yen',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDJPY', oandaSym:'USD_JPY' },
+  { id:'AUD/USD', symbol:'AUD/USD', name:'Australian Dollar / USD',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDUSD', oandaSym:'AUD_USD' },
+  { id:'USD/CAD', symbol:'USD/CAD', name:'US Dollar / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCAD', oandaSym:'USD_CAD' },
+  { id:'USD/CHF', symbol:'USD/CHF', name:'US Dollar / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCHF', oandaSym:'USD_CHF' },
+  { id:'NZD/USD', symbol:'NZD/USD', name:'New Zealand Dollar / USD',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDUSD', oandaSym:'NZD_USD' },
 
   // ── Euro Crosses ──────────────────────────────
-  { id:'EUR/GBP', symbol:'EUR/GBP', name:'Euro / British Pound',         cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURGBP', oandaSym:'EUR_GBP' },
-  { id:'EUR/JPY', symbol:'EUR/JPY', name:'Euro / Japanese Yen',          cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURJPY', oandaSym:'EUR_JPY' },
-  { id:'EUR/CHF', symbol:'EUR/CHF', name:'Euro / Swiss Franc',           cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURCHF', oandaSym:'EUR_CHF' },
-  { id:'EUR/CAD', symbol:'EUR/CAD', name:'Euro / Canadian Dollar',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURCAD', oandaSym:'EUR_CAD' },
-  { id:'EUR/AUD', symbol:'EUR/AUD', name:'Euro / Australian Dollar',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURAUD', oandaSym:'EUR_AUD' },
-  { id:'EUR/NZD', symbol:'EUR/NZD', name:'Euro / New Zealand Dollar',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxEURNZD', oandaSym:'EUR_NZD' },
+  { id:'EUR/GBP', symbol:'EUR/GBP', name:'Euro / British Pound',         cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURGBP', oandaSym:'EUR_GBP' },
+  { id:'EUR/JPY', symbol:'EUR/JPY', name:'Euro / Japanese Yen',          cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURJPY', oandaSym:'EUR_JPY' },
+  { id:'EUR/CHF', symbol:'EUR/CHF', name:'Euro / Swiss Franc',           cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURCHF', oandaSym:'EUR_CHF' },
+  { id:'EUR/CAD', symbol:'EUR/CAD', name:'Euro / Canadian Dollar',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURCAD', oandaSym:'EUR_CAD' },
+  { id:'EUR/AUD', symbol:'EUR/AUD', name:'Euro / Australian Dollar',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURAUD', oandaSym:'EUR_AUD' },
+  { id:'EUR/NZD', symbol:'EUR/NZD', name:'Euro / New Zealand Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxEURNZD', oandaSym:'EUR_NZD' },
   { id:'EUR/SEK', symbol:'EUR/SEK', name:'Euro / Swedish Krona',         cat:'forex', sources:['oanda'],                              oandaSym:'EUR_SEK' },
   { id:'EUR/NOK', symbol:'EUR/NOK', name:'Euro / Norwegian Krone',       cat:'forex', sources:['oanda'],                              oandaSym:'EUR_NOK' },
   { id:'EUR/DKK', symbol:'EUR/DKK', name:'Euro / Danish Krone',          cat:'forex', sources:['oanda'],                              oandaSym:'EUR_DKK' },
@@ -131,28 +131,28 @@ const ALL_ASSETS = [
   { id:'EUR/ZAR', symbol:'EUR/ZAR', name:'Euro / South African Rand',    cat:'forex', sources:['oanda'],                              oandaSym:'EUR_ZAR' },
 
   // ── GBP Crosses ──────────────────────────────
-  { id:'GBP/JPY', symbol:'GBP/JPY', name:'British Pound / Japanese Yen',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPJPY', oandaSym:'GBP_JPY' },
-  { id:'GBP/CHF', symbol:'GBP/CHF', name:'British Pound / Swiss Franc',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPCHF', oandaSym:'GBP_CHF' },
-  { id:'GBP/CAD', symbol:'GBP/CAD', name:'British Pound / Canadian Dollar', cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPCAD', oandaSym:'GBP_CAD' },
-  { id:'GBP/AUD', symbol:'GBP/AUD', name:'British Pound / Australian Dollar',cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPAUD', oandaSym:'GBP_AUD' },
-  { id:'GBP/NZD', symbol:'GBP/NZD', name:'British Pound / New Zealand Dollar',cat:'forex', sources:['oanda','deriv'], derivSym:'frxGBPNZD', oandaSym:'GBP_NZD' },
+  { id:'GBP/JPY', symbol:'GBP/JPY', name:'British Pound / Japanese Yen',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPJPY', oandaSym:'GBP_JPY' },
+  { id:'GBP/CHF', symbol:'GBP/CHF', name:'British Pound / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPCHF', oandaSym:'GBP_CHF' },
+  { id:'GBP/CAD', symbol:'GBP/CAD', name:'British Pound / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPCAD', oandaSym:'GBP_CAD' },
+  { id:'GBP/AUD', symbol:'GBP/AUD', name:'British Pound / Australian Dollar',cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPAUD', oandaSym:'GBP_AUD' },
+  { id:'GBP/NZD', symbol:'GBP/NZD', name:'British Pound / New Zealand Dollar',cat:'forex', sources:['deriv','oanda'], derivSym:'frxGBPNZD', oandaSym:'GBP_NZD' },
   { id:'GBP/SGD', symbol:'GBP/SGD', name:'British Pound / Singapore Dollar', cat:'forex', sources:['oanda'],                               oandaSym:'GBP_SGD' },
 
   // ── AUD Crosses ──────────────────────────────
-  { id:'AUD/JPY', symbol:'AUD/JPY', name:'Australian Dollar / Japanese Yen',   cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDJPY', oandaSym:'AUD_JPY' },
-  { id:'AUD/CAD', symbol:'AUD/CAD', name:'Australian Dollar / Canadian Dollar', cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDCAD', oandaSym:'AUD_CAD' },
-  { id:'AUD/CHF', symbol:'AUD/CHF', name:'Australian Dollar / Swiss Franc',     cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDCHF', oandaSym:'AUD_CHF' },
-  { id:'AUD/NZD', symbol:'AUD/NZD', name:'Australian Dollar / New Zealand Dollar', cat:'forex', sources:['oanda','deriv'], derivSym:'frxAUDNZD', oandaSym:'AUD_NZD' },
+  { id:'AUD/JPY', symbol:'AUD/JPY', name:'Australian Dollar / Japanese Yen',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDJPY', oandaSym:'AUD_JPY' },
+  { id:'AUD/CAD', symbol:'AUD/CAD', name:'Australian Dollar / Canadian Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDCAD', oandaSym:'AUD_CAD' },
+  { id:'AUD/CHF', symbol:'AUD/CHF', name:'Australian Dollar / Swiss Franc',     cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDCHF', oandaSym:'AUD_CHF' },
+  { id:'AUD/NZD', symbol:'AUD/NZD', name:'Australian Dollar / New Zealand Dollar', cat:'forex', sources:['deriv','oanda'], derivSym:'frxAUDNZD', oandaSym:'AUD_NZD' },
   { id:'AUD/SGD', symbol:'AUD/SGD', name:'Australian Dollar / Singapore Dollar',cat:'forex', sources:['oanda'],                              oandaSym:'AUD_SGD' },
 
   // ── NZD Crosses ──────────────────────────────
-  { id:'NZD/JPY', symbol:'NZD/JPY', name:'New Zealand Dollar / Japanese Yen',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxNZDJPY', oandaSym:'NZD_JPY' },
-  { id:'NZD/CAD', symbol:'NZD/CAD', name:'New Zealand Dollar / Canadian Dollar',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxNZDCAD', oandaSym:'NZD_CAD' },
-  { id:'NZD/CHF', symbol:'NZD/CHF', name:'New Zealand Dollar / Swiss Franc',        cat:'forex', sources:['oanda','deriv'], derivSym:'frxNZDCHF', oandaSym:'NZD_CHF' },
+  { id:'NZD/JPY', symbol:'NZD/JPY', name:'New Zealand Dollar / Japanese Yen',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDJPY', oandaSym:'NZD_JPY' },
+  { id:'NZD/CAD', symbol:'NZD/CAD', name:'New Zealand Dollar / Canadian Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDCAD', oandaSym:'NZD_CAD' },
+  { id:'NZD/CHF', symbol:'NZD/CHF', name:'New Zealand Dollar / Swiss Franc',        cat:'forex', sources:['deriv','oanda'], derivSym:'frxNZDCHF', oandaSym:'NZD_CHF' },
   { id:'NZD/SGD', symbol:'NZD/SGD', name:'New Zealand Dollar / Singapore Dollar',   cat:'forex', sources:['oanda'],                              oandaSym:'NZD_SGD' },
 
   // ── CAD Crosses ──────────────────────────────
-  { id:'CAD/JPY', symbol:'CAD/JPY', name:'Canadian Dollar / Japanese Yen',  cat:'forex', sources:['oanda','deriv'], derivSym:'frxCADJPY', oandaSym:'CAD_JPY' },
+  { id:'CAD/JPY', symbol:'CAD/JPY', name:'Canadian Dollar / Japanese Yen',  cat:'forex', sources:['deriv','oanda'], derivSym:'frxCADJPY', oandaSym:'CAD_JPY' },
   { id:'CAD/CHF', symbol:'CAD/CHF', name:'Canadian Dollar / Swiss Franc',   cat:'forex', sources:['oanda'],                              oandaSym:'CAD_CHF' },
   { id:'CAD/SGD', symbol:'CAD/SGD', name:'Canadian Dollar / Singapore Dollar', cat:'forex', sources:['oanda'],                           oandaSym:'CAD_SGD' },
 
@@ -166,16 +166,16 @@ const ALL_ASSETS = [
   { id:'HKD/JPY', symbol:'HKD/JPY', name:'Hong Kong Dollar / Japanese Yen', cat:'forex', sources:['oanda'],        oandaSym:'HKD_JPY' },
 
   // ── USD Emerging & Exotics ────────────────────
-  { id:'USD/SGD', symbol:'USD/SGD', name:'US Dollar / Singapore Dollar',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDSGD', oandaSym:'USD_SGD' },
-  { id:'USD/HKD', symbol:'USD/HKD', name:'US Dollar / Hong Kong Dollar',   cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDHKD', oandaSym:'USD_HKD' },
-  { id:'USD/MXN', symbol:'USD/MXN', name:'US Dollar / Mexican Peso',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDMXN', oandaSym:'USD_MXN' },
-  { id:'USD/ZAR', symbol:'USD/ZAR', name:'US Dollar / South African Rand', cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDZAR', oandaSym:'USD_ZAR' },
-  { id:'USD/TRY', symbol:'USD/TRY', name:'US Dollar / Turkish Lira',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDTRY', oandaSym:'USD_TRY' },
+  { id:'USD/SGD', symbol:'USD/SGD', name:'US Dollar / Singapore Dollar',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDSGD', oandaSym:'USD_SGD' },
+  { id:'USD/HKD', symbol:'USD/HKD', name:'US Dollar / Hong Kong Dollar',   cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDHKD', oandaSym:'USD_HKD' },
+  { id:'USD/MXN', symbol:'USD/MXN', name:'US Dollar / Mexican Peso',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDMXN', oandaSym:'USD_MXN' },
+  { id:'USD/ZAR', symbol:'USD/ZAR', name:'US Dollar / South African Rand', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDZAR', oandaSym:'USD_ZAR' },
+  { id:'USD/TRY', symbol:'USD/TRY', name:'US Dollar / Turkish Lira',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDTRY', oandaSym:'USD_TRY' },
   { id:'USD/SEK', symbol:'USD/SEK', name:'US Dollar / Swedish Krona',      cat:'forex', sources:['oanda'],                              oandaSym:'USD_SEK' },
   { id:'USD/NOK', symbol:'USD/NOK', name:'US Dollar / Norwegian Krone',    cat:'forex', sources:['oanda'],                              oandaSym:'USD_NOK' },
   { id:'USD/DKK', symbol:'USD/DKK', name:'US Dollar / Danish Krone',       cat:'forex', sources:['oanda'],                              oandaSym:'USD_DKK' },
-  { id:'USD/INR', symbol:'USD/INR', name:'US Dollar / Indian Rupee',       cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDINR', oandaSym:'USD_INR' },
-  { id:'USD/CNH', symbol:'USD/CNH', name:'US Dollar / Offshore Chinese Yuan', cat:'forex', sources:['oanda','deriv'], derivSym:'frxUSDCNH', oandaSym:'USD_CNH' },
+  { id:'USD/INR', symbol:'USD/INR', name:'US Dollar / Indian Rupee',       cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDINR', oandaSym:'USD_INR' },
+  { id:'USD/CNH', symbol:'USD/CNH', name:'US Dollar / Offshore Chinese Yuan', cat:'forex', sources:['deriv','oanda'], derivSym:'frxUSDCNH', oandaSym:'USD_CNH' },
   { id:'USD/BRL', symbol:'USD/BRL', name:'US Dollar / Brazilian Real',     cat:'forex', sources:['oanda'],                              oandaSym:'USD_BRL' },
   { id:'USD/KRW', symbol:'USD/KRW', name:'US Dollar / South Korean Won',   cat:'forex', sources:['oanda'],                              oandaSym:'USD_KRW' },
   { id:'USD/IDR', symbol:'USD/IDR', name:'US Dollar / Indonesian Rupiah',  cat:'forex', sources:['oanda'],                              oandaSym:'USD_IDR' },
@@ -202,18 +202,18 @@ const ALL_ASSETS = [
   { id:'USD/RUB', symbol:'USD/RUB', name:'US Dollar / Russian Ruble',      cat:'forex', sources:['deriv'],          derivSym:'frxUSDRUB'                   },
 
   // ── XAG/XAU treated as Forex on brokers ──────
-  { id:'XAU/USD', symbol:'XAU/USD', name:'Gold Spot',    cat:'forex', sources:['oanda','deriv'], derivSym:'frxXAUUSD', oandaSym:'XAU_USD' },
-  { id:'XAG/USD', symbol:'XAG/USD', name:'Silver Spot',  cat:'forex', sources:['oanda','deriv'], derivSym:'frxXAGUSD', oandaSym:'XAG_USD' },
+  { id:'XAU/USD', symbol:'XAU/USD', name:'Gold Spot',    cat:'forex', sources:['deriv','oanda'], derivSym:'frxXAUUSD', oandaSym:'XAU_USD' },
+  { id:'XAG/USD', symbol:'XAG/USD', name:'Silver Spot',  cat:'forex', sources:['deriv','oanda'], derivSym:'frxXAGUSD', oandaSym:'XAG_USD' },
   { id:'XPD/USD', symbol:'XPD/USD', name:'Palladium Spot', cat:'forex', sources:['oanda'],       oandaSym:'XPD_USD' },
   { id:'XPT/USD', symbol:'XPT/USD', name:'Platinum Spot',  cat:'forex', sources:['oanda'],       oandaSym:'XPT_USD' },
 
   // ════════════════════════════════════════════
   // COMMODITIES — Deriv primary, OANDA secondary
   // ════════════════════════════════════════════
-  { id:'WTI/USD',   symbol:'WTI/USD',  name:'WTI Crude Oil',        cat:'commodities', sources:['oanda','deriv'], derivSym:'WTIUSD',   oandaSym:'WTICO_USD'  },
-  { id:'BRENT/USD', symbol:'BCO/USD',  name:'Brent Crude Oil',      cat:'commodities', sources:['oanda','deriv'], derivSym:'BCOUSD',   oandaSym:'BCO_USD'    },
+  { id:'WTI/USD',   symbol:'WTI/USD',  name:'WTI Crude Oil',        cat:'commodities', sources:['deriv','oanda'], derivSym:'WTIUSD',   oandaSym:'WTICO_USD'  },
+  { id:'BRENT/USD', symbol:'BCO/USD',  name:'Brent Crude Oil',      cat:'commodities', sources:['deriv','oanda'], derivSym:'BCOUSD',   oandaSym:'BCO_USD'    },
   { id:'XNG/USD',   symbol:'XNG/USD',  name:'Natural Gas',          cat:'commodities', sources:['deriv'],         derivSym:'NATGASUSD'                       },
-  { id:'COPPER',    symbol:'XCU/USD',  name:'Copper',               cat:'commodities', sources:['oanda','deriv'], derivSym:'XCUUSD',   oandaSym:'XCU_USD'    },
+  { id:'COPPER',    symbol:'XCU/USD',  name:'Copper',               cat:'commodities', sources:['deriv','oanda'], derivSym:'XCUUSD',   oandaSym:'XCU_USD'    },
   { id:'WHEAT',     symbol:'WHEAT',    name:'Wheat',                cat:'commodities', sources:['deriv'],         derivSym:'WHEATUSD'                        },
   { id:'CORN',      symbol:'CORN',     name:'Corn',                 cat:'commodities', sources:['deriv'],         derivSym:'CORNUSD'                         },
   { id:'SOYBEAN',   symbol:'SOYBEAN',  name:'Soybeans',             cat:'commodities', sources:['deriv'],         derivSym:'SOYBEANUSD'                      },
@@ -228,9 +228,9 @@ const ALL_ASSETS = [
   // ════════════════════════════════════════════
 
   // ── US Indices (Deriv covers the main 3 + DXY) ───────────────────────────
-  { id:'SPX',    symbol:'S&P 500',  name:'S&P 500',              cat:'indices', sources:['oanda','deriv'], derivSym:'US500',    oandaSym:'SPX500_USD' },
-  { id:'DJI',    symbol:'US30',     name:'US 30 (Wall Street)',  cat:'indices', sources:['oanda','deriv'], derivSym:'US30',     oandaSym:'US30_USD'   },
-  { id:'NDX',    symbol:'NDX 100',  name:'NASDAQ 100',           cat:'indices', sources:['oanda','deriv'], derivSym:'USTEC',    oandaSym:'NAS100_USD' },
+  { id:'SPX',    symbol:'S&P 500',  name:'S&P 500',              cat:'indices', sources:['deriv','oanda'], derivSym:'US500',    oandaSym:'SPX500_USD' },
+  { id:'DJI',    symbol:'US30',     name:'US 30 (Wall Street)',  cat:'indices', sources:['deriv','oanda'], derivSym:'US30',     oandaSym:'US30_USD'   },
+  { id:'NDX',    symbol:'NDX 100',  name:'NASDAQ 100',           cat:'indices', sources:['deriv','oanda'], derivSym:'USTEC',    oandaSym:'NAS100_USD' },
   { id:'DXY',    symbol:'DXY',      name:'US Dollar Index',      cat:'indices', sources:['deriv'],         derivSym:'DXY'                            },
   { id:'IXIC',   symbol:'NASDAQ',   name:'NASDAQ Composite',     cat:'indices', sources:['unavailable']                                              },
   { id:'RUT',    symbol:'Russell',  name:'Russell 2000',         cat:'indices', sources:['unavailable']                                              },
@@ -239,9 +239,9 @@ const ALL_ASSETS = [
   { id:'TYX',    symbol:'US30Y',    name:'US 30-Year Treasury',  cat:'indices', sources:['unavailable']                                              },
 
   // ── European Indices ──────────────────────────
-  { id:'FTSE',    symbol:'FTSE 100', name:'FTSE 100 (UK)',        cat:'indices', sources:['oanda','deriv'], derivSym:'UK100',    oandaSym:'UK100_GBP' },
-  { id:'DAX',     symbol:'DAX 40',   name:'DAX 40 (Germany)',     cat:'indices', sources:['oanda','deriv'], derivSym:'DE40',     oandaSym:'DE30_EUR'  },
-  { id:'CAC',     symbol:'CAC 40',   name:'CAC 40 (France)',      cat:'indices', sources:['oanda','deriv'], derivSym:'FR40',     oandaSym:'FR40_EUR'  },
+  { id:'FTSE',    symbol:'FTSE 100', name:'FTSE 100 (UK)',        cat:'indices', sources:['deriv','oanda'], derivSym:'UK100',    oandaSym:'UK100_GBP' },
+  { id:'DAX',     symbol:'DAX 40',   name:'DAX 40 (Germany)',     cat:'indices', sources:['deriv','oanda'], derivSym:'DE40',     oandaSym:'DE30_EUR'  },
+  { id:'CAC',     symbol:'CAC 40',   name:'CAC 40 (France)',      cat:'indices', sources:['deriv','oanda'], derivSym:'FR40',     oandaSym:'FR40_EUR'  },
   { id:'IBEX',    symbol:'IBEX 35',  name:'IBEX 35 (Spain)',      cat:'indices', sources:['oanda'],                              oandaSym:'ES35_EUR'  },
   { id:'FTSEMIB', symbol:'FTSE MIB', name:'FTSE MIB (Italy)',    cat:'indices', sources:['oanda'],                              oandaSym:'IT40_EUR'  },
   { id:'AEX',     symbol:'AEX',      name:'AEX (Netherlands)',    cat:'indices', sources:['oanda'],                              oandaSym:'NL25_EUR'  },
@@ -266,9 +266,9 @@ const ALL_ASSETS = [
   { id:'IPSA',    symbol:'IPSA',     name:'IPSA (Chile)',          cat:'indices', sources:['unavailable']                                             },
 
   // ── Asia-Pacific ──────────────────────────────
-  { id:'N225',    symbol:'Nikkei',    name:'Nikkei 225 (Japan)',     cat:'indices', sources:['oanda','deriv'], derivSym:'JP225',   oandaSym:'JP225_USD' },
-  { id:'HSI',     symbol:'Hang Seng', name:'Hang Seng (HK)',         cat:'indices', sources:['oanda','deriv'], derivSym:'HK33',    oandaSym:'HK33_HKD'  },
-  { id:'ASX200',  symbol:'ASX 200',   name:'ASX 200 (Australia)',    cat:'indices', sources:['oanda','deriv'], derivSym:'AUS200',  oandaSym:'AU200_AUD' },
+  { id:'N225',    symbol:'Nikkei',    name:'Nikkei 225 (Japan)',     cat:'indices', sources:['deriv','oanda'], derivSym:'JP225',   oandaSym:'JP225_USD' },
+  { id:'HSI',     symbol:'Hang Seng', name:'Hang Seng (HK)',         cat:'indices', sources:['deriv','oanda'], derivSym:'HK33',    oandaSym:'HK33_HKD'  },
+  { id:'ASX200',  symbol:'ASX 200',   name:'ASX 200 (Australia)',    cat:'indices', sources:['deriv','oanda'], derivSym:'AUS200',  oandaSym:'AU200_AUD' },
   { id:'TOPIX',   symbol:'TOPIX',     name:'TOPIX (Japan)',           cat:'indices', sources:['unavailable']                                             },
   { id:'SHCOMP',  symbol:'SSE',       name:'Shanghai Composite',     cat:'indices', sources:['unavailable']                                             },
   { id:'CSI300',  symbol:'CSI 300',   name:'CSI 300 (China)',        cat:'indices', sources:['unavailable']                                             },
@@ -800,13 +800,18 @@ async function fetchAllPrices() {
   const hotIds     = new Set(Object.values(HOT_LIST).flat());
   const allNeeded  = [...new Set([...watchedIds, ...hotIds])].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
 
-  // OANDA: primary source for ALL assets that have an oandaSym (forex + major crypto)
-  const oandaAssets  = OANDA_KEY ? allNeeded.filter(a => a.oandaSym) : [];
+  // Deriv WS handles real-time ticks — this REST fetch fills initial snapshots only.
+  // OANDA: fallback snapshot for assets with oandaSym that Deriv hasn't priced yet
+  const oandaAssets = OANDA_KEY
+    ? allNeeded.filter(a => a.oandaSym && !priceData[a.id]?.price)
+    : [];
 
-  // CoinGecko: fallback for crypto assets without oandaSym, or if OANDA fails
-  // Only fetch crypto that won't be covered by OANDA
-  const oandaCryptoIds = new Set(oandaAssets.filter(a => a.cat === 'crypto').map(a => a.id));
-  const cgAssets = allNeeded.filter(a => a.sources?.includes('coingecko') && !oandaCryptoIds.has(a.id));
+  // CoinGecko: for crypto assets without an OANDA symbol, or not yet priced by Deriv
+  const cgAssets = allNeeded.filter(a =>
+    a.sources?.includes('coingecko') &&
+    !a.oandaSym &&
+    !priceData[a.id]?.price
+  );
 
   await Promise.all([
     oandaAssets.length ? fetchOandaSnapshot(oandaAssets) : Promise.resolve(),
@@ -821,18 +826,17 @@ async function fetchAllPrices() {
 // ═══════════════════════════════════════════════
 async function fetchSingleAsset(asset) {
   if (!asset) return;
-  // OANDA is now primary for all asset types that have an oandaSym
-  if (OANDA_KEY && asset.oandaSym) {
-    await fetchOandaSnapshot([asset]);
-    return;
-  }
-  // CoinGecko fallback for crypto without OANDA symbol
-  if (asset.sources?.includes('coingecko')) {
-    await fetchCryptoPrices([asset]); return;
-  }
-  // Deriv WS for remaining assets
+  // Deriv WS is primary — subscribe for live ticks
   if (asset.derivSym) {
-    subscribeDerivAsset(asset);
+    subscribeDerivAsset(asset); return;
+  }
+  // OANDA fallback for assets with no Deriv symbol (some stocks/indices)
+  if (OANDA_KEY && asset.oandaSym) {
+    await fetchOandaSnapshot([asset]); return;
+  }
+  // CoinGecko fallback for crypto without Deriv or OANDA support
+  if (asset.sources?.includes('coingecko')) {
+    await fetchCryptoPrices([asset]);
   }
 }
 
@@ -5041,259 +5045,6 @@ function playAlertSound(type = 'chime') {
 
 // ── Slide-out menu panel ─────────────────────────────────────────────────────
 
-// ═══════════════════════════════════════════════════════════════════
-// BROKER SYNC — Token management and status display
-// ═══════════════════════════════════════════════════════════════════
-
-let _brokerSyncToken = '';
-
-// Generate a cryptographically random token
-function generateSyncToken() {
-  const arr = new Uint8Array(24);
-  crypto.getRandomValues(arr);
-  return Array.from(arr).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-// Load or create broker sync token when page opens
-async // ════════════════════════════════════════════════════════════
-// BROKER SYNC — MTAPI.IO integration
-// ════════════════════════════════════════════════════════════
-
-const BS_EDGE = 'https://etugovdinpbqiygsbemc.supabase.co/functions/v1/broker-sync';
-let _bsPlatform    = 'MT4';
-let _bsConnectionId = null;
-let _bsPollInterval = null;
-
-// ── Platform selector ─────────────────────────────────────────────────
-function bsSelectPlatform(p) {
-  _bsPlatform = p;
-  document.getElementById('bs-btn-mt4').classList.toggle('active', p === 'MT4');
-  document.getElementById('bs-btn-mt5').classList.toggle('active', p === 'MT5');
-}
-
-// ── Show/hide password ────────────────────────────────────────────────
-function bsTogglePassword() {
-  const inp  = document.getElementById('bs-password');
-  const show = document.getElementById('bs-eye-show');
-  const hide = document.getElementById('bs-eye-hide');
-  const isText = inp.type === 'text';
-  inp.type = isText ? 'password' : 'text';
-  show.style.display = isText ? '' : 'none';
-  hide.style.display = isText ? 'none' : '';
-}
-
-// ── Connect ────────────────────────────────────────────────────────────
-async function bsConnect() {
-  const server   = document.getElementById('bs-server').value.trim();
-  const login    = document.getElementById('bs-login').value.trim();
-  const password = document.getElementById('bs-password').value;
-  const broker   = document.getElementById('bs-broker-name').value.trim();
-  const errEl    = document.getElementById('bs-error');
-  const btn      = document.getElementById('bs-connect-btn');
-  const label    = document.getElementById('bs-connect-label');
-  const icon     = document.getElementById('bs-connect-icon');
-
-  errEl.style.display = 'none';
-
-  if (!server || !login || !password) {
-    errEl.textContent = 'Please fill in all fields.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  // Loading state
-  btn.disabled = true;
-  label.textContent = 'Connecting…';
-  icon.innerHTML = '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" stroke-dasharray="30" stroke-dashoffset="10" style="animation:spin 1s linear infinite;transform-origin:center"/>';
-
-  try {
-    const jwt = await getSupabaseJWT();
-    const resp = await fetch(`${BS_EDGE}/connect`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: JSON.stringify({
-        platform:   _bsPlatform,
-        server,
-        port:       443,
-        login,
-        password,
-        brokerName: broker,
-      }),
-    });
-
-    const data = await resp.json();
-
-    if (!resp.ok || !data.ok) {
-      errEl.textContent = data.error || 'Connection failed. Check your server address, login, and password.';
-      errEl.style.display = 'block';
-      btn.disabled = false;
-      label.textContent = 'Connect Account';
-      icon.innerHTML = '<path d="M8 1v6M8 9v6M1 8h6M9 8h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>';
-      return;
-    }
-
-    // Success — switch to connected view
-    _bsConnectionId = data.connection.id;
-    bsShowConnected(data.connection, data.sync);
-    showToast('Connected', `${data.connection.broker} account synced.`, 'success');
-
-    // Start polling every 30s
-    bsStartPolling();
-
-  } catch(e) {
-    errEl.textContent = 'Network error. Please try again.';
-    errEl.style.display = 'block';
-    btn.disabled = false;
-    label.textContent = 'Connect Account';
-    icon.innerHTML = '<path d="M8 1v6M8 9v6M1 8h6M9 8h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>';
-  }
-}
-
-// ── Display connected state ───────────────────────────────────────────
-function bsShowConnected(conn, sync) {
-  document.getElementById('bs-view-connect').style.display   = 'none';
-  document.getElementById('bs-view-connected').style.display = '';
-
-  document.getElementById('bs-conn-dot').classList.add('live');
-  document.getElementById('bs-account-name').textContent    = conn.name || conn.broker || conn.login;
-  document.getElementById('bs-account-sub').textContent     = `Login: ${conn.login}`;
-  document.getElementById('bs-account-platform').textContent = conn.platform || _bsPlatform;
-
-  const cur = conn.currency || '';
-  document.getElementById('bs-balance').textContent     = conn.balance  != null ? `${cur} ${Number(conn.balance).toFixed(2)}`  : '—';
-  document.getElementById('bs-equity').textContent      = conn.equity   != null ? `${cur} ${Number(conn.equity).toFixed(2)}`   : '—';
-  document.getElementById('bs-open-trades').textContent = sync?.orders  != null ? String(sync.orders) : '—';
-  document.getElementById('bs-last-sync').textContent   = 'Last sync: just now';
-
-  // Refresh alerts so synced trades show up immediately
-  renderAlerts();
-}
-
-// ── Build synced trades list in the UI ────────────────────────────────
-function bsRenderTradesList() {
-  const el = document.getElementById('bs-trades-list');
-  if (!el) return;
-
-  const synced = alerts.filter(a => {
-    try { return !!JSON.parse(a.note || '{}').brokerTicket; } catch { return false; }
-  });
-
-  if (!synced.length) {
-    el.innerHTML = '<div style="font-family:var(--mono);font-size:0.68rem;color:var(--muted);padding:12px 0">No trades synced yet.</div>';
-    return;
-  }
-
-  el.innerHTML = synced.map(a => {
-    let j = {};
-    try { j = JSON.parse(a.note || '{}'); } catch {}
-    const dir     = j.direction || 'long';
-    const profit  = typeof j.profit === 'number' ? j.profit : null;
-    const pnlCls  = profit === null ? '' : profit >= 0 ? 'pos' : 'neg';
-    const pnlTxt  = profit === null ? '' : (profit >= 0 ? '+' : '') + profit.toFixed(2);
-    const status  = j.tradeStatus === 'running' ? '● LIVE' : '○ PENDING';
-    return `
-      <div class="bs-trade-row">
-        <div class="bs-trade-dir ${dir}">${dir.toUpperCase()}</div>
-        <div class="bs-trade-info">
-          <div class="bs-trade-sym">${a.symbol}</div>
-          <div class="bs-trade-detail">#${j.brokerTicket} · ${status} · ${j.lotSize ?? '—'} lots</div>
-        </div>
-        ${profit !== null ? `<div class="bs-trade-pnl ${pnlCls}">${pnlTxt}</div>` : ''}
-      </div>`;
-  }).join('');
-}
-
-// ── Manual sync ───────────────────────────────────────────────────────
-async function bsManualPoll() {
-  try {
-    const jwt  = await getSupabaseJWT();
-    const resp = await fetch(`${BS_EDGE}/poll`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: '{}',
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      document.getElementById('bs-last-sync').textContent = 'Last sync: just now';
-      renderAlerts();
-      bsRenderTradesList();
-      showToast('Synced', 'Trades refreshed from broker.', 'success');
-    }
-  } catch(e) { showToast('Error', 'Sync failed.', 'error'); }
-}
-
-// ── Auto-poll every 30s while page is open ────────────────────────────
-function bsStartPolling() {
-  if (_bsPollInterval) clearInterval(_bsPollInterval);
-  _bsPollInterval = setInterval(() => {
-    if (_bsConnectionId) bsManualPoll();
-  }, 30000);
-}
-
-// ── Disconnect ────────────────────────────────────────────────────────
-async function bsDisconnect() {
-  if (!_bsConnectionId) return;
-  try {
-    const jwt = await getSupabaseJWT();
-    await fetch(`${BS_EDGE}/disconnect`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: JSON.stringify({ connectionId: _bsConnectionId }),
-    });
-  } catch {}
-  _bsConnectionId = null;
-  if (_bsPollInterval) { clearInterval(_bsPollInterval); _bsPollInterval = null; }
-  document.getElementById('bs-view-connect').style.display   = '';
-  document.getElementById('bs-view-connected').style.display = 'none';
-  document.getElementById('bs-conn-dot').classList.remove('live');
-  showToast('Disconnected', 'Broker account disconnected.', 'info');
-}
-
-// ── Load existing connection when page opens ──────────────────────────
-async function loadBrokerSyncPage() {
-  try {
-    const jwt  = await getSupabaseJWT();
-    const resp = await fetch(`${BS_EDGE}/list`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: '{}',
-    });
-    const data = await resp.json();
-    const conns = data.connections || [];
-    const active = conns.find((c) => c.status === 'connected');
-
-    if (active) {
-      _bsConnectionId = active.id;
-      _bsPlatform     = active.platform;
-      bsShowConnected({
-        id:       active.id,
-        platform: active.platform,
-        broker:   active.broker_name,
-        login:    active.mt_login,
-        balance:  active.balance,
-        equity:   active.equity,
-        currency: active.currency,
-        name:     active.broker_name,
-      }, { orders: active.open_trades });
-
-      const ls = active.last_sync ? new Date(active.last_sync).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '—';
-      document.getElementById('bs-last-sync').textContent = `Last sync: ${ls}`;
-      bsRenderTradesList();
-      bsStartPolling();
-    }
-  } catch(e) { console.error('loadBrokerSyncPage:', e); }
-}
-
-// ── Helper: get the current user's Supabase JWT ───────────────────────
-async function getSupabaseJWT() {
-  // Use the existing Supabase session from the db layer
-  if (typeof db !== 'undefined' && db.auth) {
-    const { data } = await db.auth.getSession();
-    return data?.session?.access_token || '';
-  }
-  return '';
-}
-
 function openMenuPanel() {
   const panel   = document.getElementById('menu-panel');
   const overlay = document.getElementById('menu-overlay');
@@ -5521,6 +5272,7 @@ function openMenuAbout()        { openMenuPage('about'); }
 function openMenuSubscription() { openMenuPage('subscription'); }
 function openMenuAffiliate()    { openMenuPage('affiliate'); renderAffiliateDashboard(); }
 function openMenuHelp()         { openMenuPage('help'); }
+function openMenuBrokerSync()   { openMenuPage('brokersync'); initBrokerPlatform(); }
 
 // ── Support bot deep link with user context ───────────────────────────────────
 function openSupportBot() {
@@ -5591,7 +5343,7 @@ function copyReferralLink() {
   const userId  = telegramChatId || localStorage.getItem('tg_chat_id') || 'user';
   // Telegram Mini App deep link — opens the app via the main bot
   // When a new user opens this link, their referrer ID is passed via startapp
-  const refLink = `https://t.me/tradewatchalert_bot/assistant?startapp=ref_${userId}`;
+  const refLink = `https://t.me/tradewatchalert_bot/altradia?startapp=ref_${userId}`;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(refLink)
       .then(() => showToast('Link Copied!', 'Share it with traders to earn commissions.', 'success'))
@@ -5635,6 +5387,28 @@ function renderPayoutHistory() {
         <div style="font-family:var(--mono);font-size:0.55rem;color:var(--muted);margin-top:2px;text-transform:uppercase">${p.status || 'Paid'}</div>
       </div>
     </div>`).join('');
+}
+
+function selectBrokerPlatform(platform) {
+  localStorage.setItem('broker_platform', platform);
+  const mt4Btn  = document.getElementById('broker-mt4-btn');
+  const mt5Btn  = document.getElementById('broker-mt5-btn');
+  const noteEl  = document.getElementById('broker-platform-note');
+  if (!mt4Btn || !mt5Btn) return;
+  const isMT4 = platform === 'MT4';
+  // Active button
+  mt4Btn.style.border      = isMT4 ? '1.5px solid var(--accent)' : '1.5px solid var(--border)';
+  mt4Btn.style.background  = isMT4 ? 'rgba(0,186,255,0.12)'      : 'var(--surface2)';
+  mt4Btn.style.color       = isMT4 ? 'var(--accent)'             : 'var(--muted)';
+  mt5Btn.style.border      = isMT4 ? '1.5px solid var(--border)' : '1.5px solid var(--accent)';
+  mt5Btn.style.background  = isMT4 ? 'var(--surface2)'           : 'rgba(0,186,255,0.12)';
+  mt5Btn.style.color       = isMT4 ? 'var(--muted)'              : 'var(--accent)';
+  if (noteEl) noteEl.textContent = `MetaTrader ${isMT4 ? '4' : '5'} selected`;
+}
+
+function initBrokerPlatform() {
+  const saved = localStorage.getItem('broker_platform') || 'MT4';
+  selectBrokerPlatform(saved);
 }
 
 function openMenuPage(name) {
@@ -5740,6 +5514,63 @@ function sendBrowserNotification() {}
       telegramUserPhoto = localStorage.getItem('tg_photo_url')  || '';
     }
   } catch(e) {}
+})();
+
+// ── Telegram Mini App SDK setup ───────────────────
+// Disable vertical swipe-down to close/minimize — prevents accidental dismissal
+// while the user is scrolling through lists or the chart page.
+(function setupTelegramWebApp() {
+  try {
+    const twa = window.Telegram?.WebApp;
+    if (!twa) return;
+    // Prevent the app from being minimised by downward swipe
+    if (typeof twa.disableVerticalSwipes === 'function') {
+      twa.disableVerticalSwipes();
+    }
+    // Wire up the native Telegram back button to our in-app navigation.
+    // This shows the ← button in the Telegram header automatically.
+    const backBtn = twa.BackButton;
+    if (backBtn) {
+      backBtn.onClick(() => {
+        // Try our in-app back logic first
+        const openPages = document.querySelectorAll('.menu-page.open');
+        if (openPages.length) {
+          // Close topmost sub-page
+          const top = openPages[openPages.length - 1];
+          top.classList.remove('open');
+          setTimeout(() => { top.style.display = 'none'; }, 280);
+          return;
+        }
+        const menuPanel = document.getElementById('menu-panel');
+        const menuOpen  = menuPanel &&
+          menuPanel.style.display === 'flex' &&
+          menuPanel.style.transform !== 'translateX(100%)';
+        if (menuOpen) { closeMenuPanel(); return; }
+        if (navStack.length > 1) { goBack(); return; }
+        // At root — hide the back button since there's nowhere to go back to
+        backBtn.hide();
+      });
+
+      // Show/hide the back button based on navigation depth
+      // We hook into mobileTab/openMenuPanel via a lightweight observer
+      const _origMobileTab = window.mobileTab;
+      // Update visibility after any tab change
+      const _updateBackBtn = () => {
+        const openPages = document.querySelectorAll('.menu-page.open');
+        const menuPanel = document.getElementById('menu-panel');
+        const menuOpen  = menuPanel &&
+          menuPanel.style.display === 'flex' &&
+          menuPanel.style.transform !== 'translateX(100%)';
+        if (navStack.length > 1 || openPages.length || menuOpen) {
+          backBtn.show();
+        } else {
+          backBtn.hide();
+        }
+      };
+      // Poll every 300ms — lightweight enough and avoids patching every function
+      setInterval(_updateBackBtn, 300);
+    }
+  } catch(e) { console.warn('TG WebApp setup:', e); }
 })();
 
 function openTelegramModal() {
@@ -6218,14 +6049,19 @@ setInterval(() => {
   updateSessionDisplay();
 }, 8000);
 
-// REST refresh every 60 seconds — CoinGecko + OANDA snapshot (Deriv WS covers the rest)
-// Deriv WebSocket handles intraday ticks; REST fills OHLC + catches up after reconnects
+// REST refresh every 60 seconds — fills any gaps Deriv WS hasn't covered
+// Deriv WebSocket is primary for all live ticks; OANDA/CoinGecko fill remaining gaps
 setInterval(() => {
-  fetchAllPrices();
+  // Always refresh CoinGecko for crypto assets that Deriv doesn't cover
+  const cgOnly = Object.values(ASSETS).flat().filter(a =>
+    a.sources?.includes('coingecko') && !a.derivSym
+  );
+  if (cgOnly.length) fetchCryptoPrices(cgOnly);
   // Reconnect / re-subscribe Deriv on every REST cycle to catch any dropped ticks
-  // Reconnect both WS connections if needed
   if (!_conn1.ws || _conn1.ws.readyState > 1) connectDeriv();
   else resubscribeAllDeriv();
+  checkAlerts();
+  updateSessionDisplay();
 }, 60 * 1000);
 
 // ═══════════════════════════════════════════════
