@@ -6689,7 +6689,9 @@ async function init() {
   // Re-subscribe Deriv with confirmed symbols now that ASSETS is fully populated
   resubscribeAllDeriv();
 
+  // Re-render now that prices are loaded — alert cards show current price
   refreshSelectedAssetPanel();
+  renderAlerts();
 
   // ── Auto-growing textareas ────────────────────────────────────────────────
   initAutoGrowTextareas();
