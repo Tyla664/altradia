@@ -446,7 +446,7 @@ const ASSET_BY_CG     = new Map(ALL_ASSETS.filter(a => a.cgId).map(a => [a.cgId,
 // ═══════════════════════════════════════════════
 let prices    = {};
 let priceData = {};
-let appReady  = false; // set true after init completes first fetchAllPrices
+let appReady  = false; // true after init first fetchAllPrices
 let alerts    = [];
 let alertHistory   = [];
 let alertHistoryFilter = '7d';
@@ -978,18 +978,12 @@ function refreshSelectedAssetPanel() {
   } else {
     const noteEl = document.getElementById('current-price-note');
     if (noteEl) noteEl.textContent = 'Price loading… enter your target manually';
-
-    // Kick off a snapshot fetch for this asset if price is still missing,
-    // then re-render the panel once data arrives (max one retry per asset).
-    // Only do this after init has completed its first full price fetch.
+    // After init, fetch missing price then re-render
     if (appReady && !asset._priceFetchPending) {
       asset._priceFetchPending = true;
       fetchSingleAsset(asset).then(() => {
         asset._priceFetchPending = false;
-        // Only refresh if this asset is still selected
-        if (selectedAsset && selectedAsset.id === asset.id) {
-          refreshSelectedAssetPanel();
-        }
+        if (selectedAsset && selectedAsset.id === asset.id) refreshSelectedAssetPanel();
       }).catch(() => { asset._priceFetchPending = false; });
     }
   }
@@ -2515,17 +2509,14 @@ function renderAlerts() {
     const livePriceLine = livePrice
       ? `<span style="opacity:0.55;font-size:0.72rem">Current price: <b style="opacity:0.9">${formatPrice(livePrice, alert.assetId)}</b></span><br>`
       : '';
-
-    // If price is missing for this alert's asset, fetch it in the background
     if (appReady && !livePrice) {
-      const alertAsset = ASSET_BY_ID.get(alert.assetId) || ALL_ASSETS.find(a => a.id === alert.assetId);
-      if (alertAsset && !alertAsset._priceFetchPending) {
-        alertAsset._priceFetchPending = true;
-        fetchSingleAsset(alertAsset).then(() => {
-          alertAsset._priceFetchPending = false;
-          // Re-render alerts so the price line appears
+      const _aa = ASSET_BY_ID.get(alert.assetId) || ALL_ASSETS.find(a => a.id === alert.assetId);
+      if (_aa && !_aa._priceFetchPending) {
+        _aa._priceFetchPending = true;
+        fetchSingleAsset(_aa).then(() => {
+          _aa._priceFetchPending = false;
           if (currentAlertTab === 'active') renderAlerts();
-        }).catch(() => { alertAsset._priceFetchPending = false; });
+        }).catch(() => { _aa._priceFetchPending = false; });
       }
     }
     div.innerHTML = `
@@ -6366,9 +6357,7 @@ function addAssetToWatchlist(asset) {
   priceData[asset.id] = priceData[asset.id] || null;
   prices[asset.id]    = prices[asset.id]    || null;
 
-  // ── Persist to DB so watchlist survives app close/reopen ──
-  addToWatchlist(asset, asset.cat);
-
+  addToWatchlist(asset, asset.cat); // persist to DB
   renderWatchlist();
   populateDropdown();
   showToast(`＋ ${asset.symbol} Added`, `${asset.name} is now on your watchlist.`, 'success');
@@ -6378,8 +6367,7 @@ function addAssetToWatchlist(asset) {
   // modal overlay, which triggers closeModalIfBg and closes the modal immediately.
   setTimeout(() => renderLibrary(), 0);
 
-  // Fetch price immediately so the card shows a live price right away
-  fetchSingleAsset(asset);
+  fetchSingleAsset(asset); // fetch price immediately for the new card
 }
 
 
