@@ -446,6 +446,7 @@ const ASSET_BY_CG     = new Map(ALL_ASSETS.filter(a => a.cgId).map(a => [a.cgId,
 // ═══════════════════════════════════════════════
 let prices    = {};
 let priceData = {};
+let appReady  = false; // set true after init completes first fetchAllPrices
 let alerts    = [];
 let alertHistory   = [];
 let alertHistoryFilter = '7d';
@@ -980,15 +981,14 @@ function refreshSelectedAssetPanel() {
 
     // Kick off a snapshot fetch for this asset if price is still missing,
     // then re-render the panel once data arrives (max one retry per asset).
-    if (!asset._priceFetchPending) {
+    // Only do this after init has completed its first full price fetch.
+    if (appReady && !asset._priceFetchPending) {
       asset._priceFetchPending = true;
       fetchSingleAsset(asset).then(() => {
         asset._priceFetchPending = false;
         // Only refresh if this asset is still selected
         if (selectedAsset && selectedAsset.id === asset.id) {
           refreshSelectedAssetPanel();
-          // Also re-render alert cards so current price shows there too
-          renderAlerts();
         }
       }).catch(() => { asset._priceFetchPending = false; });
     }
@@ -2517,7 +2517,7 @@ function renderAlerts() {
       : '';
 
     // If price is missing for this alert's asset, fetch it in the background
-    if (!livePrice) {
+    if (appReady && !livePrice) {
       const alertAsset = ASSET_BY_ID.get(alert.assetId) || ALL_ASSETS.find(a => a.id === alert.assetId);
       if (alertAsset && !alertAsset._priceFetchPending) {
         alertAsset._priceFetchPending = true;
@@ -6712,6 +6712,7 @@ async function init() {
 
   // Initial REST fetch
   await fetchAllPrices();
+  appReady = true;
   setStatusPill(true);
 
   // Re-subscribe Deriv with confirmed symbols now that ASSETS is fully populated
