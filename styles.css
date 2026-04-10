@@ -361,7 +361,7 @@ header {
 .wl-fab:active { transform: scale(0.92); border-color: var(--accent); }
 .wl-fab.visible { display: flex; }
 
-/* Extra bottom padding so last watchlist card isn't hidden under FAB */
+/* Extra bottom padding so last watchlist card isn't hidden under the FAB */
 #panel-my-watchlist {
   padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
