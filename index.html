@@ -257,23 +257,21 @@
   <!-- COMMUNITY panel -->
   <div class="panel community-panel" id="panel-community">
     <div class="community-header">
-      <div class="community-title">Your Trading Community</div>
-      <div class="community-subtitle">Connect, compete, and grow together</div>
+      <div class="community-title">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" style="flex-shrink:0">
+          <circle cx="5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3" fill="none"/>
+          <path d="M1 13c0-2.5 1.8-4 4-4s4 1.5 4 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+          <circle cx="11" cy="4" r="2" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          <path d="M10 10.5c1.5-.3 3 .5 3 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+        </svg>
+        GLOBAL LEADERBOARD
+      </div>
+      <div class="community-subtitle">Recognising discipline and consistency among traders</div>
       <div class="community-stats-row">
-        <div class="community-stat">
-          <span class="community-stat-label">ACTIVE MEMBERS</span>
-          <span class="community-stat-value">1,240</span>
-        </div>
+        <span class="community-stat-label">TOP 10 THIS WEEK</span>
         <div class="community-stat-divider"></div>
-        <div class="community-stat">
-          <span class="community-stat-label">AVG CONSISTENCY</span>
-          <span class="community-stat-value" id="community-avg-score">72%</span>
-        </div>
-        <div class="community-stat-divider"></div>
-        <div class="community-stat">
-          <span class="community-stat-label">TOP CONTRIBUTORS</span>
-          <span class="community-stat-value" id="community-top-count">10</span>
-        </div>
+        <span class="community-stat-label">AVG CONSISTENCY</span>
+        <span class="community-stat-value" id="community-avg-score">—%</span>
       </div>
       <!-- Tier-specific rank message — populated by renderCommunity() -->
       <div id="community-rank-msg" style="display:none"></div>
@@ -687,9 +685,7 @@
         <option value="30">30 DAYS</option>
         <option value="90">3 MONTHS</option>
       </select>
-      <button onclick="exportJournalCSV()" title="Export to CSV" style="background:var(--surface);color:var(--muted);font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.06em;padding:4px 8px;border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:4px">
-        <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v6M2.5 5l3 3 3-3M1 9h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>CSV
-      </button>
+      
       <button onclick="openJournalEntryForm()" style="background:var(--accent);color:#000;font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.08em;padding:4px 10px;border:none;border-radius:6px;cursor:pointer">+ LOG TRADE</button>
     </div>
   </div>
@@ -754,6 +750,7 @@
           <option value="tp1_hit">TP1 Hit</option>
           <option value="breakeven">Breakeven</option>
           <option value="sl_hit">SL Hit</option>
+          <option value="trail_stop">Trail Stop</option>
           <option value="manual_exit">Manual Exit</option>
         </select>
       </div>
@@ -1141,7 +1138,7 @@
 <!-- Profile Page -->
 <div id="menu-page-profile" class="menu-page">
   <div class="menu-page-header">
-    <button class="menu-page-back" onclick="closeMenuPage('profile')">
+    <button class="menu-page-back" onclick="closeMenuPage('profile'); openMenuPanel();">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path d="M11 4l-6 5 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -1659,7 +1656,7 @@
 <!-- Analytics -->
 <div id="menu-page-analytics" class="menu-page">
   <div class="menu-page-header">
-    <button class="menu-page-back" onclick="closeMenuPage('analytics')">
+    <button class="menu-page-back" onclick="closeMenuPage('analytics'); openMenuPanel();">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path d="M11 4l-6 5 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
