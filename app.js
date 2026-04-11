@@ -5468,7 +5468,7 @@ function renderPayoutHistory() {
 // ═══════════════════════════════════════════════
 // USER TIER
 // ═══════════════════════════════════════════════
-let currentUserTier = 'elite'; // 'free' | 'pro' | 'elite' — set to 'free' in production
+let currentUserTier = 'free'; // 'free' | 'pro' | 'elite' — set to 'free' in production
 function getUserTier() { return currentUserTier; }
 
 // ═══════════════════════════════════════════════
