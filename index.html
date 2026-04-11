@@ -159,8 +159,45 @@
   <div class="panel watchlist-panel mobile-active" id="panel-watchlist">
 
 
-    <!-- HOTLIST removed — replaced by Community tab -->
-    <div id="panel-hot" style="display:none"></div>
+    <!-- HOTLIST panel -->
+    <div id="panel-hot" class="wl-panel-content">
+      <div class="market-group">
+        <div class="market-group-label">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="5.5" r="2" fill="currentColor" opacity="0.6"/></svg>
+          CRYPTO</div>
+        <div id="hot-crypto-list"></div>
+      </div>
+      <div class="market-group">
+        <div class="market-group-label">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><polyline points="1,9 4,5 6.5,7 10,2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          STOCKS</div>
+        <div id="hot-stocks-list"></div>
+      </div>
+      <div class="market-group">
+        <div class="market-group-label">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 5.5h7M5.5 2v7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.2" opacity="0.5"/></svg>
+          FOREX</div>
+        <div id="hot-forex-list"></div>
+      </div>
+      <div class="market-group">
+        <div class="market-group-label">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 8.5C2 6 3.5 4 5.5 1.5C7.5 4 9 6 9 8.5C9 10 7.4 10.8 5.5 10.8C3.6 10.8 2 10 2 8.5Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+          COMMODITIES</div>
+        <div id="hot-commodities-list"></div>
+      </div>
+      <div class="market-group">
+        <div class="market-group-label">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.2"/><ellipse cx="5.5" cy="5.5" rx="2" ry="4.5" stroke="currentColor" stroke-width="1.2"/><line x1="1" y1="5.5" x2="10" y2="5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+          INDICES</div>
+        <div id="hot-indices-list"></div>
+      </div>
+      <div class="market-group">
+        <div class="market-group-label">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1L6.9 4.1H10.2L7.5 6.3L8.5 9.5L5.5 7.5L2.5 9.5L3.5 6.3L0.8 4.1H4.1Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" fill="none"/></svg>
+          SYNTHETICS</div>
+        <div id="hot-synthetics-list"></div>
+      </div>
+    </div>
 
     <!-- WATCHLIST panel -->
     <div id="panel-my-watchlist" class="wl-panel-content" style="display:none">
@@ -221,11 +258,11 @@
   <div class="panel community-panel" id="panel-community">
     <div class="community-header">
       <div class="community-title">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="display:inline-block;vertical-align:middle;margin-right:8px;margin-bottom:2px">
-          <circle cx="6.5" cy="6.5" r="2.5" stroke="currentColor" stroke-width="1.4" fill="none"/>
-          <circle cx="12.5" cy="5.5" r="1.8" stroke="currentColor" stroke-width="1.3" fill="none" opacity="0.7"/>
-          <path d="M1.5 15c0-2.5 2-4 5-4s5 1.5 5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
-          <path d="M12.5 10c2 0 4 1.2 4 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.7"/>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:inline-block;vertical-align:middle;margin-right:7px;margin-bottom:1px">
+          <circle cx="5.5" cy="5.5" r="2.2" stroke="currentColor" stroke-width="1.3" fill="none"/>
+          <circle cx="11" cy="4.5" r="1.6" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.7"/>
+          <path d="M1 13.5c0-2.2 2-3.5 4.5-3.5s4.5 1.3 4.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+          <path d="M11 8.5c2 0 3.5 1.2 3.5 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.7"/>
         </svg>
         Global Leaderboard
       </div>
@@ -245,8 +282,8 @@
     <!-- Trader of the Week spotlight -->
     <div class="totw-section" id="totw-section" style="display:none">
       <div class="totw-label">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:inline-block;vertical-align:middle;margin-right:5px">
-          <polygon points="6.5,1 8,5 12.5,5 9,7.5 10.5,12 6.5,9 2.5,12 4,7.5 0.5,5 5,5" fill="#ffd600" opacity="0.9"/>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display:inline-block;vertical-align:middle;margin-right:5px">
+          <polygon points="6,1 7.5,4.5 11.5,4.5 8.5,7 9.5,11 6,8.5 2.5,11 3.5,7 0.5,4.5 4.5,4.5" fill="#ffd600" opacity="0.9"/>
         </svg>
         TRADER OF THE WEEK
       </div>
@@ -262,12 +299,8 @@
         <span class="lb-col-badges">BADGES</span>
       </div>
       <div id="leaderboard-list">
-        <!-- Populated by JS -->
         <div class="lb-loading">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="opacity:0.3">
-            <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.3"/>
-            <path d="M10 2a8 8 0 0 1 8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="opacity:0.3"><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.3"/><path d="M9 2a7 7 0 0 1 7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           <span>Loading leaderboard…</span>
         </div>
       </div>
@@ -278,204 +311,35 @@
       <div class="badge-legend-title">BADGE LEGEND</div>
       <div class="badge-legend-list">
         <div class="badge-legend-item">
-          <span class="badge-icon badge-consistency">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="none" stroke="#ffd600" stroke-width="1.3"/><polyline points="4,7 6,9 10,5" stroke="#ffd600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-          <div>
-            <span class="badge-legend-name">Consistency Master</span>
-            <span class="badge-legend-desc">90%+ setups followed</span>
-          </div>
+          <span class="badge-icon badge-consistency"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#ffd600" stroke-width="1.3" fill="none"/><polyline points="4,7 6,9 10,5" stroke="#ffd600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div><span class="badge-legend-name">Consistency Master</span><span class="badge-legend-desc">90%+ setups followed</span></div>
         </div>
         <div class="badge-legend-item">
-          <span class="badge-icon badge-discipline">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L9 5h4L9.5 7.5 11 12 7 9.5 3 12l1.5-4.5L1 5h4z" fill="none" stroke="#00d4ff" stroke-width="1.2" stroke-linejoin="round"/></svg>
-          </span>
-          <div>
-            <span class="badge-legend-name">Discipline Pro</span>
-            <span class="badge-legend-desc">No revenge trades in a month</span>
-          </div>
+          <span class="badge-icon badge-discipline"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L9 5h4L9.5 7.5 11 12 7 9.5 3 12l1.5-4.5L1 5h4z" stroke="#00d4ff" stroke-width="1.2" stroke-linejoin="round" fill="none"/></svg></span>
+          <div><span class="badge-legend-name">Discipline Pro</span><span class="badge-legend-desc">No revenge trades in a month</span></div>
         </div>
         <div class="badge-legend-item">
-          <span class="badge-icon badge-target">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#00e676" stroke-width="1.3" fill="none"/><circle cx="7" cy="7" r="3.5" stroke="#00e676" stroke-width="1.2" fill="none"/><circle cx="7" cy="7" r="1.2" fill="#00e676"/></svg>
-          </span>
-          <div>
-            <span class="badge-legend-name">Target Hunter</span>
-            <span class="badge-legend-desc">Captures 70%+ of planned R:R</span>
-          </div>
+          <span class="badge-icon badge-target"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#00e676" stroke-width="1.3" fill="none"/><circle cx="7" cy="7" r="3.5" stroke="#00e676" stroke-width="1.2" fill="none"/><circle cx="7" cy="7" r="1.2" fill="#00e676"/></svg></span>
+          <div><span class="badge-legend-name">Target Hunter</span><span class="badge-legend-desc">Captures 70%+ of planned R:R</span></div>
         </div>
         <div class="badge-legend-item">
-          <span class="badge-icon badge-setup">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="#ff6b35" stroke-width="1.3" fill="none"/><line x1="4" y1="5" x2="10" y2="5" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/><line x1="4" y1="7.5" x2="10" y2="7.5" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/><line x1="4" y1="10" x2="7" y2="10" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/></svg>
-          </span>
-          <div>
-            <span class="badge-legend-name">Setup Specialist</span>
-            <span class="badge-legend-desc">Journaling completed for all trades</span>
-          </div>
+          <span class="badge-icon badge-setup"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="#ff6b35" stroke-width="1.3" fill="none"/><line x1="4" y1="5" x2="10" y2="5" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/><line x1="4" y1="7.5" x2="10" y2="7.5" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/><line x1="4" y1="10" x2="7" y2="10" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/></svg></span>
+          <div><span class="badge-legend-name">Setup Specialist</span><span class="badge-legend-desc">Journaling completed for all trades</span></div>
         </div>
         <div class="badge-legend-item">
-          <span class="badge-icon badge-elite">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5L3 5H1L3.5 9 2.5 12.5 7 10.5 11.5 12.5 10.5 9 13 5H11L7 1.5Z" fill="none" stroke="#ffd600" stroke-width="1.2" stroke-linejoin="round"/><circle cx="7" cy="6.5" r="1.5" fill="#ffd600" opacity="0.8"/></svg>
-          </span>
-          <div>
-            <span class="badge-legend-name">Elite Icon</span>
-            <span class="badge-legend-desc">Exclusive badge for Elite tier</span>
-          </div>
+          <span class="badge-icon badge-elite"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5L3 5H1L3.5 9 2.5 12.5 7 10.5 11.5 12.5 10.5 9 13 5H11L7 1.5Z" stroke="#ffd600" stroke-width="1.2" stroke-linejoin="round" fill="none"/><circle cx="7" cy="6.5" r="1.5" fill="#ffd600" opacity="0.8"/></svg></span>
+          <div><span class="badge-legend-name">Elite Icon</span><span class="badge-legend-desc">Exclusive badge for Elite tier</span></div>
         </div>
       </div>
     </div>
-
-    <!-- Free user locked row -->
-    <div class="community-locked-row" id="community-locked-row">
-      <div class="community-locked-inner">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="opacity:0.5;flex-shrink:0"><rect x="3" y="7" width="10" height="8" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
-        <span>Not ranked — upgrade to Pro or Elite to unlock your score and earn badges.</span>
-      </div>
-      <button class="community-unlock-btn">Unlock My Ranking</button>
-    </div>
-
   </div>
 
-  <!-- COMMUNITY panel — standalone, shown via mobileTab('community') -->
-  <div class="panel community-panel" id="panel-community">
-
-    <!-- Header -->
-    <div class="community-header">
-      <div class="community-title-row">
-        <div>
-          <div class="community-title">Global Leaderboard</div>
-          <div class="community-subtitle">Recognising discipline and consistency among traders</div>
-        </div>
-      </div>
-      <div class="community-stats-row">
-        <div class="community-stat">
-          <span class="community-stat-label">TOP TRADERS THIS WEEK</span>
-          <span class="community-stat-value" id="lb-top-count">10</span>
-        </div>
-        <div class="community-stat-divider"></div>
-        <div class="community-stat">
-          <span class="community-stat-label">AVG CONSISTENCY</span>
-          <span class="community-stat-value" id="lb-avg-score">72%</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Trader of the Week spotlight -->
-    <div class="totw-card" id="totw-card">
-      <div class="totw-label">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="margin-right:5px;vertical-align:middle">
-          <polygon points="6.5,1 8.2,4.8 12.5,5.2 9.5,7.9 10.4,12.2 6.5,10 2.6,12.2 3.5,7.9 0.5,5.2 4.8,4.8" fill="#ffd600" stroke="#e6b800" stroke-width="0.5" stroke-linejoin="round"/>
-        </svg>
-        TRADER OF THE WEEK
-      </div>
-      <div class="totw-name" id="totw-name">TraderAlpha</div>
-      <div class="totw-score" id="totw-score">95% consistency score</div>
-      <div class="totw-badges" id="totw-badges">
-        <!-- populated by renderCommunity() -->
-      </div>
-    </div>
-
-    <!-- Leaderboard table -->
-    <div class="lb-table-wrap">
-      <div class="lb-table-header">
-        <span class="lb-col-rank">RANK</span>
-        <span class="lb-col-user">TRADER</span>
-        <span class="lb-col-score">SCORE</span>
-        <span class="lb-col-badges">BADGES</span>
-      </div>
-      <div id="lb-table-body">
-        <!-- populated by renderCommunity() -->
-      </div>
-    </div>
-
-    <!-- Badge legend -->
-    <div class="lb-legend">
-      <div class="lb-legend-title">BADGE LEGEND</div>
-      <div class="lb-legend-grid">
-        <div class="lb-legend-item">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="8" fill="rgba(255,214,0,0.15)" stroke="#ffd600" stroke-width="1.2"/>
-            <polygon points="9,3.5 10.5,7 14.5,7.4 11.5,10 12.5,14 9,11.8 5.5,14 6.5,10 3.5,7.4 7.5,7" fill="#ffd600" stroke="#ffd600" stroke-width="0.3" stroke-linejoin="round"/>
-          </svg>
-          <div class="lb-legend-text">
-            <span class="lb-legend-name">Consistency Master</span>
-            <span class="lb-legend-desc">90%+ setups followed</span>
-          </div>
-        </div>
-        <div class="lb-legend-item">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="8" fill="rgba(255,61,90,0.12)" stroke="#ff3d5a" stroke-width="1.2"/>
-            <path d="M9 4.5C7 4.5 5.5 6 5.5 7.5C5.5 10 7.5 11.5 9 13.5C10.5 11.5 12.5 10 12.5 7.5C12.5 6 11 4.5 9 4.5Z" fill="#ff3d5a" stroke="#ff3d5a" stroke-width="0.5" stroke-linejoin="round" opacity="0.85"/>
-          </svg>
-          <div class="lb-legend-text">
-            <span class="lb-legend-name">Discipline Pro</span>
-            <span class="lb-legend-desc">No revenge trades in a month</span>
-          </div>
-        </div>
-        <div class="lb-legend-item">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="8" fill="rgba(0,230,118,0.12)" stroke="#00e676" stroke-width="1.2"/>
-            <circle cx="9" cy="9" r="3.5" stroke="#00e676" stroke-width="1.4" fill="none"/>
-            <circle cx="9" cy="9" r="1" fill="#00e676"/>
-            <line x1="9" y1="2" x2="9" y2="4.5" stroke="#00e676" stroke-width="1.3" stroke-linecap="round"/>
-            <line x1="9" y1="13.5" x2="9" y2="16" stroke="#00e676" stroke-width="1.3" stroke-linecap="round"/>
-            <line x1="2" y1="9" x2="4.5" y2="9" stroke="#00e676" stroke-width="1.3" stroke-linecap="round"/>
-            <line x1="13.5" y1="9" x2="16" y2="9" stroke="#00e676" stroke-width="1.3" stroke-linecap="round"/>
-          </svg>
-          <div class="lb-legend-text">
-            <span class="lb-legend-name">Target Hunter</span>
-            <span class="lb-legend-desc">Captures 70%+ of planned R:R</span>
-          </div>
-        </div>
-        <div class="lb-legend-item">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="8" fill="rgba(0,212,255,0.12)" stroke="#00d4ff" stroke-width="1.2"/>
-            <rect x="5.5" y="4" width="7" height="9" rx="1" stroke="#00d4ff" stroke-width="1.2" fill="none"/>
-            <line x1="7" y1="7" x2="11" y2="7" stroke="#00d4ff" stroke-width="1.1" stroke-linecap="round"/>
-            <line x1="7" y1="9" x2="11" y2="9" stroke="#00d4ff" stroke-width="1.1" stroke-linecap="round"/>
-            <line x1="7" y1="11" x2="9.5" y2="11" stroke="#00d4ff" stroke-width="1.1" stroke-linecap="round"/>
-          </svg>
-          <div class="lb-legend-text">
-            <span class="lb-legend-name">Setup Specialist</span>
-            <span class="lb-legend-desc">Journaling completed for all trades</span>
-          </div>
-        </div>
-        <div class="lb-legend-item">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="8" fill="rgba(255,107,53,0.12)" stroke="#ff6b35" stroke-width="1.2"/>
-            <path d="M9 3L10.8 7H15L11.5 9.5L12.8 14L9 11.5L5.2 14L6.5 9.5L3 7H7.2L9 3Z" fill="#ff6b35" stroke="#ff6b35" stroke-width="0.3" stroke-linejoin="round" opacity="0.9"/>
-          </svg>
-          <div class="lb-legend-text">
-            <span class="lb-legend-name">Elite Icon</span>
-            <span class="lb-legend-desc">Exclusive badge for Elite tier</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Free user locked row -->
-    <div class="lb-free-row" id="lb-free-row">
-      <div class="lb-free-lock">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3" fill="none"/>
-          <path d="M5 7V5.5C5 3.57 6.57 2 8.5 2S12 3.57 12 5.5V7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
-          <circle cx="8.5" cy="11" r="1.2" fill="currentColor" opacity="0.7"/>
-        </svg>
-        Not ranked — upgrade to Pro or Elite to unlock your score and earn badges.
-      </div>
+  <!-- Fixed unlock bar (free tier, community page only) -->
+  <div class="community-unlock-fixed" id="community-unlock-fixed">
+    <button class="community-unlock-btn" onclick="closeMenuPanel(); openMenuPage('subscription')">Unlock My Ranking</button>
   </div>
 
-<!-- Fixed unlock bar for community page (free tier) -->
-<div class="community-unlock-fixed" id="community-unlock-fixed">
-  <button class="community-unlock-btn" onclick="openAnalytics()">Unlock My Ranking</button>
-</div>
-
-
-  <!-- ANALYTICS panel -->
-  <div class="panel analytics-panel" id="panel-analytics">
-    <!-- Populated by renderAnalytics() -->
-  </div>
-
+  <!-- CENTER: Main -->
   <div class="main-panel" id="panel-main">
     <div class="asset-header">
       <div class="asset-header-left">
@@ -1019,7 +883,6 @@
         <circle cx="15" cy="7" r="2.2" stroke="currentColor" stroke-width="1.3" fill="none" opacity="0.7"/>
         <path d="M2 18c0-3 2.5-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
         <path d="M15 12c2.5 0 4.5 1.5 4.5 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.7"/>
-        <line x1="15" y1="4" x2="15" y2="4.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.5"/>
       </svg>
     </span>
     Community
@@ -1787,7 +1650,7 @@
     <span class="menu-page-title">Analytics</span>
   </div>
   <div class="menu-page-body" id="analytics-menu-body" style="padding:0">
-    <!-- Populated by JS based on user tier -->
+    <!-- Populated by renderAnalyticsMenuBody() based on user tier -->
   </div>
 </div>
 <!-- Settings -->
