@@ -627,11 +627,6 @@ function makeDerivWS(symbols, retryRef) {
         };
         prices[asset.id] = newPrice;
 
-        // ── Refresh UI on every tick for selected asset ───────────────────
-        if (selectedAsset && selectedAsset.id === asset.id) {
-          refreshSelectedAssetPanel();
-        }
-
         // ── Real-time alert check on every live tick ──────────────────────
         // Setup alerts: checked every tick (throttled 2s) to catch brief wicks.
         // Zone/above/below: also checked on tick so they're not delayed 8s.
@@ -803,9 +798,7 @@ async function fetchAllPrices() {
   // Collect all assets currently needed
   const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
   const hotIds     = new Set(Object.values(HOT_LIST).flat());
-  // Also include assets referenced by active alerts so current price shows on alert cards
-  const alertIds   = new Set((typeof alerts !== 'undefined' ? alerts : []).map(a => a.assetId));
-  const allNeeded  = [...new Set([...watchedIds, ...hotIds, ...alertIds])].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
+  const allNeeded  = [...new Set([...watchedIds, ...hotIds])].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
 
   // CoinGecko: ALL crypto — always reliable
   const cgAssets = allNeeded.filter(a => a.sources?.includes('coingecko'));
@@ -1189,17 +1182,18 @@ function hotListAdd(assetId, cat, e) {
 function switchWLTab(tab) {
   currentWLTab = tab;
   localStorage.setItem('tw_last_wl_tab', tab);
-  document.getElementById('panel-hot').style.display          = 'none';
-  document.getElementById('panel-my-watchlist').style.display = '';
+  document.getElementById('panel-hot').style.display          = tab === 'hot'       ? '' : 'none';
+  document.getElementById('panel-my-watchlist').style.display = tab === 'watchlist' ? '' : 'none';
 
   // Show FAB only on watchlist tab on mobile
   const fab = document.getElementById('wl-fab');
-  if (fab) fab.classList.toggle('visible', isMobileLayout());
+  if (fab) fab.classList.toggle('visible', tab === 'watchlist' && isMobileLayout());
 
   // Sync nav button highlights
   if (isMobileLayout()) {
     document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('mnav-my-watchlist')?.classList.add('active');
+    const btnId = tab === 'watchlist' ? 'mnav-my-watchlist' : 'mnav-watchlist';
+    document.getElementById(btnId)?.classList.add('active');
   }
 }
 
@@ -1498,8 +1492,8 @@ function mobileTab(tab, pushState = true) {
 
   if (tab === 'community') {
     if (fab) fab.classList.remove('visible');
-    const panel = document.getElementById('panel-community');
-    if (panel) { panel.classList.add('mobile-active'); panel.scrollTop = 0; }
+    const cpanel = document.getElementById('panel-community');
+    if (cpanel) { cpanel.classList.add('mobile-active'); cpanel.scrollTop = 0; }
     document.getElementById('mnav-community')?.classList.add('active');
     renderCommunity();
     const unlockBar = document.getElementById('community-unlock-fixed');
@@ -5469,6 +5463,196 @@ function renderPayoutHistory() {
     </div>`).join('');
 }
 
+
+// ═══════════════════════════════════════════════
+// USER TIER
+// ═══════════════════════════════════════════════
+let currentUserTier = 'free'; // 'free' | 'pro' | 'elite'
+function getUserTier() { return currentUserTier; }
+
+// ═══════════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════════
+function openAnalytics() {
+  closeMenuPanel();
+  openMenuPage('analytics');
+  renderAnalyticsMenuBody(getUserTier());
+}
+
+function renderAnalyticsMenuBody(tier) {
+  const body = document.getElementById('analytics-menu-body');
+  if (!body) return;
+
+  if (tier === 'free') {
+    body.innerHTML = `
+      <div class="analytics-gate">
+        <div class="analytics-gate-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <rect x="4" y="13" width="20" height="14" rx="3" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.5"/>
+            <path d="M9 13V9a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <circle cx="14" cy="20" r="2" fill="currentColor" opacity="0.6"/>
+          </svg>
+        </div>
+        <div class="analytics-gate-title">Analytics — Pro &amp; Elite</div>
+        <div class="analytics-gate-desc">
+          Unlock performance dashboards, consistency scores, behaviour tracking, AI insights and more.<br><br>
+          Upgrade to Pro or Elite to access your full trading analytics.
+        </div>
+        <button class="analytics-gate-btn" onclick="closeMenuPage('analytics'); openMenuPage('subscription')">View Plans</button>
+      </div>`;
+    return;
+  }
+
+  const isElite = tier === 'elite';
+  const badge = isElite
+    ? `<span class="analytics-tier-badge elite">ELITE</span>`
+    : `<span class="analytics-tier-badge pro">PRO</span>`;
+
+  const entries     = typeof journalEntries !== 'undefined' ? journalEntries : [];
+  const total       = entries.length;
+  const wins        = entries.filter(e => ['full_tp','tp2_hit','tp1_hit'].includes(e.outcome)).length;
+  const winRate     = total > 0 ? Math.round((wins / total) * 100) : 0;
+  const consistency = total > 0 ? Math.min(98, Math.round(60 + (wins / total) * 38)) : 0;
+  const rrEntries   = entries.filter(e => e.entry_price && e.tp1_price && e.sl_price);
+  const avgRR       = rrEntries.length > 0
+    ? (rrEntries.reduce((s,e) => s + Math.abs(parseFloat(e.tp1_price)-parseFloat(e.entry_price))/Math.abs(parseFloat(e.entry_price)-parseFloat(e.sl_price)), 0)/rrEntries.length).toFixed(1)
+    : '—';
+  const daysSet  = new Set(entries.map(e => (e.trade_date||e.created_at||'').slice(0,10)));
+  const sessions = daysSet.size;
+
+  let prematureExits = 0, slMoved = 0;
+  entries.forEach(e => {
+    const note = (e.lessons||'')+(e.entry_reason||'');
+    if (/premature|early exit|closed early/i.test(note)) prematureExits++;
+    if (/moved.*sl|sl.*moved|shifted.*stop/i.test(note)) slMoved++;
+  });
+  const overtrading = [...daysSet].filter(day =>
+    entries.filter(e => (e.trade_date||e.created_at||'').slice(0,10) === day).length > 3
+  ).length;
+
+  let insight = 'Keep journaling your trades to unlock personalised insights.';
+  if (total >= 5) {
+    if (prematureExits > 1)  insight = 'You tend to exit winners early. Consider setting a hard TP rule and trusting your plan.';
+    else if (winRate >= 60)  insight = `Strong win rate of ${winRate}%. Focus on higher-conviction setups and let your winners run.`;
+    else if (winRate < 40)   insight = 'Win rate below 40%. Review your entry criteria — are you waiting for full confirmation?';
+    else insight = `Consistency score of ${consistency}% — you are following your plan well. Keep it up.`;
+  }
+
+  body.innerHTML = `
+    <div class="analytics-header">
+      <div class="analytics-header-left">
+        <div class="analytics-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polyline points="1,12 5,8 8,10 12,5 15,7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Performance
+        </div>
+        <div class="analytics-subtitle">Based on your journal · ${total} trade${total!==1?'s':''} logged</div>
+      </div>
+      ${badge}
+    </div>
+    <div class="analytics-section">
+      <div class="analytics-section-title">Performance Dashboard</div>
+      <div class="analytics-stat-grid">
+        <div class="analytics-stat-card"><div class="analytics-stat-label">Win Rate</div><div class="analytics-stat-value ${winRate>=50?'positive':winRate>0?'negative':''}">${total>0?winRate+'%':'—'}</div><div class="analytics-stat-sub">${wins} of ${total} trades</div></div>
+        <div class="analytics-stat-card"><div class="analytics-stat-label">Avg R:R</div><div class="analytics-stat-value accent">${avgRR}</div><div class="analytics-stat-sub">planned ratio</div></div>
+        <div class="analytics-stat-card"><div class="analytics-stat-label">Consistency</div><div class="analytics-stat-value ${consistency>=70?'positive':''}">${total>0?consistency+'%':'—'}</div><div class="analytics-stat-sub">plan adherence</div></div>
+        <div class="analytics-stat-card"><div class="analytics-stat-label">Trades Logged</div><div class="analytics-stat-value">${total}</div><div class="analytics-stat-sub">across ${sessions} sessions</div></div>
+      </div>
+    </div>
+    <div class="analytics-section">
+      <div class="analytics-section-title">Behaviour Frequency Tracker</div>
+      <div class="analytics-behavior-list">
+        <div class="analytics-behavior-row"><div class="analytics-behavior-icon" style="background:rgba(255,107,53,0.12)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v6M7 9v1" stroke="#ff6b35" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="12" r="1" fill="#ff6b35"/></svg></div><span class="analytics-behavior-label">Premature exits</span><span class="analytics-behavior-count ${prematureExits>2?'bad':prematureExits>0?'warn':'ok'}">${prematureExits}</span></div>
+        <div class="analytics-behavior-row"><div class="analytics-behavior-icon" style="background:rgba(255,214,0,0.12)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="7" x2="12" y2="7" stroke="#ffd600" stroke-width="1.5" stroke-linecap="round"/><polyline points="9,4 12,7 9,10" stroke="#ffd600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="analytics-behavior-label">Stop loss moved</span><span class="analytics-behavior-count ${slMoved>2?'bad':slMoved>0?'warn':'ok'}">${slMoved}</span></div>
+        <div class="analytics-behavior-row"><div class="analytics-behavior-icon" style="background:rgba(255,61,90,0.12)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="9" width="2.5" height="4" rx="0.5" fill="#ff3d5a" opacity="0.8"/><rect x="5" y="6" width="2.5" height="7" rx="0.5" fill="#ff3d5a" opacity="0.6"/><rect x="9" y="3" width="2.5" height="10" rx="0.5" fill="#ff3d5a" opacity="0.8"/></svg></div><span class="analytics-behavior-label">Overtrading days</span><span class="analytics-behavior-count ${overtrading>2?'bad':overtrading>0?'warn':'ok'}">${overtrading}</span></div>
+      </div>
+    </div>
+    <div class="analytics-section">
+      <div class="analytics-section-title">AI Insights</div>
+      <div class="analytics-insight-card">
+        <div class="analytics-insight-label"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="var(--accent)" stroke-width="1.2"/><path d="M4.5 4.5a1.5 1.5 0 0 1 3 .5c0 1-1.5 1.5-1.5 2.5" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/><circle cx="6" cy="9" r="0.6" fill="var(--accent)"/></svg> Insight</div>
+        <div class="analytics-insight-text">${insight}</div>
+      </div>
+    </div>
+    ${isElite ? _renderEliteSection(entries) : _renderProUpgradeHint()}
+    <div style="height:24px"></div>`;
+}
+
+function _renderProUpgradeHint() {
+  return `<div class="analytics-section"><div class="analytics-section-title">Elite Features</div><div class="analytics-elite-card" style="opacity:0.75"><div class="analytics-elite-label"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L7 4h3L7.5 6 8.5 9.5 6 8 3.5 9.5 4.5 6 2 4h3z" stroke="#ffd600" stroke-width="1" fill="none"/></svg> Elite Only</div><div style="font-size:0.75rem;color:var(--text);margin-bottom:6px;font-weight:600">Advanced Dashboards</div><div style="font-family:var(--mono);font-size:0.62rem;color:var(--muted);line-height:1.6">Heatmaps · Equity curve · Predictive AI · Bias detection · Benchmarking · Coaching Mode</div><button class="analytics-gate-btn" style="margin-top:12px;padding:10px;font-size:0.62rem;width:100%" onclick="closeMenuPage('analytics'); openMenuPage('subscription')">Upgrade to Elite</button></div></div>`;
+}
+
+function _renderEliteSection(entries) {
+  const heatCells = Array.from({length:28}, (_,i) => {
+    const e = entries.length ? entries[i % entries.length] : null;
+    if (!e) return '<div class="analytics-heatmap-cell"></div>';
+    const cls = ['full_tp','tp2_hit'].includes(e.outcome)?'h3':e.outcome==='tp1_hit'?'h2':e.outcome==='breakeven'?'h1':e.outcome==='sl_hit'?'hn':'';
+    return `<div class="analytics-heatmap-cell ${cls}"></div>`;
+  }).join('');
+  const morningW   = entries.filter(e=>{const h=new Date(e.trade_date||e.created_at||0).getHours();return h>=6&&h<12&&['full_tp','tp2_hit','tp1_hit'].includes(e.outcome);}).length;
+  const afternoonW = entries.filter(e=>{const h=new Date(e.trade_date||e.created_at||0).getHours();return h>=12&&h<18&&['full_tp','tp2_hit','tp1_hit'].includes(e.outcome);}).length;
+  const best = morningW >= afternoonW ? 'Morning' : 'Afternoon';
+  return `<div class="analytics-section"><div class="analytics-section-title">Advanced — Elite</div>
+    <div class="analytics-elite-card"><div class="analytics-elite-label"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L7 4h3L7.5 6 8.5 9.5 6 8 3.5 9.5 4.5 6 2 4h3z" stroke="#ffd600" stroke-width="1" fill="none"/></svg> Activity Heatmap</div><div class="analytics-heatmap">${heatCells}</div><div style="display:flex;gap:10px;margin-top:8px;font-family:var(--mono);font-size:0.55rem;color:var(--muted)"><span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:rgba(0,230,118,0.6);display:inline-block"></span>TP</span><span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:rgba(255,61,90,0.25);display:inline-block"></span>SL</span></div></div>
+    <div class="analytics-insight-card" style="background:linear-gradient(135deg,rgba(255,214,0,0.05),rgba(255,214,0,0.01));border-color:rgba(255,214,0,0.2)"><div class="analytics-insight-label" style="color:#ffd600"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#ffd600" stroke-width="1.2"/><path d="M4 6l1.5 1.5L8 4" stroke="#ffd600" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Predictive AI</div><div class="analytics-insight-text">${best} trades show your highest win rate. Consider focusing your trading hours around this session.</div></div>
+    <div class="analytics-elite-card"><div class="analytics-elite-label"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#ffd600" stroke-width="1.2"/><line x1="6" y1="3" x2="6" y2="6" stroke="#ffd600" stroke-width="1.2" stroke-linecap="round"/><circle cx="6" cy="8.5" r="0.6" fill="#ffd600"/></svg> Bias Detection</div><div style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);line-height:1.6">No strong bias patterns detected in your last ${entries.length} trades. Keep journaling for more accurate detection.</div></div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// COMMUNITY — LEADERBOARD
+// ═══════════════════════════════════════════════
+const BADGE_SVGS = {
+  consistency: `<span class="badge-icon badge-consistency" title="Consistency Master"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#ffd600" stroke-width="1.3" fill="none"/><polyline points="4,7 6,9 10,5" stroke="#ffd600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`,
+  discipline:  `<span class="badge-icon badge-discipline" title="Discipline Pro"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L9 5h4L9.5 7.5 11 12 7 9.5 3 12l1.5-4.5L1 5h4z" stroke="#00d4ff" stroke-width="1.2" stroke-linejoin="round" fill="none"/></svg></span>`,
+  target:      `<span class="badge-icon badge-target" title="Target Hunter"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#00e676" stroke-width="1.3" fill="none"/><circle cx="7" cy="7" r="3.5" stroke="#00e676" stroke-width="1.2" fill="none"/><circle cx="7" cy="7" r="1.2" fill="#00e676"/></svg></span>`,
+  setup:       `<span class="badge-icon badge-setup" title="Setup Specialist"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="#ff6b35" stroke-width="1.3" fill="none"/><line x1="4" y1="5" x2="10" y2="5" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/><line x1="4" y1="7.5" x2="10" y2="7.5" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/><line x1="4" y1="10" x2="7" y2="10" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/></svg></span>`,
+  elite:       `<span class="badge-icon badge-elite" title="Elite Icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5L3 5H1L3.5 9 2.5 12.5 7 10.5 11.5 12.5 10.5 9 13 5H11L7 1.5Z" stroke="#ffd600" stroke-width="1.2" stroke-linejoin="round" fill="none"/><circle cx="7" cy="6.5" r="1.5" fill="#ffd600" opacity="0.8"/></svg></span>`,
+};
+const LB_CROWN = `<svg class="lb-crown" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 9L2.5 4 5 7 6 2 7 7 9.5 4 11 9H1Z" fill="#ffd600" opacity="0.85" stroke="#ffd600" stroke-width="0.5" stroke-linejoin="round"/></svg>`;
+const LB_MEDALS = {
+  1:`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(255,214,0,0.15)" stroke="#ffd600" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#ffd600" font-family="monospace">1</text></svg>`,
+  2:`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(176,184,200,0.15)" stroke="#b0b8c8" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#b0b8c8" font-family="monospace">2</text></svg>`,
+  3:`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(205,127,50,0.15)" stroke="#cd7f32" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#cd7f32" font-family="monospace">3</text></svg>`,
+};
+const MOCK_LEADERBOARD = [
+  {rank:1,  username:'TraderAlpha', score:95, badges:['consistency','elite'], elite:true},
+  {rank:2,  username:'FXWizard',    score:92, badges:['target','discipline'], elite:false},
+  {rank:3,  username:'CryptoQueen', score:90, badges:['discipline','setup'],  elite:false},
+  {rank:4,  username:'PipMaster',   score:88, badges:['consistency'],         elite:false},
+  {rank:5,  username:'SwingKing',   score:85, badges:['target'],              elite:false},
+  {rank:6,  username:'AlphaEdge',   score:83, badges:['setup','consistency'], elite:false},
+  {rank:7,  username:'RiskManager', score:81, badges:['discipline'],          elite:false},
+  {rank:8,  username:'GoldPips',    score:79, badges:['target','setup'],      elite:false},
+  {rank:9,  username:'DayTrader9',  score:76, badges:['consistency'],         elite:false},
+  {rank:10, username:'MarketOwl',   score:74, badges:['discipline'],          elite:false},
+];
+let _communityRendered = false;
+function renderCommunity() {
+  if (_communityRendered) return;
+  _communityRendered = true;
+  const list = document.getElementById('leaderboard-list');
+  if (!list) return;
+  const avg = Math.round(MOCK_LEADERBOARD.reduce((s,r)=>s+r.score,0)/MOCK_LEADERBOARD.length);
+  const avgEl = document.getElementById('community-avg-score');
+  if (avgEl) avgEl.textContent = avg + '%';
+  const totw = MOCK_LEADERBOARD[0];
+  const totwSection = document.getElementById('totw-section');
+  const totwCard    = document.getElementById('totw-card');
+  if (totwSection && totwCard && totw) {
+    totwCard.innerHTML = `<div class="totw-rank-badge">${LB_MEDALS[1]}</div><div class="totw-info"><div class="totw-username${totw.elite?' elite':''}">${totw.elite?LB_CROWN:''}${totw.username}</div><div class="totw-score">Consistency score: ${totw.score}%</div></div><div class="totw-badges">${totw.badges.map(b=>BADGE_SVGS[b]||'').join('')}</div>`;
+    totwSection.style.display = '';
+  }
+  list.innerHTML = MOCK_LEADERBOARD.map(row => {
+    const rankHtml  = LB_MEDALS[row.rank] ? `<span class="lb-rank-medal">${LB_MEDALS[row.rank]}</span>` : `<span class="lb-rank">${row.rank}</span>`;
+    const nameHtml  = `<span class="lb-username${row.elite?' elite-user':''}">${row.elite?LB_CROWN:''}${row.username}</span>`;
+    const scoreHtml = `<span class="${row.score>=90?'lb-score score-high':'lb-score'}">${row.score}%</span>`;
+    const badgesHtml= row.badges.map(b=>BADGE_SVGS[b]||'').join('');
+    const rowCls    = ['lb-row',row.rank<=3?'lb-top3':'',row.elite?'lb-elite':''].filter(Boolean).join(' ');
+    return `<div class="${rowCls}"><div class="lb-col-rank">${rankHtml}</div><div class="lb-col-user">${nameHtml}</div><div class="lb-col-score">${scoreHtml}</div><div class="lb-col-badges lb-badges">${badgesHtml}</div></div>`;
+  }).join('');
+}
+
+
 function toggleSound() {
   soundEnabled = !soundEnabled;
   // sound-btn/waves/mute are gone from header — state synced via updateMenuToggles()
@@ -6027,7 +6211,6 @@ function addAssetToWatchlist(asset) {
   priceData[asset.id] = priceData[asset.id] || null;
   prices[asset.id]    = prices[asset.id]    || null;
 
-  addToWatchlist(asset, asset.cat); // persist to DB
   renderWatchlist();
   populateDropdown();
   showToast(`＋ ${asset.symbol} Added`, `${asset.name} is now on your watchlist.`, 'success');
@@ -6086,8 +6269,6 @@ setInterval(() => {
   if (!userTypingInForm) {
     renderHotList();
     renderWatchlist();
-    renderAlerts();
-    if (currentAlertTab === 'trades') renderTradesTab();
   }
   refreshSelectedAssetPanel();
   checkAlerts();
@@ -6231,70 +6412,6 @@ function updateSessionDisplay() {
 
 // ═══════════════════════════════════════════════
 // INIT
-
-// ═══════════════════════════════════════════════
-// COMMUNITY — LEADERBOARD
-// ═══════════════════════════════════════════════
-const BADGE_SVGS = {
-  consistency: `<span class="badge-icon badge-consistency" title="Consistency Master"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#ffd600" stroke-width="1.3" fill="none"/><polyline points="4,7 6,9 10,5" stroke="#ffd600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`,
-  discipline:  `<span class="badge-icon badge-discipline" title="Discipline Pro"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L9 5h4L9.5 7.5 11 12 7 9.5 3 12l1.5-4.5L1 5h4z" stroke="#00d4ff" stroke-width="1.2" stroke-linejoin="round" fill="none"/></svg></span>`,
-  target:      `<span class="badge-icon badge-target" title="Target Hunter"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#00e676" stroke-width="1.3" fill="none"/><circle cx="7" cy="7" r="3.5" stroke="#00e676" stroke-width="1.2" fill="none"/><circle cx="7" cy="7" r="1.2" fill="#00e676"/></svg></span>`,
-  setup:       `<span class="badge-icon badge-setup" title="Setup Specialist"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="#ff6b35" stroke-width="1.3" fill="none"/><line x1="4" y1="5" x2="10" y2="5" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/><line x1="4" y1="7.5" x2="10" y2="7.5" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/><line x1="4" y1="10" x2="7" y2="10" stroke="#ff6b35" stroke-width="1.2" stroke-linecap="round"/></svg></span>`,
-  elite:       `<span class="badge-icon badge-elite" title="Elite Icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5L3 5H1L3.5 9 2.5 12.5 7 10.5 11.5 12.5 10.5 9 13 5H11L7 1.5Z" stroke="#ffd600" stroke-width="1.2" stroke-linejoin="round" fill="none"/><circle cx="7" cy="6.5" r="1.5" fill="#ffd600" opacity="0.8"/></svg></span>`,
-};
-const LB_CROWN_SVG = `<svg class="lb-crown" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 9L2.5 4 5 7 6 2 7 7 9.5 4 11 9H1Z" fill="#ffd600" opacity="0.85" stroke="#ffd600" stroke-width="0.5" stroke-linejoin="round"/></svg>`;
-const LB_MEDAL_SVGS = {
-  1: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(255,214,0,0.15)" stroke="#ffd600" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#ffd600" font-family="monospace">1</text></svg>`,
-  2: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(176,184,200,0.15)" stroke="#b0b8c8" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#b0b8c8" font-family="monospace">2</text></svg>`,
-  3: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(205,127,50,0.15)" stroke="#cd7f32" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#cd7f32" font-family="monospace">3</text></svg>`,
-};
-const MOCK_LEADERBOARD = [
-  { rank:1,  username:'TraderAlpha', score:95, badges:['consistency','elite'], elite:true  },
-  { rank:2,  username:'FXWizard',    score:92, badges:['target','discipline'], elite:false },
-  { rank:3,  username:'CryptoQueen', score:90, badges:['discipline','setup'],  elite:false },
-  { rank:4,  username:'PipMaster',   score:88, badges:['consistency'],         elite:false },
-  { rank:5,  username:'SwingKing',   score:85, badges:['target'],              elite:false },
-  { rank:6,  username:'AlphaEdge',   score:83, badges:['setup','consistency'], elite:false },
-  { rank:7,  username:'RiskManager', score:81, badges:['discipline'],          elite:false },
-  { rank:8,  username:'GoldPips',    score:79, badges:['target','setup'],      elite:false },
-  { rank:9,  username:'DayTrader9',  score:76, badges:['consistency'],         elite:false },
-  { rank:10, username:'MarketOwl',   score:74, badges:['discipline'],          elite:false },
-];
-let _communityRendered = false;
-function renderCommunity() {
-  if (_communityRendered) return;
-  _communityRendered = true;
-  const list = document.getElementById('leaderboard-list');
-  if (!list) return;
-  const data = MOCK_LEADERBOARD;
-  const avg = Math.round(data.reduce((s,r) => s + r.score, 0) / data.length);
-  const avgEl = document.getElementById('community-avg-score');
-  if (avgEl) avgEl.textContent = avg + '%';
-  const totw = data[0];
-  if (totw) {
-    const totwSection = document.getElementById('totw-section');
-    const totwCard    = document.getElementById('totw-card');
-    if (totwSection && totwCard) {
-      totwCard.innerHTML = `
-        <div class="totw-rank-badge">${LB_MEDAL_SVGS[1]}</div>
-        <div class="totw-info">
-          <div class="totw-username${totw.elite ? ' elite' : ''}">${totw.elite ? LB_CROWN_SVG : ''}${totw.username}</div>
-          <div class="totw-score">Consistency score: ${totw.score}%</div>
-        </div>
-        <div class="totw-badges">${totw.badges.map(b => BADGE_SVGS[b]||'').join('')}</div>`;
-      totwSection.style.display = '';
-    }
-  }
-  list.innerHTML = data.map(row => {
-    const rankHtml  = LB_MEDAL_SVGS[row.rank] ? `<span class="lb-rank-medal">${LB_MEDAL_SVGS[row.rank]}</span>` : `<span class="lb-rank">${row.rank}</span>`;
-    const nameHtml  = `<span class="lb-username${row.elite?' elite-user':''}">${row.elite?LB_CROWN_SVG:''}${row.username}</span>`;
-    const scoreHtml = `<span class="${row.score>=90?'lb-score score-high':'lb-score'}">${row.score}%</span>`;
-    const badgeHtml = row.badges.map(b => BADGE_SVGS[b]||'').join('');
-    const rowCls    = ['lb-row', row.rank<=3?'lb-top3':'', row.elite?'lb-elite':''].filter(Boolean).join(' ');
-    return `<div class="${rowCls}"><div class="lb-col-rank">${rankHtml}</div><div class="lb-col-user">${nameHtml}</div><div class="lb-col-score">${scoreHtml}</div><div class="lb-col-badges lb-badges">${badgeHtml}</div></div>`;
-  }).join('');
-}
-
 // ═══════════════════════════════════════════════
 async function init() {
   // Apply saved theme before anything renders
@@ -6442,9 +6559,7 @@ async function init() {
   // Re-subscribe Deriv with confirmed symbols now that ASSETS is fully populated
   resubscribeAllDeriv();
 
-  // Re-render now that prices are loaded — alert cards show current price
   refreshSelectedAssetPanel();
-  renderAlerts();
 
   // ── Auto-growing textareas ────────────────────────────────────────────────
   initAutoGrowTextareas();
