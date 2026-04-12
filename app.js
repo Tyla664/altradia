@@ -3431,7 +3431,7 @@ async function createSetupAlert() {
           uj.sl, uj.tp1, uj.tp2, uj.tp3, existing.timeframe, uj
         ));
       }
-      if (isMobileLayout()) { switchAlertTab('active'); mobileTab('alerts'); }
+      if (isMobileLayout()) { switchAlertTab('trades'); mobileTab('alerts'); }
       return;
     }
   }
@@ -3510,7 +3510,7 @@ async function createSetupAlert() {
   // Navigate immediately — don't wait for DB save so UX feels instant
   renderAlerts();
   showToast('Trade Setup Created', `${selectedAsset.symbol} setup alert active — watching for entry at ${formatPrice(entry, selectedAsset.id)}.`, 'success');
-  if (isMobileLayout()) { switchAlertTab('active'); mobileTab('alerts'); }
+  if (isMobileLayout()) { switchAlertTab('trades'); mobileTab('alerts'); }
   userTypingInForm = false;
 
   // Reset form fields
@@ -4811,7 +4811,7 @@ function openExportModal() {
 
   const ov = document.createElement('div');
   ov.id = 'export-modal-overlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99995;display:flex;align-items:flex-end;justify-content:center';
 
   ov.innerHTML = `
     <div id="export-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;box-sizing:border-box">
@@ -4856,13 +4856,18 @@ function openExportModal() {
       </div>
       <div id="export-entry-count" style="font-family:var(--mono);font-size:0.6rem;color:var(--muted);margin-bottom:20px;min-height:18px"></div>
 
-      <div style="font-family:var(--mono);font-size:0.56rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:8px">Send to Email</div>
-      <input type="email" id="export-email" placeholder="your@email.com"
-        style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:0.78rem;padding:11px 14px;border-radius:9px;box-sizing:border-box;margin-bottom:20px"
-        oninput="updateExportCount()">
+      <div style="font-family:var(--mono);font-size:0.56rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:8px">Deliver via</div>
+      <div id="export-tg-status" style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:20px">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M15.5 2.5L1.5 7.5l5 2 2 5 2-3 4 3 1-12z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/><line x1="6.5" y1="9.5" x2="10.5" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <div style="flex:1">
+          <div style="font-size:0.75rem;font-weight:600;color:var(--text)" id="export-tg-label">Telegram Bot</div>
+          <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted)" id="export-tg-sub">File will be sent to your Telegram chat</div>
+        </div>
+        <div id="export-tg-dot" style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
+      </div>
 
       <button id="export-send-btn" onclick="submitExport()" style="width:100%;padding:14px;background:var(--accent);color:#000;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.1em;border:none;border-radius:10px;cursor:pointer;text-transform:uppercase">
-        Send Export
+        Send to Telegram
       </button>
     </div>`;
 
@@ -4878,6 +4883,22 @@ function openExportModal() {
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   ov._fmt    = 'csv';
   ov._period = '7';
+
+  // Show Telegram connection state
+  const tgDot   = document.getElementById('export-tg-dot');
+  const tgLabel = document.getElementById('export-tg-label');
+  const tgSub   = document.getElementById('export-tg-sub');
+  const sendBtn = document.getElementById('export-send-btn');
+  if (!telegramChatId) {
+    if (tgDot)   tgDot.style.background   = 'var(--red)';
+    if (tgLabel) tgLabel.textContent      = 'Telegram not connected';
+    if (tgSub)   tgSub.textContent        = 'Connect via Settings → Telegram Alerts first';
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.4'; }
+  } else {
+    const name = telegramUserName || 'your Telegram';
+    if (tgSub) tgSub.textContent = `Will be sent to ${name}`;
+  }
+
   updateExportCount();
 }
 
@@ -4902,6 +4923,9 @@ function updateExportCount() {
     ? `${entries.length} trade${entries.length !== 1 ? 's' : ''} will be exported`
     : 'No trades found in this period';
   countEl.style.color = entries.length > 0 ? 'var(--muted)' : 'var(--red)';
+  // Keep send button disabled if no Telegram
+  const sendBtn = document.getElementById('export-send-btn');
+  if (sendBtn && !telegramChatId) { sendBtn.disabled = true; sendBtn.style.opacity = '0.4'; }
 }
 
 function _getExportEntries() {
@@ -4921,13 +4945,12 @@ function _getExportEntries() {
 }
 
 async function submitExport() {
-  const ov    = document.getElementById('export-modal-overlay');
-  const email = document.getElementById('export-email')?.value?.trim();
-  const fmt   = ov?._fmt || 'csv';
+  const ov      = document.getElementById('export-modal-overlay');
+  const fmt     = ov?._fmt || 'csv';
   const entries = _getExportEntries();
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    showToast('Invalid Email', 'Please enter a valid email address.', 'error');
+  if (!telegramChatId) {
+    showToast('Telegram Required', 'Connect your Telegram bot first to receive exports.', 'error');
     return;
   }
   if (!entries.length) {
@@ -4939,23 +4962,19 @@ async function submitExport() {
   if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/export-journal`, {
+    const res = await fetch(`${TELEGRAM_WORKER_URL}/export`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ email, fmt, entries }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: telegramChatId, fmt, entries }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Export failed');
     ov?.remove();
-    showToast('Export Sent!', `Your journal has been sent to ${email}`, 'success');
+    showToast('Sent to Telegram!', `Your journal export has been sent to your Telegram chat.`, 'success');
   } catch (err) {
     console.error('Export error:', err);
     if (btn) { btn.textContent = 'Send Export'; btn.disabled = false; }
-    showToast('Export Failed', 'Could not send export. Please try again.', 'error');
+    showToast('Export Failed', 'Could not send export. Check your Telegram connection and try again.', 'error');
   }
 }
 
@@ -6516,8 +6535,15 @@ function sendBrowserNotification() {}
         if (openPages.length) {
           // Close topmost sub-page
           const top = openPages[openPages.length - 1];
+          const pageId = top.id;
           top.classList.remove('open');
-          setTimeout(() => { top.style.display = 'none'; }, 280);
+          setTimeout(() => {
+            top.style.display = 'none';
+            // Profile and analytics live inside the menu panel — reopen it on back
+            if (pageId === 'menu-page-profile' || pageId === 'menu-page-analytics') {
+              openMenuPanel();
+            }
+          }, 280);
           return;
         }
         const menuPanel = document.getElementById('menu-panel');
@@ -6557,12 +6583,16 @@ function openTelegramModal() {
   modal.style.display = 'flex';
   modal.classList.add('tg-open');
   updateTgModalState();
+  // Prevent Telegram from minimising the app while the modal is open
+  try { window.Telegram?.WebApp?.disableVerticalSwipes?.(); } catch(e) {}
 }
 
 function closeTelegramModal() {
   const modal = document.getElementById('tg-modal');
   modal.style.display = 'none';
   modal.classList.remove('tg-open');
+  // Re-apply — already global but good to be explicit
+  try { window.Telegram?.WebApp?.disableVerticalSwipes?.(); } catch(e) {}
 }
 
 function closeTgModalIfBg(e) {
