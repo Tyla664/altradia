@@ -460,7 +460,6 @@ let chartCtx       = null;
 let triggeredToday = 0;
 let currentLibTab  = 'ALL';
 let libSearchQuery = '';
-let currentWLTab   = 'hot';
 let navigateToChartOnSelect = false;
 let alertSourceId = null; // set when chart opened via alert card tap
 
@@ -478,15 +477,6 @@ let tgNotifPrefs = {
   other:        true,  // any other non-critical messages
 };
 
-// ═══════════════════════════════════════════════
-// HOT LIST
-// ═══════════════════════════════════════════════
-const HOT_LIST_SEED = {
-  forex:      ['EUR/USD','GBP/USD','USD/JPY','AUD/USD','USD/CAD','USD/CHF'],
-  crypto:     ['bitcoin','ethereum','solana','BNB','ripple'],
-  synthetics: ['R_75','R_100','BOOM500','CRASH500','1HZ75V','1HZ100V'],
-};
-let HOT_LIST = { ...HOT_LIST_SEED };
 
 // ── Globals declared here so all files can access them ────────────────────
 // (These were previously scattered in app-ui.js / app-alerts.js)
@@ -531,25 +521,6 @@ let derivReady  = false;
 let derivReady2 = false;
 let derivRetryTimer  = null;
 let derivRetryTimer2 = null;
-
-function getDerivSymbols() {
-  // Assets in watchlist + hot list get subscribed
-  const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
-  const hotIds     = new Set(Object.values(HOT_LIST).flat());
-  const allIds     = new Set([...watchedIds, ...hotIds]);
-
-  const fromWatchlist = ALL_ASSETS
-    .filter(a => a.derivSym && allIds.has(a.id))
-    .map(a => a.derivSym);
-
-  // Synthetics are always subscribed — they run 24/7 and users expect
-  // live prices when browsing the library even before adding to watchlist
-  const synthSymbols = ALL_ASSETS
-    .filter(a => a.cat === 'synthetics' && a.derivSym)
-    .map(a => a.derivSym);
-
-  return [...new Set([...fromWatchlist, ...synthSymbols])];
-}
 
 function resubscribeAllDeriv() {
   // Conn 1: non-synthetic assets in watchlist + hot list
@@ -797,8 +768,7 @@ async function fetchCryptoPrices(assets) {
 async function fetchAllPrices() {
   // Collect all assets currently needed
   const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
-  const hotIds     = new Set(Object.values(HOT_LIST).flat());
-  const allNeeded  = [...new Set([...watchedIds, ...hotIds])].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
+  const allNeeded  = [...watchedIds].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
 
   // CoinGecko: ALL crypto — always reliable
   const cgAssets = allNeeded.filter(a => a.sources?.includes('coingecko'));
@@ -884,27 +854,6 @@ async function fetchDerivSnapshots(assets) {
 }
 
 
-// ═══════════════════════════════════════════════
-async function fetchSingleAsset(asset) {
-  if (!asset) return;
-  // Crypto: CoinGecko for instant price, then subscribe Deriv for live ticks
-  if (asset.sources?.includes('coingecko')) {
-    await fetchCryptoPrices([asset]);
-    if (asset.derivSym) subscribeDerivAsset(asset);
-    return;
-  }
-  // Forex/indices/commodities/synthetics: Deriv snapshot + live subscription
-  if (asset.derivSym) {
-    fetchDerivSnapshots([asset]); // fire-and-forget snapshot for immediate price
-    subscribeDerivAsset(asset);   // subscribe for live ticks on top
-    return;
-  }
-  // Stocks CFD with no Deriv symbol: OANDA only
-  if (OANDA_KEY && asset.oandaSym) {
-    await fetchOandaSnapshot([asset]);
-  }
-}
-
 // Format a triggeredAt value (ISO string, timestamp, or locale string) → readable time
 function formatTriggeredAt(val) {
   if (!val || val === 'null') return '—';
@@ -927,7 +876,7 @@ function formatPrice(p, id) {
 }
 
 // altradia — Watchlist & Hotlist
-// renderWatchlist, renderHotList, selectAsset, navigation
+// renderWatchlist, selectAsset, navigation
 
 // ═══════════════════════════════════════════════
 // REFRESH SELECTED ASSET PANEL (single source of truth)
@@ -1120,84 +1069,6 @@ function renderWatchlist() {
 }
 
 // ═══════════════════════════════════════════════
-// HOTLIST RENDERING
-// ═══════════════════════════════════════════════
-function renderHotList() {
-  Object.entries(HOT_LIST).forEach(([cat, assetIds]) => {
-    const container = document.getElementById('hot-' + cat + '-list');
-    if (!container) return;
-    container.innerHTML = '';
-    assetIds.forEach(assetId => {
-      const asset = Object.values(ASSETS).flat().find(a => a.id === assetId) || ALL_ASSETS.find(a => a.id === assetId);
-      if (!asset) return;
-      const hasAlert = alerts.some(a => a.assetId === asset.id && a.status === 'active');
-      const isSelected = !isMobileLayout() && selectedAsset && selectedAsset.id === asset.id;
-      const inWatchlist = ASSETS[cat]?.some(a => a.id === assetId);
-
-      const card = document.createElement('div');
-      card.className = `asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
-      card.dataset.assetId = asset.id;
-      card.innerHTML = `
-        <button class="asset-add-btn${inWatchlist ? ' in-watchlist' : ''}" title="${inWatchlist ? 'In watchlist' : 'Add to watchlist'}" onclick="hotListAdd('${asset.id}','${cat}',event)">
-          ${inWatchlist
-            ? '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1,5 3.5,7.5 9,2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-            : '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="5" y1="1" x2="5" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="1" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
-          }
-        </button>
-        <div class="asset-left">
-          <div class="asset-symbol">${asset.symbol}</div>
-          <div class="asset-name">${asset.name}</div>
-        </div>
-        ${hasAlert ? '<div class="asset-right"><div class="alert-dot" title="Alert active"></div></div>' : ''}`;
-      card.onclick = (e) => {
-        if (e.target.closest('.asset-add-btn')) return;
-        navigateToChartOnSelect = true;
-        selectAsset(asset);
-      };
-      container.appendChild(card);
-    });
-  });
-}
-
-function hotListAdd(assetId, cat, e) {
-  e.stopPropagation();
-  const asset = Object.values(ASSETS).flat().find(a => a.id === assetId) || ALL_ASSETS.find(a => a.id === assetId);
-  if (!asset) return;
-  const already = ASSETS[cat]?.some(a => a.id === assetId);
-  if (already) {
-    showToast('Already Added', `${asset.symbol} is already in your watchlist.`, 'info');
-    return;
-  }
-  if (!ASSETS[cat]) ASSETS[cat] = [];
-  ASSETS[cat].push(asset);
-  addToWatchlist(asset, cat);
-  showToast('Added', `${asset.symbol} added to your watchlist.`, 'success');
-  renderHotList();
-  renderWatchlist();
-}
-
-// ═══════════════════════════════════════════════
-// WATCHLIST TAB SWITCHER
-// ═══════════════════════════════════════════════
-function switchWLTab(tab) {
-  currentWLTab = tab;
-  localStorage.setItem('tw_last_wl_tab', tab);
-  document.getElementById('panel-hot').style.display          = tab === 'hot'       ? '' : 'none';
-  document.getElementById('panel-my-watchlist').style.display = tab === 'watchlist' ? '' : 'none';
-
-  // Show FAB only on watchlist tab on mobile
-  const fab = document.getElementById('wl-fab');
-  if (fab) fab.classList.toggle('visible', tab === 'watchlist' && isMobileLayout());
-
-  // Sync nav button highlights
-  if (isMobileLayout()) {
-    document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
-    const btnId = tab === 'watchlist' ? 'mnav-my-watchlist' : 'mnav-watchlist';
-    document.getElementById(btnId)?.classList.add('active');
-  }
-}
-
-// ═══════════════════════════════════════════════
 // GLOBAL ASSET SEARCH
 // ═══════════════════════════════════════════════
 function onGlobalSearch(query) {
@@ -1267,7 +1138,6 @@ function searchAddToWatchlist(e, assetId, cat) {
   addToWatchlist(asset, cat);
   showToast('Added', `${asset.symbol} added to your watchlist.`, 'success');
   renderWatchlist();
-  renderHotList();
   // Refresh search results to update icon
   const input = document.getElementById('global-search-input');
   if (input && input.value) onGlobalSearch(input.value);
@@ -1366,7 +1236,6 @@ function toggleChartAssetWatchlist() {
     showToast('Added', `${asset.symbol} added to your watchlist.`, 'success');
   }
   renderWatchlist();
-  renderHotList();
   updateChartWatchlistBtn();
 }
 
@@ -1380,10 +1249,6 @@ function selectAsset(asset) {
   // Remember last viewed asset for next app open
   try { localStorage.setItem('altradia_last_asset', asset.id); } catch(e) {}
 
-  // Track click for dynamic Hotlist rankings (non-blocking)
-  const cat = Object.entries(ASSETS).find(([, list]) => list.some(a => a.id === asset.id))?.[0]
-           || Object.entries(HOT_LIST_SEED).find(([, ids]) => ids.includes(asset.id))?.[0];
-  if (cat) trackAssetClick(asset.id, cat);
 
   // Reset price input so it pre-fills with new asset's price
   const priceInput = document.getElementById('alert-price');
@@ -1417,8 +1282,7 @@ function selectAsset(asset) {
       mobileTab('chart');
     }
   } else {
-    renderHotList();
-    renderWatchlist();
+      renderWatchlist();
     setTimeout(() => loadTVChart(asset), 50);
   }
 }
@@ -1500,7 +1364,6 @@ function mobileTab(tab, pushState = true) {
     if (unlockBar) unlockBar.classList.toggle('visible', getUserTier() === 'free');
   } else if (tab === 'watchlist') {
     document.getElementById('panel-watchlist').classList.add('mobile-active');
-    // Nav highlight handled by switchWLTab caller
     alertSourceId = null; updateAlertEditBtn();
   } else if (tab === 'chart') {
     if (fab) fab.classList.remove('visible');
@@ -1538,8 +1401,7 @@ function goBack() {
     mobileTab(prev, false); // false = don't push another state
     // Also update WL subtab if going back to watchlist
     if (prev === 'watchlist') {
-      const lastWLTab = localStorage.getItem('tw_last_wl_tab') || 'hot';
-      switchWLTab(lastWLTab);
+
     }
     return true;
   }
@@ -1554,8 +1416,6 @@ window.addEventListener('popstate', (e) => {
     const prev = navStack[navStack.length - 1];
     mobileTab(prev, false);
     if (prev === 'watchlist') {
-      const lastWLTab = localStorage.getItem('tw_last_wl_tab') || 'hot';
-      switchWLTab(lastWLTab);
     }
     // Push a replacement so back button doesn't exit the app
     window.history.pushState({ twTab: prev }, '', '');
@@ -2100,11 +1960,6 @@ function drawAlertLines(assetId) {
 
 // ── Compat stubs for old call sites ───────────────────────────────────────
 function loadTVChart(asset)   { loadLWChart(asset); }
-function getTVSymbol()        { return ''; }
-function generateChartData()  {}
-function drawChart()          {}
-function setTF()              {}
-
 
 // altradia — Alerts
 // createAlert, renderAlerts, checkAlerts, history, sound
@@ -4754,56 +4609,6 @@ async function renderJournal() {
   });
 }
 
-// ─── JOURNAL CSV EXPORT ───────────────────────────────────────────────────────
-function exportJournalCSV() {
-  const filter = document.getElementById('journal-filter')?.value || 'all';
-  const cutoff = filter === 'all' ? 0 : Date.now() - parseInt(filter) * 86400000;
-  const entries = journalEntries.filter(e => {
-    const ts = new Date(e.trade_date || e.created_at).getTime();
-    return ts >= cutoff;
-  });
-
-  if (!entries.length) {
-    showToast('Nothing to export', 'No journal entries match the current filter.', 'error');
-    return;
-  }
-
-  const headers = ['Date','Symbol','Direction','Outcome','Entry','Exit','SL','TP1','TP2','TP3','P&L %','Timeframe','Setup Type','Entry Reason','HTF Context','Emotion Before','Emotion After','Lessons'];
-  const rows = entries.map(e => [
-    new Date(e.trade_date || e.created_at).toLocaleDateString(),
-    e.symbol || '',
-    e.direction || '',
-    e.outcome || '',
-    e.entry_price || '',
-    e.exit_price || '',
-    e.sl_price || '',
-    e.tp1_price || '',
-    e.tp2_price || '',
-    e.tp3_price || '',
-    e.pnl_pct != null ? e.pnl_pct : '',
-    e.timeframe || '',
-    e.setup_type || '',
-    (e.entry_reason || '').replace(/"/g, '""'),
-    (e.htf_context || '').replace(/"/g, '""'),
-    e.emotion_before || '',
-    e.emotion_after || '',
-    (e.lessons || '').replace(/"/g, '""'),
-  ].map(v => `"${v}"`).join(','));
-
-  const csv  = [headers.join(','), ...rows].join('\n');
-
-  // Telegram WebView blocks createObjectURL — use data URI instead
-  const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  const a    = document.createElement('a');
-  const filterLabel = { all:'all-time', '7':'7-days', '30':'30-days', '90':'3-months' }[filter] || filter;
-  a.href     = dataUri;
-  a.download = `altradia-journal-${filterLabel}-${new Date().toISOString().slice(0,10)}.csv`;
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => document.body.removeChild(a), 100);
-  showToast('Exported', `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} exported to CSV.`, 'success');
-}
 
 function openExportModal() {
   const existing = document.getElementById('export-modal-overlay');
@@ -5525,10 +5330,7 @@ function loadTgNotifPrefs() {
   } catch(e) {}
 }
 
-function openMenuAbout()        { openMenuPage('about'); }
-function openMenuSubscription() { openMenuPage('subscription'); }
-function openMenuAffiliate()    { openMenuPage('affiliate'); renderAffiliateDashboard(); }
-function openMenuHelp()         { openMenuPage('help'); }
+function openMenuAbout()        { openMenuPage('about'); }function openMenuHelp()         { openMenuPage('help'); }
 
 // ── Support bot deep link with user context ───────────────────────────────────
 function openSupportBot() {
@@ -6335,7 +6137,6 @@ function _maxConsecLosses(entries) {
 }
 
 
-
 // ═══════════════════════════════════════════════
 // COMMUNITY — LEADERBOARD
 // ═══════════════════════════════════════════════
@@ -6480,12 +6281,6 @@ async function registerServiceWorker() {
   }
 }
 registerServiceWorker();
-
-
-
-// Browser notifications removed — Telegram is the sole alert channel
-function sendBrowserNotification() {}
-
 
 
 // ═══════════════════════════════════════════════
@@ -6825,8 +6620,7 @@ function removeAssetFromWatchlist(assetId, cat, event) {
   ASSETS[cat] = catAssets.filter(a => a.id !== assetId);
   removeFromWatchlist(assetId); // sync to DB
   renderWatchlist();
-  renderHotList();  // refresh + button state on hot list
-  populateDropdown();
+    populateDropdown();
   showToast(`${asset.symbol} Removed`, `${asset.name} removed from your watchlist.`, 'error');
 }
 
@@ -6977,13 +6771,6 @@ function renderLibrary() {
   });
 }
 
-function getCatForAsset(id) {
-  for (const [cat, assets] of Object.entries(ASSETS)) {
-    if (assets.find(a => a.id === id)) return cat;
-  }
-  return 'stocks';
-}
-
 function addAssetToWatchlist(asset) {
   if (!ASSETS[asset.cat]) ASSETS[asset.cat] = [];
   if (ASSETS[asset.cat].find(a => a.id === asset.id)) return;
@@ -7006,8 +6793,6 @@ function addAssetToWatchlist(asset) {
   // Fetch latest price data
   // Price fetch happens on background interval — no per-click fetch needed
 }
-
-
 
 
 // populateDropdown — kept as no-op; asset is now shown as plain text via selectAsset()
@@ -7034,11 +6819,9 @@ async function refreshAll() {
   document.getElementById('status-pill').textContent = '◌ CONNECTING';
   document.getElementById('status-pill').style.borderColor = 'var(--muted)';
   document.getElementById('status-pill').style.color = 'var(--muted)';
-  renderHotList();
   renderWatchlist();
   await fetchAllPrices();
   setStatusPill(true);
-  renderHotList();
   renderWatchlist();
   refreshSelectedAssetPanel();
   checkAlerts();
@@ -7050,8 +6833,7 @@ setInterval(() => {
   // Skip heavy DOM rebuilds while user is focused on alert form inputs
   // This prevents the page from jumping/scrolling while they type
   if (!userTypingInForm) {
-    renderHotList();
-    renderWatchlist();
+      renderWatchlist();
   }
   refreshSelectedAssetPanel();
   checkAlerts();
@@ -7196,6 +6978,131 @@ function updateSessionDisplay() {
 // ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════
+// PULL TO REFRESH
+// Attaches to all scrollable mobile panels.
+// Pulling down ≥ 64px from the top triggers a
+// full data refresh (prices, alerts, watchlist).
+// ═══════════════════════════════════════════════
+function initPullToRefresh() {
+  // Only active on mobile layout
+  if (!isMobileLayout()) return;
+
+  const THRESHOLD   = 64;   // px of pull needed to trigger
+  const MAX_PULL    = 96;   // px cap on indicator height
+  const RESIST      = 0.45; // rubber-band resistance factor
+
+  // Panels that should have PTR. journal-list is the inner scroll
+  // container for the journal, so it gets its own indicator.
+  const panelIds = [
+    'panel-watchlist',
+    'panel-community',
+    'panel-alerts',
+    'panel-main',
+    'journal-list',
+  ];
+
+  panelIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    // Inject PTR indicator at top of each panel
+    const indicator = document.createElement('div');
+    indicator.className = 'ptr-indicator';
+    indicator.innerHTML = `
+      <div class="ptr-inner">
+        <svg class="ptr-spinner" width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.8"
+            stroke-dasharray="20 18" stroke-linecap="round" opacity="0.9"/>
+        </svg>
+        <span class="ptr-label">Pull to refresh</span>
+      </div>`;
+    el.insertBefore(indicator, el.firstChild);
+
+    const label    = indicator.querySelector('.ptr-label');
+    const spinner  = indicator.querySelector('.ptr-spinner');
+
+    let startY    = 0;
+    let pulling   = false;
+    let triggered = false;
+    let refreshing = false;
+
+    el.addEventListener('touchstart', e => {
+      // Only begin PTR when scrolled to the very top
+      if (el.scrollTop > 2) return;
+      startY   = e.touches[0].clientY;
+      pulling  = true;
+      triggered = false;
+    }, { passive: true });
+
+    el.addEventListener('touchmove', e => {
+      if (!pulling || refreshing) return;
+      const dy = (e.touches[0].clientY - startY) * RESIST;
+      if (dy <= 0) { pulling = false; return; }
+
+      const h = Math.min(dy, MAX_PULL);
+      indicator.style.height = h + 'px';
+
+      if (dy >= THRESHOLD && !triggered) {
+        triggered = true;
+        spinner.classList.add('spinning');
+        label.textContent = 'Release to refresh';
+      } else if (dy < THRESHOLD && triggered) {
+        triggered = false;
+        spinner.classList.remove('spinning');
+        label.textContent = 'Pull to refresh';
+      }
+    }, { passive: true });
+
+    el.addEventListener('touchend', async () => {
+      if (!pulling) return;
+      pulling = false;
+
+      if (!triggered) {
+        // Snap back without refresh
+        indicator.style.transition = 'height 0.25s ease';
+        indicator.style.height = '0px';
+        setTimeout(() => { indicator.style.transition = ''; }, 260);
+        return;
+      }
+
+      // Hold indicator open while refreshing
+      refreshing = true;
+      indicator.style.height = '52px';
+      label.textContent = 'Refreshing…';
+
+      try {
+        await refreshAll();
+        // Also reload journal if on journal panel
+        if (id === 'journal-list') renderJournal();
+      } catch(e) {
+        console.warn('PTR refresh error:', e);
+      }
+
+      // Collapse indicator after refresh
+      indicator.style.transition = 'height 0.3s ease';
+      indicator.style.height = '0px';
+      setTimeout(() => {
+        indicator.style.transition = '';
+        spinner.classList.remove('spinning');
+        label.textContent = 'Pull to refresh';
+        refreshing = false;
+        triggered  = false;
+      }, 320);
+    }, { passive: true });
+
+    el.addEventListener('touchcancel', () => {
+      if (!refreshing) {
+        pulling = false;
+        indicator.style.height = '0px';
+        spinner.classList.remove('spinning');
+        label.textContent = 'Pull to refresh';
+      }
+    }, { passive: true });
+  });
+}
+
 async function init() {
   // Apply saved theme before anything renders
   initTheme();
@@ -7208,9 +7115,6 @@ async function init() {
 
   // Push initial history state so Android back button is interceptable from the start
   window.history.replaceState({ twTab: 'chart' }, '', '');
-
-  // Seed hot list data in memory only — do NOT render to DOM yet
-  HOT_LIST = { ...HOT_LIST_SEED };
 
   await getOrCreateUser(currentTelegramId);
 
@@ -7234,6 +7138,7 @@ async function init() {
       const consented = await showConsentDisclaimer();
       if (!consented) return; // user declined — halt
       revealApp();
+  initPullToRefresh();
       const onboardOk = await showOnboardingScreen();
       if (!onboardOk) return;
       localStorage.setItem('tw_onboarded', '1');
@@ -7273,24 +7178,7 @@ async function init() {
     });
   }
 
-  // Build hot list from DB click rankings
-  const rankings = await loadHotListRankings();
-  if (rankings && Object.keys(rankings).length > 0) {
-    HOT_LIST = {};
-    Object.entries(rankings).forEach(([cat, ids]) => {
-      HOT_LIST[cat] = ids.filter(id => ALL_ASSETS.some(a => a.id === id));
-    });
-    Object.entries(HOT_LIST_SEED).forEach(([cat, ids]) => {
-      if (!HOT_LIST[cat] || HOT_LIST[cat].length === 0) {
-        HOT_LIST[cat] = ids;
-      }
-    });
-  } else {
-    HOT_LIST = { ...HOT_LIST_SEED };
-  }
-
   populateDropdown();
-  renderHotList();
   renderWatchlist();
   renderAlerts();
 
@@ -7828,19 +7716,6 @@ function showTgConnectPrompt() {
   document.body.appendChild(gate);
 }
 
-// ── TELEGRAM CONNECTION TOAST ─────────────────────
-function showTgToast(msg) {
-  const el = document.getElementById('tg-toast');
-  if (!el) return;
-  el.innerHTML = msg;
-  el.style.display = 'block';
-  el.style.opacity = '1';
-  setTimeout(() => {
-    el.style.transition = 'opacity 0.6s';
-    el.style.opacity = '0';
-    setTimeout(() => { el.style.display = 'none'; el.style.transition = ''; }, 600);
-  }, 4000);
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // iOS-STYLE EDGE BACK SWIPE
