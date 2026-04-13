@@ -160,7 +160,7 @@
 
 
         <!-- WATCHLIST panel -->
-    <div id="panel-my-watchlist" class="wl-panel-content" style="display:none">
+    <div id="panel-my-watchlist" class="wl-panel-content">
       <div class="wl-panel-header">MY WATCHLIST <span id="wl-count">0</span></div>
       <div class="market-group">
         <div class="market-group-label">
@@ -982,16 +982,16 @@
 
     <!-- ── Two action cards: Subscription + Affiliate ── -->
     <div class="menu-action-cards">
-      <button class="menu-action-card" onclick="openMenuPage('subscription')">
-        <span class="menu-action-icon">
+      <button class="menu-action-card" id="menu-sub-card" onclick="openSubscriptionPage()">
+        <span class="menu-action-icon" id="menu-sub-icon">
           <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
             <rect x="2" y="15" width="18" height="5" rx="2" stroke="currentColor" stroke-width="1.4"/>
             <rect x="4" y="9" width="14" height="5" rx="2" stroke="currentColor" stroke-width="1.4"/>
             <rect x="7" y="3" width="8" height="5" rx="2" stroke="currentColor" stroke-width="1.4"/>
           </svg>
         </span>
-        <span class="menu-action-label">Subscription</span>
-        <span class="menu-action-sub">Plans &amp; billing</span>
+        <span class="menu-action-label" id="menu-sub-label">Subscription</span>
+        <span class="menu-action-sub" id="menu-sub-sub">Plans &amp; billing</span>
         <svg class="menu-action-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
           <path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -1389,53 +1389,15 @@
 <!-- Subscription Plans -->
 <div id="menu-page-subscription" class="menu-page">
   <div class="menu-page-header">
-    <button class="menu-page-back" onclick="closeMenuPage('subscription')">
+    <button class="menu-page-back" onclick="closeMenuPage('subscription'); openMenuPanel();">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path d="M11 4l-6 5 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
-    <span class="menu-page-title">Subscription Plans</span>
+    <span class="menu-page-title" id="sub-page-title">Subscription Plans</span>
   </div>
-  <div class="menu-page-body">
-    <p class="menu-page-desc" style="margin-bottom:20px">Choose the plan that fits your trading style.</p>
-    <div class="plan-card">
-      <div class="plan-card-header"><span class="plan-name">FREE</span><span class="plan-price">$0<span class="plan-period">/mo</span></span></div>
-      <div class="plan-features">
-        <div class="plan-feature on">Up to 5 active alerts</div>
-        <div class="plan-feature on">Above / Below alerts</div>
-        <div class="plan-feature on">Zone &amp; Tap alerts</div>
-        <div class="plan-feature on">Telegram notifications</div>
-        <div class="plan-feature off">Trade setup lifecycle alerts</div>
-        <div class="plan-feature off">Trade journal</div>
-        <div class="plan-feature off">Priority server-side monitoring</div>
-      </div>
-    </div>
-    <div class="plan-card plan-card-pro">
-      <div class="plan-badge">POPULAR</div>
-      <div class="plan-card-header"><span class="plan-name">PRO</span><span class="plan-price">$9<span class="plan-period">/mo</span></span></div>
-      <div class="plan-features">
-        <div class="plan-feature on">Up to 25 active alerts</div>
-        <div class="plan-feature on">All alert types</div>
-        <div class="plan-feature on">Trade setup lifecycle alerts</div>
-        <div class="plan-feature on">Full trade journal</div>
-        <div class="plan-feature on">Telegram notifications</div>
-        <div class="plan-feature on">Server-side monitoring 24/7</div>
-        <div class="plan-feature off">Priority support</div>
-      </div>
-    </div>
-    <div class="plan-card plan-card-elite">
-      <div class="plan-card-header"><span class="plan-name">ELITE</span><span class="plan-price">$19<span class="plan-period">/mo</span></span></div>
-      <div class="plan-features">
-        <div class="plan-feature on">Unlimited active alerts</div>
-        <div class="plan-feature on">All alert types</div>
-        <div class="plan-feature on">Trade setup lifecycle alerts</div>
-        <div class="plan-feature on">Full trade journal</div>
-        <div class="plan-feature on">Telegram notifications</div>
-        <div class="plan-feature on">Priority server-side monitoring</div>
-        <div class="plan-feature on">Priority support</div>
-      </div>
-    </div>
-    <p style="font-family:var(--mono);font-size:0.62rem;color:var(--muted);text-align:center;margin-top:16px">Plans launching soon. Current users get free Pro access.</p>
+  <div class="menu-page-body" id="sub-page-body" style="padding:0">
+    <!-- Populated dynamically by _renderSubscriptionPage() -->
   </div>
 </div>
 
