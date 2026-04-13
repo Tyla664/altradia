@@ -18,6 +18,8 @@
 
 // ── Broker credentials ────────────────────────
 const DERIV_APP_ID     = '3FgUMWdvlyFOxPW';
+// Paystack public key — safe to expose client-side (not the secret key)
+const PAYSTACK_PUBLIC_KEY = 'YOUR_PAYSTACK_PUBLIC_KEY_HERE'; // replace with pk_live_...
 // SUPABASE_URL and SUPABASE_ANON_KEY are defined in db.js — do not redeclare here
 const OANDA_KEY     = 'bc279adfd3ef94ce554a110a9e555d05-7e712cb0ac8809392b3f4bfca9768b8b';
 const OANDA_ACCOUNT = '101-001-38834231-001';
@@ -492,9 +494,13 @@ let swRegistration  = null;
 
 // Telegram
 const TELEGRAM_WORKER_URL = 'https://telegram-worker.meet-tyla.workers.dev';
+// Base URL where payment-callback.html is hosted (same domain as the app)
+// Update this when you deploy to your production domain
+const APP_BASE_URL = 'https://YOUR_APP_DOMAIN_HERE'; // e.g. https://altradia.app
 let telegramEnabled  = false;
 let telegramChatId   = localStorage.getItem('tg_chat_id') || '';
 let telegramUserName  = '';
+let telegramHandle    = ''; // @username (without @) — used in referral links
 let telegramUserPhoto = ''; // Telegram profile picture URL (from WebApp SDK)
 
 // Asset library reference
@@ -1364,7 +1370,10 @@ function mobileTab(tab, pushState = true) {
     if (unlockBar) unlockBar.classList.toggle('visible', getUserTier() === 'free');
   } else if (tab === 'watchlist') {
     document.getElementById('panel-watchlist').classList.add('mobile-active');
+    if (fab) fab.classList.add('visible');
+    document.getElementById('mnav-my-watchlist')?.classList.add('active');
     alertSourceId = null; updateAlertEditBtn();
+    renderWatchlist();
   } else if (tab === 'chart') {
     if (fab) fab.classList.remove('visible');
     const panel = document.getElementById('panel-main');
@@ -5152,6 +5161,8 @@ function openMenuPanel() {
     });
   });
   updateMenuToggles();
+  // Sync subscription card label/style with current tier (card is always in DOM)
+  _syncSubscriptionCard();
 }
 
 function closeMenuPanel() {
@@ -5398,10 +5409,13 @@ function renderAffiliateDashboard() {
 }
 
 function copyReferralLink() {
+  // Use @username for friendly referral links; fall back to numeric ID
+  const handle  = telegramHandle || localStorage.getItem('tg_user_handle') || '';
   const userId  = telegramChatId || localStorage.getItem('tg_chat_id') || 'user';
+  const refSlug = handle ? handle : `id${userId}`;
   // Telegram Mini App deep link — opens the app via the main bot
-  // When a new user opens this link, their referrer ID is passed via startapp
-  const refLink = `https://t.me/tradewatchalert_bot/altradia?startapp=ref_${userId}`;
+  // When a new user opens this link, their referrer is identified by username or ID
+  const refLink = `https://t.me/tradewatchalert_bot/altradia?startapp=ref_${refSlug}`;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(refLink)
       .then(() => showToast('Link Copied!', 'Share it with traders to earn commissions.', 'success'))
@@ -5451,8 +5465,45 @@ function renderPayoutHistory() {
 // ═══════════════════════════════════════════════
 // USER TIER
 // ═══════════════════════════════════════════════
-let currentUserTier = 'elite'; // 'free' | 'pro' | 'elite' — set to 'free' in production
+let currentUserTier = 'free'; // set by refreshUserTier() on load
 function getUserTier() { return currentUserTier; }
+
+// ── Fetch tier from Supabase and apply it ──────────────────────────────────
+// Called on init and after a successful payment.
+async function refreshUserTier() {
+  if (!currentUserId) return;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUserId}&select=tier,subscription_end`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!rows?.length) return;
+    const { tier, subscription_end } = rows[0];
+
+    // If subscription has expired, treat as free
+    if (tier && tier !== 'free' && subscription_end) {
+      const expired = new Date(subscription_end) < new Date();
+      currentUserTier = expired ? 'free' : tier;
+    } else {
+      currentUserTier = tier || 'free';
+    }
+
+    // Sync the menu badge
+    const planEl = document.getElementById('menu-profile-plan');
+    if (planEl) {
+      const t = currentUserTier;
+      const tierLabel = t === 'elite' ? 'ELITE' : t === 'pro' ? 'PRO' : 'FREE';
+      const tierCls   = t === 'elite' ? ' elite' : t === 'pro' ? ' pro' : '';
+      planEl.innerHTML = `<span class="menu-plan-badge${tierCls}">${tierLabel}</span>`;
+    }
+    // Sync subscription card in menu panel
+    _syncSubscriptionCard();
+  } catch (e) {
+    console.warn('refreshUserTier failed:', e);
+  }
+}
 
 // ═══════════════════════════════════════════════
 // ANALYTICS
@@ -5679,8 +5730,8 @@ function renderProfilePage(tier) {
         <div class="profile-upgrade-hook-title">Unlock Your Full Profile</div>
         <div class="profile-upgrade-hook-desc">See your rank, earn badges, and compare with the community.</div>
         <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="profile-upgrade-btn pro-btn" onclick="closeMenuPage('profile'); openMenuPage('subscription')">Upgrade to Pro</button>
-          <button class="profile-upgrade-btn elite-btn" onclick="closeMenuPage('profile'); openMenuPage('subscription')">Go Elite for Prestige</button>
+          <button class="profile-upgrade-btn pro-btn" onclick="closeMenuPage('profile'); openSubscriptionPage()">Upgrade to Pro</button>
+          <button class="profile-upgrade-btn elite-btn" onclick="closeMenuPage('profile'); openSubscriptionPage()">Go Elite for Prestige</button>
         </div>
       </div>
     </div>` : ''}
@@ -5745,7 +5796,7 @@ function renderAnalyticsMenuBody(tier) {
           Unlock performance dashboards, consistency scores, behaviour tracking, AI insights and more.<br><br>
           Upgrade to Pro or Elite to access your full trading analytics.
         </div>
-        <button class="analytics-gate-btn" onclick="closeMenuPage('analytics'); openMenuPage('subscription')">View Plans</button>
+        <button class="analytics-gate-btn" onclick="closeMenuPage('analytics'); openSubscriptionPage()">View Plans</button>
       </div>`;
     return;
   }
@@ -5944,7 +5995,7 @@ function _ruleBasedInsight(s) {
 }
 
 function _renderProUpgradeHint() {
-  return `<div class="analytics-section"><div class="analytics-section-title">Elite Features</div><div class="analytics-elite-card" style="opacity:0.75"><div class="analytics-elite-label"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L7 4h3L7.5 6 8.5 9.5 6 8 3.5 9.5 4.5 6 2 4h3z" stroke="#ffd600" stroke-width="1" fill="none"/></svg> Elite Only</div><div style="font-size:0.75rem;color:var(--text);margin-bottom:6px;font-weight:600">Advanced Dashboards</div><div style="font-family:var(--mono);font-size:0.62rem;color:var(--muted);line-height:1.6">Heatmaps · Equity curve · Predictive AI · Bias detection · Benchmarking · Coaching Mode</div><button class="analytics-gate-btn" style="margin-top:12px;padding:10px;font-size:0.62rem;width:100%" onclick="closeMenuPage('analytics'); openMenuPage('subscription')">Upgrade to Elite</button></div></div>`;
+  return `<div class="analytics-section"><div class="analytics-section-title">Elite Features</div><div class="analytics-elite-card" style="opacity:0.75"><div class="analytics-elite-label"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L7 4h3L7.5 6 8.5 9.5 6 8 3.5 9.5 4.5 6 2 4h3z" stroke="#ffd600" stroke-width="1" fill="none"/></svg> Elite Only</div><div style="font-size:0.75rem;color:var(--text);margin-bottom:6px;font-weight:600">Advanced Dashboards</div><div style="font-family:var(--mono);font-size:0.62rem;color:var(--muted);line-height:1.6">Heatmaps · Equity curve · Predictive AI · Bias detection · Benchmarking · Coaching Mode</div><button class="analytics-gate-btn" style="margin-top:12px;padding:10px;font-size:0.62rem;width:100%" onclick="closeMenuPage('analytics'); openSubscriptionPage()">Upgrade to Elite</button></div></div>`;
 }
 
 function _renderEliteSection(entries, winRate, consistency, statsPayload) {
@@ -6167,47 +6218,123 @@ const MOCK_LEADERBOARD = [
 ];
 let _communityRendered = false;
 function renderCommunity() {
-  _communityRendered = true; // always re-render so tier-specific content stays fresh
-  const tier = getUserTier();
+  _communityRendered = true;
+  const tier    = getUserTier();
   const isElite = tier === 'elite';
   const isPro   = tier === 'pro';
   const isFree  = tier === 'free';
 
-  // Show/hide tier rank message
+  // Community unlock bar — only show for free users
+  const unlockBar = document.getElementById('community-unlock-fixed');
+  if (unlockBar) unlockBar.classList.toggle('visible', isFree);
+
+  // Rank pill — placeholder until real DB rank is loaded
   const rankMsg = document.getElementById('community-rank-msg');
   if (rankMsg) {
     if (isFree) {
       rankMsg.innerHTML = `<div class="community-rank-pill free-rank">Not ranked — upgrade to join the leaderboard</div>`;
-      rankMsg.style.display = '';
-    } else if (isPro) {
-      rankMsg.innerHTML = `<div class="community-rank-pill pro-rank">You're ranked <strong>#23</strong> globally this week</div>`;
-      rankMsg.style.display = '';
-    } else if (isElite) {
-      rankMsg.innerHTML = `<div class="community-rank-pill elite-rank"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M1 9L2.5 4 5 7 6 2 7 7 9.5 4 11 9H1Z" fill="#ffd600" stroke="#ffd600" stroke-width="0.5" stroke-linejoin="round"/></svg> You're ranked <strong>#3</strong> globally — featured in Trader Spotlight</div>`;
-      rankMsg.style.display = '';
+    } else {
+      rankMsg.innerHTML = `<div class="community-rank-pill ${isElite ? 'elite-rank' : 'pro-rank'}" id="user-rank-pill">
+        ${isElite ? LB_CROWN + ' ' : ''}Loading your rank…
+      </div>`;
+      // Fetch real rank from Supabase async
+      _loadUserRank(tier);
     }
+    rankMsg.style.display = '';
   }
+
+  // Render leaderboard from mock first, then try Supabase
+  _renderLeaderboard(MOCK_LEADERBOARD);
+  _loadLeaderboardFromDB();
+}
+
+// ── Load real leaderboard from Supabase ────────────────────────────────────
+async function _loadLeaderboardFromDB() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?select=telegram_id,display_name,tier,consistency_score,badges&order=consistency_score.desc&limit=10&consistency_score=not.is.null`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!rows?.length) return;
+
+    const lbData = rows.map((r, i) => ({
+      rank:     i + 1,
+      username: r.display_name || `Trader${String(r.telegram_id).slice(-4)}`,
+      score:    r.consistency_score || 0,
+      badges:   r.badges ? JSON.parse(r.badges) : [],
+      elite:    r.tier === 'elite',
+    }));
+
+    _renderLeaderboard(lbData);
+
+    // Update avg consistency
+    const avg = Math.round(lbData.reduce((s,r) => s + r.score, 0) / lbData.length);
+    const avgEl = document.getElementById('community-avg-score');
+    if (avgEl) avgEl.textContent = avg + '%';
+  } catch(e) {
+    // Stay on mock data silently
+  }
+}
+
+// ── Load user's own rank ───────────────────────────────────────────────────
+async function _loadUserRank(tier) {
+  const pill = document.getElementById('user-rank-pill');
+  if (!pill || !currentUserId) return;
+  try {
+    // Get count of users with higher score
+    const myRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUserId}&select=consistency_score`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    const myData = await myRes.json();
+    const myScore = myData?.[0]?.consistency_score;
+    if (!myScore) {
+      pill.innerHTML = `${tier === 'elite' ? LB_CROWN + ' ' : ''}Keep journaling to earn your rank`;
+      return;
+    }
+    const rankRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?consistency_score=gt.${myScore}&select=id`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    const above = await rankRes.json();
+    const rank  = (above?.length ?? 0) + 1;
+    pill.innerHTML = `${tier === 'elite' ? LB_CROWN + ' ' : ''}<strong>#${rank}</strong> globally this week`;
+  } catch(e) {
+    pill.innerHTML = `${tier === 'elite' ? LB_CROWN + ' ' : ''}Ranked — keep journaling`;
+  }
+}
+
+// ── Render leaderboard rows ────────────────────────────────────────────────
+function _renderLeaderboard(data) {
   const list = document.getElementById('leaderboard-list');
-  if (!list) return;
-  const avg = Math.round(MOCK_LEADERBOARD.reduce((s,r)=>s+r.score,0)/MOCK_LEADERBOARD.length);
+  if (!list || !data?.length) return;
+
+  const avg = Math.round(data.reduce((s,r) => s + r.score, 0) / data.length);
   const avgEl = document.getElementById('community-avg-score');
   if (avgEl) avgEl.textContent = avg + '%';
-  const totw = MOCK_LEADERBOARD[0];
+
+  const totw        = data[0];
   const totwSection = document.getElementById('totw-section');
   const totwCard    = document.getElementById('totw-card');
   if (totwSection && totwCard && totw) {
     totwCard.innerHTML = `<div class="totw-rank-badge">${LB_MEDALS[1]}</div><div class="totw-info"><div class="totw-username${totw.elite?' elite':''}">${totw.elite?LB_CROWN:''}${totw.username}</div><div class="totw-score">Consistency score: ${totw.score}%</div></div><div class="totw-badges">${totw.badges.map(b=>BADGE_SVGS[b]||'').join('')}</div>`;
     totwSection.style.display = '';
   }
-  list.innerHTML = MOCK_LEADERBOARD.map(row => {
-    const rankHtml  = LB_MEDALS[row.rank] ? `<span class="lb-rank-medal">${LB_MEDALS[row.rank]}</span>` : `<span class="lb-rank">${row.rank}</span>`;
-    const nameHtml  = `<span class="lb-username${row.elite?' elite-user':''}">${row.elite?LB_CROWN:''}${row.username}</span>`;
-    const scoreHtml = `<span class="${row.score>=90?'lb-score score-high':'lb-score'}">${row.score}%</span>`;
-    const badgesHtml= row.badges.map(b=>BADGE_SVGS[b]||'').join('');
-    const rowCls    = ['lb-row',row.rank<=3?'lb-top3':'',row.elite?'lb-elite':''].filter(Boolean).join(' ');
+
+  list.innerHTML = data.map(row => {
+    const rankHtml   = LB_MEDALS[row.rank] ? `<span class="lb-rank-medal">${LB_MEDALS[row.rank]}</span>` : `<span class="lb-rank">${row.rank}</span>`;
+    const nameHtml   = `<span class="lb-username${row.elite?' elite-user':''}">${row.elite?LB_CROWN:''}${row.username}</span>`;
+    const scoreHtml  = `<span class="${row.score>=90?'lb-score score-high':'lb-score'}">${row.score}%</span>`;
+    const badgesHtml = row.badges.map(b=>BADGE_SVGS[b]||'').join('');
+    const rowCls     = ['lb-row',row.rank<=3?'lb-top3':'',row.elite?'lb-elite':''].filter(Boolean).join(' ');
     return `<div class="${rowCls}"><div class="lb-col-rank">${rankHtml}</div><div class="lb-col-user">${nameHtml}</div><div class="lb-col-score">${scoreHtml}</div><div class="lb-col-badges lb-badges">${badgesHtml}</div></div>`;
   }).join('');
 }
+
+// ── Stub end marker (do not remove) ───────────────────────────────────────
+function _communityEnd() {}
 
 
 function openMenuPage(name) {
@@ -6295,16 +6422,19 @@ registerServiceWorker();
     if (tgUser?.id) {
       telegramChatId    = String(tgUser.id);
       telegramUserName  = tgUser.first_name || tgUser.username || 'there';
+      telegramHandle    = tgUser.username   || '';
       telegramUserPhoto = tgUser.photo_url  || '';
-      localStorage.setItem('tg_chat_id',   telegramChatId);
-      localStorage.setItem('tg_user_name', telegramUserName);
-      localStorage.setItem('tg_photo_url', telegramUserPhoto);
+      localStorage.setItem('tg_chat_id',     telegramChatId);
+      localStorage.setItem('tg_user_name',   telegramUserName);
+      localStorage.setItem('tg_user_handle', telegramHandle);
+      localStorage.setItem('tg_photo_url',   telegramUserPhoto);
       telegramEnabled = true;
       localStorage.setItem('tg_enabled', 'true');
     } else {
       // Restore from localStorage on reload (when not inside Telegram)
-      telegramUserName  = localStorage.getItem('tg_user_name')  || '';
-      telegramUserPhoto = localStorage.getItem('tg_photo_url')  || '';
+      telegramUserName  = localStorage.getItem('tg_user_name')   || '';
+      telegramHandle    = localStorage.getItem('tg_user_handle')  || '';
+      telegramUserPhoto = localStorage.getItem('tg_photo_url')    || '';
     }
   } catch(e) {}
 })();
@@ -6334,8 +6464,10 @@ registerServiceWorker();
           top.classList.remove('open');
           setTimeout(() => {
             top.style.display = 'none';
-            // Profile and analytics live inside the menu panel — reopen it on back
-            if (pageId === 'menu-page-profile' || pageId === 'menu-page-analytics') {
+            // Pages that live inside the menu panel — reopen it on back
+            if (pageId === 'menu-page-profile' ||
+                pageId === 'menu-page-analytics' ||
+                pageId === 'menu-page-subscription') {
               openMenuPanel();
             }
           }, 280);
@@ -7103,6 +7235,398 @@ function initPullToRefresh() {
   });
 }
 
+// ═══════════════════════════════════════════════
+// SUBSCRIPTION & PAYMENTS
+// Paystack (card) + NOWPayments (crypto)
+// ═══════════════════════════════════════════════
+
+// Plan config — keep in sync with Paystack dashboard plan codes
+const PLANS = {
+  pro:   { label: 'Pro',   price: 9,  paystackPlanCode: 'PLN_pro_monthly'   },
+  elite: { label: 'Elite', price: 19, paystackPlanCode: 'PLN_elite_monthly' },
+};
+
+// ── Sync the subscription card on the menu panel (always in DOM) ──────────
+function _syncSubscriptionCard() {
+  const tier    = getUserTier();
+  const isPro   = tier === 'pro';
+  const isElite = tier === 'elite';
+
+  const subLabel = document.getElementById('menu-sub-label');
+  const subSub   = document.getElementById('menu-sub-sub');
+  const subCard  = document.getElementById('menu-sub-card');
+
+  if (subLabel) subLabel.textContent = isElite ? 'Elite' : isPro ? 'Pro' : 'Subscription';
+  if (subSub)   subSub.textContent   = isElite ? 'Elite plan active'
+                                     : isPro   ? 'Pro plan active'
+                                     : 'Plans & billing';
+  if (subCard) {
+    subCard.style.borderColor = isElite ? 'rgba(255,214,0,0.35)'
+                              : isPro   ? 'rgba(0,212,255,0.35)' : '';
+    subCard.style.background  = isElite
+      ? 'linear-gradient(135deg,rgba(255,214,0,0.07),rgba(255,214,0,0.02))'
+      : isPro
+        ? 'linear-gradient(135deg,rgba(0,212,255,0.07),rgba(0,212,255,0.02))'
+        : '';
+  }
+}
+
+
+// ── Open subscription page ────────────────────────────────────────────────
+function openSubscriptionPage() {
+  openMenuPage('subscription');
+  _renderSubscriptionPage();
+}
+
+// ── Tier-aware subscription page renderer ─────────────────────────────────
+function _renderSubscriptionPage() {
+  const body  = document.getElementById('sub-page-body');
+  const title = document.getElementById('sub-page-title');
+  if (!body) return;
+
+  const tier    = getUserTier();
+  const isPro   = tier === 'pro';
+  const isElite = tier === 'elite';
+  const isFree  = tier === 'free';
+
+  // Update page title
+  if (title) title.textContent = isElite ? 'Your Plan' : isPro ? 'Your Plan' : 'Choose a Plan';
+
+  // Keep menu card in sync
+  _syncSubscriptionCard();
+
+  // ── ELITE view: current plan summary ────────────────────────────────────
+  if (isElite) {
+    body.innerHTML = `
+      <div style="padding:20px 16px 0">
+        <div class="sub-current-hero elite-hero">
+          <div class="sub-hero-crown">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M2 20L5 9l6.5 6L14 4l2.5 11L23 9l3 11H2z" stroke="#ffd600" stroke-width="1.6" stroke-linejoin="round" fill="rgba(255,214,0,0.12)"/></svg>
+          </div>
+          <div class="sub-hero-label">ELITE PLAN</div>
+          <div class="sub-hero-price">$19<span class="sub-hero-period">/month</span></div>
+          <div class="sub-hero-status">Active — renews automatically</div>
+        </div>
+
+        <div class="sub-section-title">What you have</div>
+        <div class="sub-feature-list">
+          ${_subFeature('Unlimited active alerts', true)}
+          ${_subFeature('All alert types — setup, zone, tap, lifecycle', true)}
+          ${_subFeature('Full trade journal with screenshots', true)}
+          ${_subFeature('Advanced analytics & Elite AI insights', true)}
+          ${_subFeature('Elite leaderboard ranking & prestige badges', true)}
+          ${_subFeature('Priority server-side monitoring 24/7', true)}
+          ${_subFeature('Priority support', true)}
+        </div>
+
+        <button onclick="showToast('Manage Plan','To cancel, your plan will remain active until the current period ends. Contact support to proceed.','info')"
+          style="width:100%;padding:12px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--muted);font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;cursor:pointer;margin-top:4px;margin-bottom:24px">
+          MANAGE SUBSCRIPTION
+        </button>
+      </div>`;
+    return;
+  }
+
+  // ── PRO view: current plan + Elite nudge ─────────────────────────────────
+  if (isPro) {
+    body.innerHTML = `
+      <div style="padding:20px 16px 0">
+        <div class="sub-current-hero pro-hero">
+          <div class="sub-hero-label">PRO PLAN</div>
+          <div class="sub-hero-price">$9<span class="sub-hero-period">/month</span></div>
+          <div class="sub-hero-status">Active — renews automatically</div>
+        </div>
+
+        <div class="sub-section-title">Your Pro features</div>
+        <div class="sub-feature-list">
+          ${_subFeature('Up to 25 active alerts', true)}
+          ${_subFeature('All alert types — setup, zone, tap, lifecycle', true)}
+          ${_subFeature('Full trade journal with screenshots', true)}
+          ${_subFeature('Analytics & AI insights', true)}
+          ${_subFeature('Server-side monitoring 24/7', true)}
+          ${_subFeature('Elite leaderboard & prestige badges', false)}
+          ${_subFeature('Priority server-side monitoring', false)}
+          ${_subFeature('Priority support', false)}
+        </div>
+
+        <!-- Elite nudge -->
+        <div class="sub-upgrade-nudge">
+          <div class="sub-nudge-header">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 11L2.8 5l4 4L7 1l1.5 8L12 5l1 6H1z" stroke="#ffd600" stroke-width="1.3" stroke-linejoin="round" fill="rgba(255,214,0,0.1)"/></svg>
+            Unlock Elite for $10 more
+          </div>
+          <div class="sub-nudge-features">
+            <div>⭐ Elite leaderboard ranking &amp; prestige badges</div>
+            <div>⭐ Unlimited alerts (vs your current 25)</div>
+            <div>⭐ Elite AI coaching &amp; advanced analytics</div>
+            <div>⭐ Priority server-side monitoring &amp; support</div>
+          </div>
+          <button class="sub-cta-btn sub-cta-elite" onclick="openPaymentModal('elite')" style="margin-top:14px">
+            Upgrade to Elite — $19/mo
+          </button>
+        </div>
+
+        <button onclick="showToast('Manage Plan','To cancel, your plan will remain active until the current period ends. Contact support to proceed.','info')"
+          style="width:100%;padding:12px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--muted);font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;cursor:pointer;margin-top:10px;margin-bottom:24px">
+          MANAGE SUBSCRIPTION
+        </button>
+      </div>`;
+    return;
+  }
+
+  // ── FREE view: all three plan cards with CTAs ─────────────────────────────
+  body.innerHTML = `
+    <div style="padding:16px 16px 0">
+      <p style="font-size:0.8rem;color:var(--muted);margin-bottom:18px;line-height:1.5">
+        Upgrade to unlock the full altradia experience. Cancel anytime.
+      </p>
+    </div>
+
+    <!-- FREE -->
+    <div style="padding:0 16px">
+      <div class="plan-card" style="margin-bottom:12px">
+        <div class="plan-card-header">
+          <span class="plan-name">FREE</span>
+          <span class="plan-price">$0<span class="plan-period">/mo</span></span>
+        </div>
+        <div class="plan-features">
+          ${_planFeat('Up to 5 active alerts', true)}
+          ${_planFeat('Above / Below price alerts', true)}
+          ${_planFeat('Zone & Tap alerts', true)}
+          ${_planFeat('Telegram notifications', true)}
+          ${_planFeat('Trade setup lifecycle alerts', false)}
+          ${_planFeat('Trade journal & screenshots', false)}
+          ${_planFeat('Analytics & AI insights', false)}
+          ${_planFeat('Server-side monitoring', false)}
+        </div>
+        <div style="margin-top:12px;padding:8px 0;font-family:var(--mono);font-size:0.6rem;color:var(--muted);text-align:center">
+          YOUR CURRENT PLAN
+        </div>
+      </div>
+    </div>
+
+    <!-- PRO -->
+    <div style="padding:0 16px">
+      <div class="plan-card plan-card-pro" style="margin-bottom:12px">
+        <div class="plan-badge">POPULAR</div>
+        <div class="plan-card-header">
+          <span class="plan-name">PRO</span>
+          <span class="plan-price">$9<span class="plan-period">/mo</span></span>
+        </div>
+        <div class="plan-features">
+          ${_planFeat('Up to 25 active alerts', true)}
+          ${_planFeat('All alert types incl. setup lifecycle', true)}
+          ${_planFeat('Full trade journal with screenshots', true)}
+          ${_planFeat('Analytics & AI pattern insights', true)}
+          ${_planFeat('Server-side monitoring 24/7', true)}
+          ${_planFeat('Telegram notifications for all events', true)}
+          ${_planFeat('Elite leaderboard & badges', false)}
+          ${_planFeat('Priority support', false)}
+        </div>
+        <button class="sub-cta-btn sub-cta-pro" onclick="openPaymentModal('pro')">
+          Get Pro — $9/mo
+        </button>
+      </div>
+    </div>
+
+    <!-- ELITE -->
+    <div style="padding:0 16px">
+      <div class="plan-card plan-card-elite" style="margin-bottom:12px">
+        <div class="plan-card-header">
+          <div>
+            <span class="plan-name">ELITE</span>
+            <span style="font-family:var(--mono);font-size:0.55rem;color:#ffd600;margin-left:6px;letter-spacing:0.08em">BEST VALUE</span>
+          </div>
+          <span class="plan-price">$19<span class="plan-period">/mo</span></span>
+        </div>
+        <div class="plan-features">
+          ${_planFeat('Unlimited active alerts', true)}
+          ${_planFeat('All alert types incl. setup lifecycle', true)}
+          ${_planFeat('Full trade journal with screenshots', true)}
+          ${_planFeat('Advanced analytics & Elite AI coaching', true)}
+          ${_planFeat('Elite leaderboard ranking & prestige badges', true)}
+          ${_planFeat('Priority server-side monitoring 24/7', true)}
+          ${_planFeat('Priority support', true)}
+        </div>
+        <button class="sub-cta-btn sub-cta-elite" onclick="openPaymentModal('elite')">
+          Get Elite — $19/mo
+        </button>
+      </div>
+    </div>
+
+    <p style="font-family:var(--mono);font-size:0.56rem;color:var(--muted);text-align:center;padding:0 16px 28px;line-height:1.6">
+      Billed monthly · Cancel anytime<br>Secure payments via Paystack &amp; NOWPayments
+    </p>`;
+}
+
+// ── Feature row helpers ────────────────────────────────────────────────────
+function _subFeature(text, on) {
+  return `<div class="sub-feat-row${on ? '' : ' sub-feat-off'}">
+    <span class="sub-feat-dot"></span>${text}
+  </div>`;
+}
+function _planFeat(text, on) {
+  return `<div class="plan-feature${on ? ' on' : ' off'}">${text}</div>`;
+}
+
+// ── Payment method picker modal ───────────────────────────────────────────
+function openPaymentModal(plan) {
+  const existing = document.getElementById('payment-modal-overlay');
+  if (existing) existing.remove();
+
+  const { label, price } = PLANS[plan];
+  const ov = document.createElement('div');
+  ov.id = 'payment-modal-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99995;display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;box-sizing:border-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-family:var(--mono);font-size:0.68rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--text)">${label} Plan</div>
+        <button onclick="document.getElementById('payment-modal-overlay').remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div style="font-family:var(--mono);font-size:0.62rem;color:var(--muted);margin-bottom:22px">$${price}/month · Cancel anytime</div>
+
+      <div style="font-family:var(--mono);font-size:0.56rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:10px">Choose Payment Method</div>
+
+      <button onclick="_startPaystack('${plan}')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;margin-bottom:10px;text-align:left">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="1" y="5" width="20" height="14" rx="3" stroke="currentColor" stroke-width="1.4" fill="none"/><line x1="1" y1="9" x2="21" y2="9" stroke="currentColor" stroke-width="1.4"/><rect x="4" y="12" width="4" height="2" rx="0.5" fill="currentColor" opacity="0.6"/></svg>
+        <div>
+          <div style="font-size:0.82rem;font-weight:600;margin-bottom:2px">Pay with Card</div>
+          <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted)">Visa, Mastercard · Powered by Paystack</div>
+        </div>
+        <svg style="margin-left:auto;flex-shrink:0" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
+      <button onclick="_startNowPayments('${plan}')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;text-align:left">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M8 11h3m0 0h1.5a1.5 1.5 0 0 0 0-3H11m0 3v3m0-3V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <div>
+          <div style="font-size:0.82rem;font-weight:600;margin-bottom:2px">Pay with Crypto</div>
+          <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted)">BTC, ETH, USDT & more · Powered by NOWPayments</div>
+        </div>
+        <svg style="margin-left:auto;flex-shrink:0" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
+      <p style="font-family:var(--mono);font-size:0.56rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.6">
+        Payments are processed securely. Your plan activates instantly after confirmation.
+      </p>
+    </div>`;
+
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+
+// ── Paystack card payment ─────────────────────────────────────────────────
+function _startPaystack(plan) {
+  document.getElementById('payment-modal-overlay')?.remove();
+
+  // Load Paystack inline script if not already loaded
+  if (!window.PaystackPop) {
+    const script = document.createElement('script');
+    script.src   = 'https://js.paystack.co/v1/inline.js';
+    script.onload = () => _launchPaystackPopup(plan);
+    document.head.appendChild(script);
+  } else {
+    _launchPaystackPopup(plan);
+  }
+}
+
+function _launchPaystackPopup(plan) {
+  const { label, price, paystackPlanCode } = PLANS[plan];
+  const email = `user_${telegramChatId}@altradia.app`; // synthetic email for Paystack
+
+  const handler = window.PaystackPop.setup({
+    key:      PAYSTACK_PUBLIC_KEY,
+    email,
+    amount:   price * 100, // in kobo/cents
+    currency: 'USD',
+    plan:     paystackPlanCode, // Paystack plan code for recurring billing
+    metadata: {
+      telegram_id:   telegramChatId,
+      telegram_name: telegramUserName || '',
+      plan,
+    },
+    channels: ['card'],
+    label:    `altradia ${label}`,
+
+    callback(response) {
+      // Payment successful — webhook handles DB update; poll for UI update
+      showToast('Payment Successful!', `Welcome to altradia ${label}. Your plan is activating…`, 'success');
+      _pollTierUpdate(plan, 10);
+      // Optionally redirect to callback page for visual confirmation
+      window.Telegram?.WebApp?.openLink(`${APP_BASE_URL}/payment-callback.html?status=success&plan=${plan}&gateway=card`);
+    },
+    onClose() {
+      // User closed the popup without paying — do nothing
+    },
+  });
+
+  handler.openIframe();
+}
+
+// ── NOWPayments crypto payment ────────────────────────────────────────────
+async function _startNowPayments(plan) {
+  const btn = document.querySelector('#payment-modal-overlay button[onclick*="NowPayments"]');
+  if (btn) { btn.textContent = 'Creating invoice…'; btn.disabled = true; }
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-nowpayments-invoice`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        apikey:           SUPABASE_ANON_KEY,
+        Authorization:   `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ plan, telegram_id: telegramChatId }),
+    });
+
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Invoice creation failed');
+
+    document.getElementById('payment-modal-overlay')?.remove();
+
+    // Open the NOWPayments hosted invoice in external browser
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(data.invoice_url);
+    } else {
+      window.open(data.invoice_url, '_blank');
+    }
+
+    // Show confirmation prompt and start polling
+    showToast('Invoice Created', 'Complete your crypto payment in the browser. Your plan will activate automatically once confirmed.', 'info');
+    _pollTierUpdate(plan, 30); // crypto confirmations can take longer — poll for up to 90s
+
+  } catch (err) {
+    console.error('NOWPayments error:', err);
+    showToast('Error', 'Could not create crypto invoice. Please try again.', 'error');
+    document.getElementById('payment-modal-overlay')?.remove();
+  }
+}
+
+// ── Poll Supabase until tier updates (after payment webhook fires) ────────
+async function _pollTierUpdate(expectedTier, maxAttempts = 10) {
+  let attempts = 0;
+  const poll = async () => {
+    attempts++;
+    await refreshUserTier();
+    if (getUserTier() === expectedTier) {
+      // Tier updated — refresh UI
+      const { label } = PLANS[expectedTier] || { label: expectedTier };
+      showToast(`${label} Active!`, `You now have full ${label} access. Enjoy!`, 'success');
+      // Refresh open pages that depend on tier
+      const subBody = document.getElementById('sub-page-body');
+      if (subBody) _renderSubscriptionPage();
+      return;
+    }
+    if (attempts < maxAttempts) {
+      setTimeout(poll, 3000); // retry every 3s
+    }
+  };
+  setTimeout(poll, 2000); // first check after 2s
+}
+
+
 async function init() {
   // Apply saved theme before anything renders
   initTheme();
@@ -7120,6 +7644,11 @@ async function init() {
 
   const prefs = await loadPreferencesFromDB();
   const isTelegramApp = !!window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+
+  // ── Load user tier from DB ─────────────────────────────────────
+  // Reads tier + subscription_end from the users table.
+  // Falls back to 'free' if expired or not set.
+  await refreshUserTier();
 
   if (isTelegramApp) {
     soundEnabled = prefs?.sound_enabled ?? true;
@@ -7844,7 +8373,9 @@ function showTgConnectPrompt() {
         slideOut(page, () => {
           page.classList.remove('open');
           const pageId = page.id;
-          if (pageId === 'menu-page-profile' || pageId === 'menu-page-analytics') {
+          if (pageId === 'menu-page-profile' ||
+              pageId === 'menu-page-analytics' ||
+              pageId === 'menu-page-subscription') {
             openMenuPanel();
           }
         });
