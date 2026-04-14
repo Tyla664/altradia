@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>altradia — Payment</title>
+  <style>
+    :root {
+      --bg: #080c12; --surface: #0d1520; --border: #1a2d45;
+      --accent: #00d4ff; --green: #00e676; --red: #ff3d5a;
+      --gold: #ffd600; --text: #e8f4f8; --muted: #4a6a80;
+      --mono: 'SF Mono', 'Courier New', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    /* Grid background */
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px; pointer-events: none; z-index: 0;
+    }
+    .card {
+      position: relative; z-index: 1;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 18px; padding: 36px 28px;
+      max-width: 400px; width: 100%; text-align: center;
+    }
+    .logo { font-size: 1.4rem; font-weight: 800; margin-bottom: 28px; }
+    .logo .alt   { color: #025a91; }
+    .logo .radia { color: #115c28; }
+
+    .icon-wrap {
+      width: 72px; height: 72px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .icon-success { background: rgba(0,230,118,0.12); border: 1.5px solid rgba(0,230,118,0.3); }
+    .icon-pending { background: rgba(0,212,255,0.10); border: 1.5px solid rgba(0,212,255,0.2); }
+    .icon-failed  { background: rgba(255,61,90,0.10); border: 1.5px solid rgba(255,61,90,0.3); }
+
+    .status-title {
+      font-size: 1.2rem; font-weight: 700; margin-bottom: 8px;
+    }
+    .status-success { color: var(--green); }
+    .status-pending { color: var(--accent); }
+    .status-failed  { color: var(--red); }
+
+    .status-desc {
+      font-size: 0.82rem; color: var(--muted); line-height: 1.6; margin-bottom: 28px;
+    }
+
+    .tier-badge {
+      display: inline-block; font-family: var(--mono);
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em;
+      padding: 4px 12px; border-radius: 20px; margin-bottom: 20px;
+    }
+    .tier-pro   { background: rgba(0,212,255,0.12); border: 1px solid rgba(0,212,255,0.3); color: var(--accent); }
+    .tier-elite { background: rgba(255,214,0,0.12); border: 1px solid rgba(255,214,0,0.3); color: var(--gold); }
+
+    .btn-primary {
+      display: block; width: 100%; padding: 14px;
+      background: var(--accent); color: #000;
+      font-family: var(--mono); font-size: 0.72rem;
+      font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      border: none; border-radius: 10px; cursor: pointer;
+      text-decoration: none; margin-bottom: 10px;
+    }
+    .btn-secondary {
+      display: block; width: 100%; padding: 12px;
+      background: transparent; color: var(--muted);
+      font-family: var(--mono); font-size: 0.65rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      border: 1px solid var(--border); border-radius: 10px;
+      cursor: pointer; text-decoration: none;
+    }
+
+    .spinner {
+      width: 32px; height: 32px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .note {
+      font-family: var(--mono); font-size: 0.58rem;
+      color: var(--muted); margin-top: 16px; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"><span class="alt">alt</span><span class="radia">radia</span></div>
+    <div id="content">
+      <!-- Populated by JS based on URL params -->
+      <div class="spinner"></div>
+      <p style="font-family:var(--mono);font-size:0.65rem;color:var(--muted)">Verifying payment…</p>
+    </div>
+  </div>
+
+  <script>
+    // Parse URL params
+    const params  = new URLSearchParams(window.location.search);
+    const status  = params.get('status') || 'pending';   // success | failed | pending
+    const plan    = params.get('plan')   || '';           // pro | elite
+    const ref     = params.get('reference') || '';        // Paystack reference
+    const gateway = params.get('gateway')   || 'card';   // card | crypto
+    const BOT_URL = 'https://t.me/tradewatchalert_bot';
+
+    const content = document.getElementById('content');
+
+    function renderSuccess() {
+      const tierLabel = plan === 'elite' ? 'ELITE' : 'PRO';
+      const tierCls   = plan === 'elite' ? 'tier-elite' : 'tier-pro';
+      content.innerHTML = `
+        <div class="icon-wrap icon-success">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <polyline points="6,16 13,23 26,9" stroke="#00e676" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="tier-badge ${tierCls}">${tierLabel} PLAN</div>
+        <div class="status-title status-success">Payment Successful!</div>
+        <div class="status-desc">
+          Your altradia ${tierLabel} plan is now active.<br>
+          Head back to the app to start using all your new features.
+        </div>
+        <a href="${BOT_URL}" class="btn-primary">Open altradia</a>
+        <p class="note">Your plan activates automatically in the app. If you don't see it immediately, pull down to refresh.</p>`;
+    }
+
+    function renderPending() {
+      content.innerHTML = `
+        <div class="icon-wrap icon-pending">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="12" stroke="#00d4ff" stroke-width="2" fill="none"/>
+            <line x1="16" y1="9" x2="16" y2="17" stroke="#00d4ff" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="16" cy="21.5" r="1.2" fill="#00d4ff"/>
+          </svg>
+        </div>
+        <div class="status-title status-pending">Payment Pending</div>
+        <div class="status-desc">
+          ${gateway === 'crypto'
+            ? 'Your crypto payment is awaiting blockchain confirmation. This usually takes a few minutes. Your plan will activate automatically once confirmed.'
+            : 'Your payment is being verified. This usually takes just a moment.'}
+        </div>
+        <a href="${BOT_URL}" class="btn-primary">Back to altradia</a>
+        <p class="note">You'll receive a Telegram notification when your plan activates.</p>`;
+    }
+
+    function renderFailed() {
+      content.innerHTML = `
+        <div class="icon-wrap icon-failed">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <line x1="10" y1="10" x2="22" y2="22" stroke="#ff3d5a" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="22" y1="10" x2="10" y2="22" stroke="#ff3d5a" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="status-title status-failed">Payment Failed</div>
+        <div class="status-desc">
+          Your payment could not be processed. No charge was made.<br>
+          Please try again or use a different payment method.
+        </div>
+        <a href="${BOT_URL}" class="btn-primary">Try Again</a>
+        <a href="mailto:support@altradia.com" class="btn-secondary">Contact Support</a>`;
+    }
+
+    // Render based on status
+    if (status === 'success') {
+      renderSuccess();
+    } else if (status === 'failed' || status === 'cancelled') {
+      renderFailed();
+    } else {
+      // pending — also handle Paystack callback which always hits this page
+      // Paystack appends ?trxref=... and ?reference=... on success
+      const trxref = params.get('trxref') || params.get('reference');
+      if (trxref) {
+        // This is a Paystack success redirect
+        renderSuccess();
+      } else {
+        renderPending();
+      }
+    }
+  </script>
+</body>
+</html>
