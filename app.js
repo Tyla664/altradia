@@ -7989,7 +7989,36 @@ async function init() {
   await getOrCreateUser(currentTelegramId);
 
   const prefs = await loadPreferencesFromDB();
-  const isTelegramApp = !!window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  // ── Detect Telegram context robustly ──────────────────────────────────────
+  // Check live SDK first, then fall back to a previously saved chat ID
+  // (covers returning users where SDK initData may not repopulate on reload)
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const isTelegramApp = !!(tgUser?.id) || !!(localStorage.getItem('tg_chat_id'));
+
+  // If SDK gave us a user, make sure globals are populated
+  // (the auto-detect IIFE at top of file runs before SDK is ready on some devices)
+  if (tgUser?.id && !telegramChatId) {
+    telegramChatId    = String(tgUser.id);
+    telegramUserName  = tgUser.first_name || tgUser.username || 'there';
+    telegramHandle    = tgUser.username   || '';
+    telegramUserPhoto = tgUser.photo_url  || '';
+    localStorage.setItem('tg_chat_id',     telegramChatId);
+    localStorage.setItem('tg_user_name',   telegramUserName);
+    localStorage.setItem('tg_user_handle', telegramHandle);
+    localStorage.setItem('tg_photo_url',   telegramUserPhoto);
+    telegramEnabled = true;
+    localStorage.setItem('tg_enabled', 'true');
+  }
+  // Restore from storage if SDK didn't provide it this session
+  if (!telegramChatId) {
+    telegramChatId    = localStorage.getItem('tg_chat_id')     || '';
+    telegramUserName  = localStorage.getItem('tg_user_name')   || '';
+    telegramHandle    = localStorage.getItem('tg_user_handle') || '';
+    telegramUserPhoto = localStorage.getItem('tg_photo_url')   || '';
+    if (telegramChatId) {
+      telegramEnabled = localStorage.getItem('tg_enabled') === 'true';
+    }
+  }
 
   // ── Load user tier from DB ─────────────────────────────────────
   // Reads tier + subscription_end from the users table.
