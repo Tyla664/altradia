@@ -1622,6 +1622,17 @@ header {
 #jnl-short-btn.active   { background: rgba(255,61,90,0.12);  border-color: var(--red);   color: var(--red); }
 #setup-tp2notify-yes.active { background: rgba(0,212,255,0.12); border-color: var(--accent); color: var(--accent); }
 #setup-tp2notify-no.active  { background: rgba(74,106,128,0.15); border-color: var(--muted); color: var(--text); }
+
+/* ── R:R ratio buttons — same base as setup-dir-btn, accent active state ── */
+.rr-btn.active {
+  background: rgba(0,212,255,0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.rr-btn:hover:not(.active) {
+  border-color: rgba(0,212,255,0.4);
+  color: var(--text);
+}
 .sound-opt {
   padding: 4px 10px; border-radius: 4px; font-family: var(--mono);
   font-size: 0.62rem; border: 1px solid var(--border); background: transparent;
@@ -2180,6 +2191,8 @@ header {
     border-radius: 8px;
   }
   .form-note { font-size: 0.62rem; margin-bottom: 12px; }
+  /* R:R buttons — slightly smaller on mobile so 6 fit in 2 rows max */
+  .rr-btn { padding: 6px 10px; font-size: 0.65rem; }
   .create-btn {
     padding: 15px;
     font-size: 1rem;
@@ -2833,6 +2846,7 @@ header {
 [data-theme="light"] #jnl-long-btn.active  { background: rgba(0,135,90,0.10); border-color: var(--green); color: var(--green); }
 [data-theme="light"] #setup-short-btn.active,
 [data-theme="light"] #jnl-short-btn.active  { background: rgba(200,40,60,0.09); border-color: var(--red); color: var(--red); }
+[data-theme="light"] .rr-btn.active         { background: rgba(0,90,160,0.10); border-color: var(--accent); color: var(--accent); }
 
 /* ── Global search bar ── */
 .global-search-bar {
