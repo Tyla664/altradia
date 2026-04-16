@@ -507,6 +507,7 @@ const ASSET_LIBRARY = ALL_ASSETS;
 // Alert editing
 let editingAlertId   = null;
 let userTypingInForm = false;
+let setupMinRR       = null; // minimum R:R ratio chosen in setup form (e.g. 2.0 = 2:1); null = no enforcement
 // altradia — Data Layer
 // Deriv WebSocket connections, price fetchers, formatters
 
@@ -2125,8 +2126,12 @@ function deleteAlert(id) {
     () => {
       deleteAlertFromDB(id);
       alerts = alerts.filter(a => a.id !== id);
+      // Clear alertSourceId if the deleted alert was the active chart source
+      if (alertSourceId === id) { alertSourceId = null; }
       renderAlerts();
+      renderTradesTab();
       renderWatchlist();
+      updateAlertEditBtn();
       showToast('Alert Deleted', `${alert.symbol} alert removed.`, 'success');
     }
   );
@@ -2210,8 +2215,12 @@ function dismissAlert(id) {
   // Remove from active alerts
   deleteAlertFromDB(id);
   alerts = alerts.filter(a => a.id !== id);
+  // Clear alertSourceId if the dismissed alert was the active chart source
+  if (alertSourceId === id) { alertSourceId = null; }
   renderAlerts();
+  renderTradesTab();
   renderWatchlist();
+  updateAlertEditBtn();
   if (lwCurrentAsset) drawAlertLines(lwCurrentAsset.id);
 }
 
@@ -2443,17 +2452,20 @@ function renderTradesTab() {
     return;
   }
 
-  // Sort: active trades first, then watching
+  // Sort: running trades first (rank 0), watching newest-first (rank 1), final states last (rank 2)
   const sorted = [...setupAlerts].sort((a, b) => {
     const rank = al => {
       try {
         const st = JSON.parse(al.note||'{}').tradeStatus || 'watching';
-        if (['full_tp','sl_hit'].includes(st)) return 0;
-        if (['entry_hit','running','tp1_hit','tp2_hit'].includes(st)) return 1;
-        return 2;
-      } catch(e) { return 2; }
+        if (['entry_hit','running','tp1_hit','tp2_hit'].includes(st)) return 0;
+        if (['full_tp','sl_hit'].includes(st)) return 2;
+        return 1; // watching
+      } catch(e) { return 1; }
     };
-    return rank(a) - rank(b);
+    const diff = rank(a) - rank(b);
+    if (diff !== 0) return diff;
+    // Within same rank: newer created alerts first
+    return (b.createdMs || 0) - (a.createdMs || 0);
   });
 
   sorted.forEach(alert => {
@@ -2684,12 +2696,19 @@ function isMarketOpenForAsset(assetId, now) {
 // ── Proximity helper: fire once per level, reset on status change ──────────
 function checkSetupProximity(alert, j, currentPrice, prev) {
   if (!telegramEnabled || !telegramChatId) return;
-  // Suppress ALL proximity warnings for 5 minutes after any level transition
-  // This prevents spam when app opens and loads a freshly-transitioned alert
+
+  // Suppress proximity warnings briefly after a level TRANSITION fires
+  // (prevents immediate re-fire on the same tick that triggered a status change)
+  // We use a per-level fired timestamp stored in j, falling back to a short global window
+  const now = Date.now();
   const lastFired = alert.lastTriggeredAt || 0;
-  if ((Date.now() - lastFired) < 300000) return; // 5 min suppression after transition
-  // Also suppress if entry has already been triggered (state is beyond watching)
-  if (prev !== 'watching' && prev !== 'entry_hit' && prev !== 'running') return;
+  // Only apply global suppression for 60 seconds (reduced from 5 min) so
+  // proximity warnings recover quickly after app loads or alert is edited
+  if ((now - lastFired) < 60000) return;
+
+  // Only run proximity checks for relevant states
+  if (!['watching','entry_hit','running','tp1_hit'].includes(prev)) return;
+
   const PROX = 0.015; // 1.5% proximity threshold for setup levels
   const entry = alert.targetPrice;
   const sl    = j.sl;
@@ -2701,9 +2720,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
   // Only warn about entry when watching and price hasn't already crossed entry
   if (prev === 'watching' && entry) {
     const dist = Math.abs(currentPrice - entry) / entry;
-    const approaching = isLong ? currentPrice < entry : currentPrice > entry; // price moving toward entry
-    // Don't fire if price has already crossed entry — entry was already triggered
-    // (handles case where DB note is stale and still shows 'watching')
+    const approaching = isLong ? currentPrice < entry : currentPrice > entry;
     const alreadyCrossed = isLong ? currentPrice >= entry : currentPrice <= entry;
     if (dist <= PROX && dist > 0.001 && approaching && !j.proxWarnedEntry && !alreadyCrossed) {
       j.proxWarnedEntry = true;
@@ -2729,7 +2746,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
   const entryAlreadyHit = ['entry_hit','running','tp1_hit','tp2_hit'].includes(prev);
   if (entryAlreadyHit && sl) {
     const dist = Math.abs(currentPrice - sl) / sl;
-    const approaching = isLong ? currentPrice > sl : currentPrice < sl; // price still outside SL
+    const approaching = isLong ? currentPrice > sl : currentPrice < sl;
     if (dist <= PROX && dist > 0.001 && approaching && !j.proxWarnedSL) {
       j.proxWarnedSL = true;
       noteDirty = true;
@@ -3221,6 +3238,67 @@ function onConditionChange() {
   if (row3) row3.style.display = isSetup ? 'none' : '';
 }
 
+// ── R:R ratio selector — called from setup form ───────────────────────────
+function setSetupMinRR(val) {
+  setupMinRR = val ? parseFloat(val) : null;
+  // Update button highlights
+  document.querySelectorAll('.rr-btn').forEach(btn => {
+    btn.classList.toggle('active', parseFloat(btn.dataset.rr) === setupMinRR);
+  });
+  // Auto-calculate TP1 if entry and SL are already filled
+  autoCalcTP1FromRR();
+}
+
+// Auto-fills TP1 from Entry + SL + chosen RR ratio
+// Also shows a live warning if the current TP1 doesn't meet the minimum RR
+function autoCalcTP1FromRR() {
+  const entry = parseFloat(document.getElementById('setup-entry')?.value);
+  const sl    = parseFloat(document.getElementById('setup-sl')?.value);
+  const tp1El = document.getElementById('setup-tp1');
+  const warn  = document.getElementById('rr-warning');
+
+  if (!tp1El) return;
+
+  // If no RR selected, just clear the warning
+  if (!setupMinRR) {
+    if (warn) warn.style.display = 'none';
+    return;
+  }
+
+  // Need both entry and SL to calculate
+  if (!isNaN(entry) && entry > 0 && !isNaN(sl) && sl > 0 && entry !== sl) {
+    const risk     = Math.abs(entry - sl);
+    const isLong   = setupDirection === 'long';
+    const autoTP1  = isLong ? entry + risk * setupMinRR : entry - risk * setupMinRR;
+
+    // Only auto-fill if user hasn't manually typed a TP1 value
+    if (!tp1El.dataset.userEdited) {
+      tp1El.value = autoTP1.toFixed(entry > 100 ? 2 : 5);
+    }
+
+    // Always show RR compliance warning against current TP1
+    const currentTP1 = parseFloat(tp1El.value);
+    if (!isNaN(currentTP1) && currentTP1 > 0 && warn) {
+      const actualRR = Math.abs(currentTP1 - entry) / risk;
+      if (actualRR < setupMinRR - 0.01) {
+        warn.textContent        = `⚠️ TP1 gives ${actualRR.toFixed(1)}:1 — below your ${setupMinRR}:1 minimum R:R`;
+        warn.style.color        = 'var(--red)';
+        warn.style.background   = 'rgba(255,61,90,0.08)';
+        warn.style.border       = '1px solid rgba(255,61,90,0.25)';
+        warn.style.display      = 'block';
+      } else {
+        warn.textContent        = `✓ TP1 meets your ${setupMinRR}:1 minimum R:R (actual: ${actualRR.toFixed(1)}:1)`;
+        warn.style.color        = 'var(--green)';
+        warn.style.background   = 'rgba(0,230,118,0.07)';
+        warn.style.border       = '1px solid rgba(0,230,118,0.25)';
+        warn.style.display      = 'block';
+      }
+    } else if (warn) {
+      warn.style.display = 'none';
+    }
+  }
+}
+
 async function createSetupAlert() {
   if (!selectedAsset) return showToast('No Asset', 'Select an asset first.', 'error');
 
@@ -3283,7 +3361,13 @@ async function createSetupAlert() {
         const fel = document.getElementById(fid);
         if (fel) fel.selectedIndex = 0;
       });
+      // Reset R:R selector
+      setupMinRR = null;
+      document.querySelectorAll('.rr-btn').forEach(b => b.classList.remove('active'));
+      const _rrWarn = document.getElementById('rr-warning');
+      if (_rrWarn) _rrWarn.style.display = 'none';
       renderAlerts();
+      renderTradesTab();
       showToast('Setup Updated', `${existing.symbol} setup alert updated.`, 'success');
       // Send Telegram update notification with new values
       if (telegramEnabled && telegramChatId && tgNotifPrefs.confirmation) {
@@ -3384,6 +3468,11 @@ async function createSetupAlert() {
     const el = document.getElementById(id);
     if (el) el.selectedIndex = 0;
   });
+  // Reset R:R selector
+  setupMinRR = null;
+  document.querySelectorAll('.rr-btn').forEach(b => b.classList.remove('active'));
+  const rrWarn = document.getElementById('rr-warning');
+  if (rrWarn) rrWarn.style.display = 'none';
 
   // DB save + Telegram in background
   try {
@@ -3601,7 +3690,11 @@ function dismissSetupToHistory(id) {
   saveAlertHistory();
   deleteAlertFromDB(id);
   alerts = alerts.filter(a => a.id !== id);
+  // Clear alertSourceId if this was the active chart source
+  if (alertSourceId === id) { alertSourceId = null; }
   renderAlerts();
+  renderTradesTab();
+  updateAlertEditBtn();
   if (lwCurrentAsset) drawAlertLines(lwCurrentAsset.id);
   showToast('Alert Dismissed', `${alert.symbol} setup moved to history.`, 'success');
 }
@@ -3918,8 +4011,12 @@ async function confirmManualClose(alertId) {
   saveAlertHistory();
   deleteAlertFromDB(alertId);
   alerts = alerts.filter(a => a.id !== alertId);
+  // Clear alertSourceId if this was the active chart source
+  if (alertSourceId === alertId) { alertSourceId = null; }
   renderAlerts();
+  renderTradesTab();
   renderWatchlist();
+  updateAlertEditBtn();
 
   // Open journal form pre-filled — user lands there to add screenshots + lessons
   openJournalEntryForm({
@@ -5293,6 +5390,12 @@ function updateAlertEditBtn() {
   const btn  = document.getElementById('alert-edit-chart-btn');
   const form = document.getElementById('alert-form-panel');
   if (!btn) return;
+
+  // If alertSourceId points to a deleted/dismissed alert, clear it
+  if (alertSourceId && !alerts.find(a => a.id === alertSourceId)) {
+    alertSourceId = null;
+  }
+
   if (alertSourceId) {
     // Came from an alert card — show Edit button, hide the form
     btn.style.display = 'flex';
@@ -7241,8 +7344,14 @@ function initPullToRefresh() {
 // ═══════════════════════════════════════════════
 
 // ── Paddle credentials (set your real values here) ────────────────────────
-const PADDLE_SELLER_ID  = 'YOUR_PADDLE_SELLER_ID';   // e.g. 12345
-const PADDLE_ENV        = 'sandbox';                   // 'sandbox' or 'production'
+// HOW TO SET UP PADDLE:
+//   1. Go to paddle.com → Developer Tools → Authentication
+//   2. Copy your "Client-side token" (starts with live_... or test_...)
+//   3. Paste it below as PADDLE_CLIENT_TOKEN
+//   4. Set PADDLE_ENV to 'production' for live payments, 'sandbox' for testing
+//   5. Go to Paddle → Catalog → Prices — copy each Price ID and paste below
+const PADDLE_CLIENT_TOKEN = 'test_c99144cab1e7c65706c7b400cbe'; // e.g. live_abc123def456
+const PADDLE_ENV          = 'sandbox';                   // 'sandbox' or 'production'
 
 // Plan config — Paddle price IDs from your Paddle dashboard
 // Monthly and annual price IDs for each plan
@@ -7251,15 +7360,19 @@ const PLANS = {
     label:          'Pro',
     priceMonthly:   4.99,
     priceAnnual:    49,
-    paddleMonthly:  'pri_YOUR_PRO_MONTHLY_ID',   // replace with real price ID
-    paddleAnnual:   'pri_YOUR_PRO_ANNUAL_ID',
+    paddleMonthly:  'pri_01kp3g6kqr2284wv1mp3hbm76k',   // replace with real price ID from Paddle → Catalog → Prices
+    paddleAnnual:   'pri_01kp3ggzhhjxy02b9y2fepytfn',
+    // NowPayments amounts — update these to match your Paddle prices
+    // These are set in your Supabase Edge Function: create-nowpayments-invoice
+    // Update the amounts there directly (plan: 'pro', billing: 'monthly' → $4.99, 'annual' → $49)
   },
   elite: {
     label:          'Elite',
     priceMonthly:   9,
     priceAnnual:    90,
-    paddleMonthly:  'pri_YOUR_ELITE_MONTHLY_ID',
-    paddleAnnual:   'pri_YOUR_ELITE_ANNUAL_ID',
+    paddleMonthly:  'pri_01kp3gnkp903c4zkbxs25x6m99',
+    paddleAnnual:   'pri_01kp3grxwyzzvrmj8pjn408dyp',
+    // NowPayments: update amounts in Supabase Edge Function (elite monthly → $9, annual → $90)
   },
 };
 
@@ -7581,9 +7694,9 @@ function _launchPaddleCheckout(plan, billing) {
   const p        = PLANS[plan];
   const priceId  = isAnnual ? p.paddleAnnual : p.paddleMonthly;
 
-  // Initialise Paddle with seller ID and environment
+  // Initialise Paddle with client-side token and environment
   Paddle.Initialize({
-    token:  PADDLE_SELLER_ID,
+    token:  PADDLE_CLIENT_TOKEN,
     ...(PADDLE_ENV === 'sandbox' ? { environment: 'sandbox' } : {}),
     eventCallback(ev) {
       if (ev.name === 'checkout.completed') {
