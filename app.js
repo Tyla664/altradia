@@ -603,25 +603,32 @@ function makeDerivWS(symbols, retryRef) {
         };
         prices[asset.id] = newPrice;
 
+        // If this tick is for the currently viewed asset, refresh the panel
+        // so "Current price: …" updates in real time without waiting for the 8s cycle
+        if (selectedAsset && selectedAsset.id === asset.id) {
+          refreshSelectedAssetPanel();
+        }
+
         // ── Real-time alert check on every live tick ──────────────────────
-        // Setup alerts: checked every tick (throttled 2s) to catch brief wicks.
-        // Zone/above/below: also checked on tick so they're not delayed 8s.
+        // zone/above/below/tap: checked on EVERY tick — no throttle.
+        //   Alerts fire the instant price crosses the level.
+        // setup alerts: throttled to 2s per asset to reduce DB write load.
         const _tickNow = Date.now();
-        const _throttleKey = 'lastSetupCheck_' + asset.id;
-        if (!window[_throttleKey] || (_tickNow - window[_throttleKey]) >= 2000) {
-          window[_throttleKey] = _tickNow;
-          const _nowDate = new Date(_tickNow);
-          if (isMarketOpenForAsset(asset.id, _nowDate)) {
-            alerts.forEach(al => {
-              if (al.status !== 'active' || al.assetId !== asset.id) return;
-              if (al.condition === 'setup') {
-                checkSetupLevels(al, newPrice);
-              } else if (al.condition === 'zone' || al.condition === 'above' || al.condition === 'below' || al.condition === 'tap') {
-                // Run full checkAlerts logic for this specific alert inline
-                checkSingleAlert(al, newPrice, _tickNow, _nowDate);
-              }
-            });
-          }
+        const _nowDate = new Date(_tickNow);
+        if (isMarketOpenForAsset(asset.id, _nowDate)) {
+          const _setupThrottleKey = 'lastSetupCheck_' + asset.id;
+          const _setupAllowed = !window[_setupThrottleKey] || (_tickNow - window[_setupThrottleKey]) >= 2000;
+          alerts.forEach(al => {
+            if (al.status !== 'active' || al.assetId !== asset.id) return;
+            if (al.condition === 'setup') {
+              // Throttle setup checks to 2s — reduces DB writes
+              if (_setupAllowed) checkSetupLevels(al, newPrice);
+            } else {
+              // zone/above/below/tap: fire on EVERY tick — no throttle
+              checkSingleAlert(al, newPrice, _tickNow, _nowDate);
+            }
+          });
+          if (_setupAllowed) window[_setupThrottleKey] = _tickNow;
         }
       }
     } catch(e) {}
@@ -734,25 +741,22 @@ function formatVol(n) {
 async function fetchCryptoPrices(assets) {
   const cgIds = assets.map(a => a.cgId).filter(Boolean).join(',');
   if (!cgIds) return false;
-  try {
-    const res  = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${cgIds}` +
-      `&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
-    );
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error('Bad CoinGecko response');
+
+  // Helper: parse and store CoinGecko response
+  const applyCGData = (data) => {
+    if (!Array.isArray(data) || !data.length) return false;
     data.forEach(coin => {
       const asset = ASSET_BY_CG.get(coin.id);
       if (!asset) return;
       const price = coin.current_price;
+      if (!price) return;
       const cgPrev = priceData[asset.id];
       priceData[asset.id] = {
         price,
         change:    coin.price_change_percentage_24h?.toFixed(4) || '0.0000',
-        high:      coin.high_24h,
-        low:       coin.low_24h,
+        high:      coin.high_24h   || price,
+        low:       coin.low_24h    || price,
         open:      coin.current_price - (coin.price_change_24h || 0),
-        // lastClose: CoinGecko gives 24h open; use it as the last confirmed session close
         lastClose: cgPrev?.lastClose || (coin.current_price - (coin.price_change_24h || 0)),
         vol:       coin.total_volume ? formatVol(coin.total_volume) : '—',
         mcap:      coin.market_cap   ? formatVol(coin.market_cap)   : '—',
@@ -761,7 +765,31 @@ async function fetchCryptoPrices(assets) {
       prices[asset.id] = price;
     });
     return true;
-  } catch(e) { console.warn('CoinGecko failed:', e); return false; }
+  };
+
+  const cgUrl = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${cgIds}` +
+    `&order=market_cap_desc&sparkline=false&price_change_percentage=24h`;
+
+  // Attempt 1: direct CoinGecko
+  try {
+    const res  = await fetch(cgUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (applyCGData(data)) return true;
+    }
+  } catch(e) { console.warn('CoinGecko direct failed:', e); }
+
+  // Attempt 2: proxy fallback (handles CORS / rate-limit blocks in Telegram WebView)
+  try {
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(cgUrl)}`;
+    const res2 = await fetch(proxyUrl);
+    if (res2.ok) {
+      const data2 = await res2.json();
+      if (applyCGData(data2)) return true;
+    }
+  } catch(e) { console.warn('CoinGecko proxy failed:', e); }
+
+  return false;
 }
 
 
@@ -771,16 +799,17 @@ async function fetchCryptoPrices(assets) {
 // This REST fetch fills initial prices + OHLC.
 // ═══════════════════════════════════════════════
 async function fetchAllPrices() {
-  // Collect all assets currently needed
+  // Collect all assets currently needed: watchlist + currently selected asset
   const watchedIds = new Set(Object.values(ASSETS).flat().map(a => a.id));
+  // Always include the currently selected asset so "Price loading…" resolves
+  // even when the user views an asset that isn't in their watchlist yet
+  if (selectedAsset) watchedIds.add(selectedAsset.id);
   const allNeeded  = [...watchedIds].map(id => ASSET_BY_ID.get(id)).filter(Boolean);
 
-  // CoinGecko: ALL crypto — always reliable
+  // CoinGecko: ALL crypto assets needed
   const cgAssets = allNeeded.filter(a => a.sources?.includes('coingecko'));
 
   // Deriv REST snapshots for forex/indices/commodities/synthetics
-  // Fetch ticks_history count:1 directly — same as WS does but via one-shot connections
-  // This guarantees prices on init even before the persistent WS ticks arrive
   const derivAssets = allNeeded.filter(a =>
     a.derivSym && !a.sources?.includes('coingecko')
   );
@@ -789,13 +818,15 @@ async function fetchAllPrices() {
     cgAssets.length ? fetchCryptoPrices(cgAssets) : Promise.resolve(),
   ];
 
-  // Batch Deriv snapshot: one price per asset via ticks_history REST
   if (derivAssets.length) {
     promises.push(fetchDerivSnapshots(derivAssets));
   }
 
   await Promise.all(promises);
 
+  // Update the asset panel immediately after prices arrive so "Price loading…"
+  // is replaced as soon as data is ready — not just on the 8s render tick
+  refreshSelectedAssetPanel();
   checkAlerts();
   updateSessionDisplay();
 }
@@ -3086,11 +3117,13 @@ function checkSingleAlert(alert, currentPrice, now, nowDate) {
     alert.status = 'triggered';
     fired = true;
   } else {
-    // Above/below: use lastClose for candle-close confirmation
-    const candleClose = priceData[alert.assetId]?.lastClose || currentPrice;
+    // Above/below on live tick: use currentPrice directly so the alert fires
+    // the moment price crosses the level. The 8s polling path still uses
+    // lastClose for candle-close confirmation to avoid false wicks, but tick
+    // checks should be instantaneous — that's the whole point of subscribing.
     fired =
-      (alert.condition === 'above' && candleClose >= alert.targetPrice) ||
-      (alert.condition === 'below' && candleClose <= alert.targetPrice);
+      (alert.condition === 'above' && currentPrice >= alert.targetPrice) ||
+      (alert.condition === 'below' && currentPrice <= alert.targetPrice);
     if (!fired) return;
     alert.status = 'triggered';
   }
@@ -5566,12 +5599,18 @@ function renderPayoutHistory() {
 // ═══════════════════════════════════════════════
 // USER TIER
 // ═══════════════════════════════════════════════
-let currentUserTier = 'free'; // set by refreshUserTier() on load
+// ── TEMPORARY: All users forced to Elite while Paddle integration is paused ──
+// TODO: restore DB-based tier check once Paddle is live
+let currentUserTier = 'elite';
 function getUserTier() { return currentUserTier; }
 
-// ── Fetch tier from Supabase and apply it ──────────────────────────────────
-// Called on init and after a successful payment.
 async function refreshUserTier() {
+  // Bypassed — all users are Elite until payment system is ready
+  currentUserTier = 'elite';
+  const planEl = document.getElementById('menu-profile-plan');
+  if (planEl) planEl.innerHTML = `<span class="menu-plan-badge elite">ELITE</span>`;
+  _syncSubscriptionCard();
+  /* ── RESTORE WHEN PADDLE IS LIVE ──────────────────────────────────────────
   if (!currentUserId) return;
   try {
     const res = await fetch(
@@ -5582,16 +5621,12 @@ async function refreshUserTier() {
     const rows = await res.json();
     if (!rows?.length) return;
     const { tier, subscription_end } = rows[0];
-
-    // If subscription has expired, treat as free
     if (tier && tier !== 'free' && subscription_end) {
       const expired = new Date(subscription_end) < new Date();
       currentUserTier = expired ? 'free' : tier;
     } else {
       currentUserTier = tier || 'free';
     }
-
-    // Sync the menu badge
     const planEl = document.getElementById('menu-profile-plan');
     if (planEl) {
       const t = currentUserTier;
@@ -5599,11 +5634,9 @@ async function refreshUserTier() {
       const tierCls   = t === 'elite' ? ' elite' : t === 'pro' ? ' pro' : '';
       planEl.innerHTML = `<span class="menu-plan-badge${tierCls}">${tierLabel}</span>`;
     }
-    // Sync subscription card in menu panel
     _syncSubscriptionCard();
-  } catch (e) {
-    console.warn('refreshUserTier failed:', e);
-  }
+  } catch (e) { console.warn('refreshUserTier failed:', e); }
+  ── END RESTORE ──────────────────────────────────────────────────────────── */
 }
 
 // ═══════════════════════════════════════════════
@@ -7344,14 +7377,8 @@ function initPullToRefresh() {
 // ═══════════════════════════════════════════════
 
 // ── Paddle credentials (set your real values here) ────────────────────────
-// HOW TO SET UP PADDLE:
-//   1. Go to paddle.com → Developer Tools → Authentication
-//   2. Copy your "Client-side token" (starts with live_... or test_...)
-//   3. Paste it below as PADDLE_CLIENT_TOKEN
-//   4. Set PADDLE_ENV to 'production' for live payments, 'sandbox' for testing
-//   5. Go to Paddle → Catalog → Prices — copy each Price ID and paste below
-const PADDLE_CLIENT_TOKEN = 'test_c99144cab1e7c65706c7b400cbe'; // e.g. live_abc123def456
-const PADDLE_ENV          = 'sandbox';                   // 'sandbox' or 'production'
+const PADDLE_SELLER_ID  = 'YOUR_PADDLE_SELLER_ID';   // e.g. 12345
+const PADDLE_ENV        = 'sandbox';                   // 'sandbox' or 'production'
 
 // Plan config — Paddle price IDs from your Paddle dashboard
 // Monthly and annual price IDs for each plan
@@ -7360,11 +7387,8 @@ const PLANS = {
     label:          'Pro',
     priceMonthly:   4.99,
     priceAnnual:    49,
-    paddleMonthly:  'pri_01kp3g6kqr2284wv1mp3hbm76k',   // replace with real price ID from Paddle → Catalog → Prices
+    paddleMonthly:  'pri_01kp3g6kqr2284wv1mp3hbm76k',
     paddleAnnual:   'pri_01kp3ggzhhjxy02b9y2fepytfn',
-    // NowPayments amounts — update these to match your Paddle prices
-    // These are set in your Supabase Edge Function: create-nowpayments-invoice
-    // Update the amounts there directly (plan: 'pro', billing: 'monthly' → $4.99, 'annual' → $49)
   },
   elite: {
     label:          'Elite',
@@ -7372,7 +7396,6 @@ const PLANS = {
     priceAnnual:    90,
     paddleMonthly:  'pri_01kp3gnkp903c4zkbxs25x6m99',
     paddleAnnual:   'pri_01kp3grxwyzzvrmj8pjn408dyp',
-    // NowPayments: update amounts in Supabase Edge Function (elite monthly → $9, annual → $90)
   },
 };
 
@@ -7672,12 +7695,30 @@ function openPaymentModal(plan, billing) {
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
 
-// ── Paddle card payment ────────────────────────────────────────────────────
+// ── Paddle / NOWPayments — PAUSED while core features are being built ────────
+// All users are on Elite for now. These will be re-enabled once ready.
+// TODO: restore full implementations when payments go live.
+
+function _startPaddle(plan, billing) {
+  document.getElementById('payment-modal-overlay')?.remove();
+  showToast('Coming Soon', 'Payments are coming soon. You have full Elite access for now!', 'info');
+}
+
+function _launchPaddleCheckout(plan, billing) {
+  showToast('Coming Soon', 'Payments are coming soon. You have full Elite access for now!', 'info');
+}
+
+async function _startNowPayments(plan, billing) {
+  document.getElementById('payment-modal-overlay')?.remove();
+  showToast('Coming Soon', 'Payments are coming soon. You have full Elite access for now!', 'info');
+}
+
+/* ── RESTORE WHEN PAYMENTS GO LIVE ────────────────────────────────────────
+
+PADDLE IMPLEMENTATION:
 function _startPaddle(plan, billing) {
   document.getElementById('payment-modal-overlay')?.remove();
   billing = billing || 'monthly';
-
-  // Load Paddle.js if not already loaded
   if (!window.Paddle) {
     const script   = document.createElement('script');
     script.src     = 'https://cdn.paddle.com/paddle/v2/paddle.js';
@@ -7688,15 +7729,12 @@ function _startPaddle(plan, billing) {
     _launchPaddleCheckout(plan, billing);
   }
 }
-
 function _launchPaddleCheckout(plan, billing) {
   const isAnnual = billing === 'annual';
   const p        = PLANS[plan];
   const priceId  = isAnnual ? p.paddleAnnual : p.paddleMonthly;
-
-  // Initialise Paddle with client-side token and environment
   Paddle.Initialize({
-    token:  PADDLE_CLIENT_TOKEN,
+    token:  PADDLE_SELLER_ID,
     ...(PADDLE_ENV === 'sandbox' ? { environment: 'sandbox' } : {}),
     eventCallback(ev) {
       if (ev.name === 'checkout.completed') {
@@ -7709,7 +7747,6 @@ function _launchPaddleCheckout(plan, billing) {
       }
     },
   });
-
   Paddle.Checkout.open({
     items: [{ priceId, quantity: 1 }],
     customData: {
@@ -7727,12 +7764,11 @@ function _launchPaddleCheckout(plan, billing) {
   });
 }
 
-// ── NOWPayments crypto payment ─────────────────────────────────────────────
+NOWPAYMENTS IMPLEMENTATION:
 async function _startNowPayments(plan, billing) {
   const btn = document.querySelector('#payment-modal-overlay button[onclick*="NowPayments"]');
   if (btn) { btn.innerHTML = '<span style="opacity:0.6">Creating invoice…</span>'; btn.disabled = true; }
   billing = billing || 'monthly';
-
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/create-nowpayments-invoice`, {
       method: 'POST',
@@ -7743,11 +7779,9 @@ async function _startNowPayments(plan, billing) {
       },
       body: JSON.stringify({ plan, billing, telegram_id: telegramChatId }),
     });
-
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Invoice creation failed');
     document.getElementById('payment-modal-overlay')?.remove();
-
     if (window.Telegram?.WebApp?.openLink) {
       window.Telegram.WebApp.openLink(data.invoice_url);
     } else {
@@ -7761,6 +7795,7 @@ async function _startNowPayments(plan, billing) {
     document.getElementById('payment-modal-overlay')?.remove();
   }
 }
+── END RESTORE ─────────────────────────────────────────────────────────── */
 
 // ── Poll Supabase until tier updates (after payment webhook fires) ────────
 async function _pollTierUpdate(expectedTier, maxAttempts = 10) {
