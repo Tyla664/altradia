@@ -729,6 +729,35 @@ async function fetchOandaSnapshot(assets) {
 }
 
 // ═══════════════════════════════════════════════
+// PRICE CACHE — persist last known prices to localStorage
+// Restored on every app open so "Price loading…" is never blank
+// ═══════════════════════════════════════════════
+const PRICE_CACHE_KEY = 'altradia_price_cache';
+const PRICE_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+function savePriceCache() {
+  try {
+    const cache = { ts: Date.now(), data: priceData };
+    localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(cache));
+  } catch(e) {}
+}
+
+function restorePriceCache() {
+  try {
+    const raw = localStorage.getItem(PRICE_CACHE_KEY);
+    if (!raw) return;
+    const cache = JSON.parse(raw);
+    if (!cache?.data || (Date.now() - cache.ts) > PRICE_CACHE_TTL) return;
+    Object.entries(cache.data).forEach(([id, d]) => {
+      if (!priceData[id]?.price && d?.price) {
+        priceData[id] = { ...d, live: false, src: 'cache' };
+        prices[id] = d.price;
+      }
+    });
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════
 // COINGECKO — crypto spot prices (batch)
 // ═══════════════════════════════════════════════
 function formatVol(n) {
@@ -829,6 +858,8 @@ async function fetchAllPrices() {
   refreshSelectedAssetPanel();
   checkAlerts();
   updateSessionDisplay();
+  // Persist to cache so next open shows prices immediately
+  savePriceCache();
 }
 
 // Fetch last tick price for each Deriv asset via one-shot WS calls (batched)
@@ -2091,6 +2122,13 @@ async function createAlert() {
     createdAt:       new Date().toLocaleDateString([], {day:'2-digit',month:'short',year:'numeric'}) + ' · ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:true}),
     createdMs:       Date.now(),
     currentPriceWhenCreated: currentPrice,
+    // Track which side price was on when alert was created:
+    // true  = price was ABOVE zone at creation → crossing down into zone is the trigger
+    // false = price was BELOW zone at creation → crossing up into zone is the trigger
+    // null  = price was INSIDE zone at creation → no direction gate
+    zoneCreatedAbove: isZone && currentPrice > 0
+      ? (currentPrice > zoneHigh ? true : currentPrice < zoneLow ? false : null)
+      : null,
   };
 
   alerts.push(newAlert);
@@ -2360,7 +2398,22 @@ function renderAlerts() {
     } else if (zoneInProgress && isCurrentlyInZone) {
       badgeClass = 'badge-zone-active'; badgeLabel = `${ALERT_ICONS.inzone}IN ZONE`;
     } else if (zoneInProgress && !isCurrentlyInZone) {
-      badgeClass = 'badge-zone-exited'; badgeLabel = `${ALERT_ICONS.zone}EXITED`;
+      // If price crossed out on the expected side (i.e. it entered from outside as designed),
+      // treat it as fully TRIGGERED rather than "EXITED / watching for re-entry"
+      const crossedExpectedSide = (() => {
+        const cpa = alert.zoneCreatedAbove;
+        if (cpa === null || cpa === undefined) return false; // was inside at creation
+        // cpa=true → price was above zone → crossed down → now below = expected exit
+        if (cpa === true  && currentLivePrice < alert.zoneLow)  return true;
+        // cpa=false → price was below zone → crossed up → now above = expected exit
+        if (cpa === false && currentLivePrice > alert.zoneHigh) return true;
+        return false;
+      })();
+      if (crossedExpectedSide) {
+        badgeClass = 'badge-triggered-above'; badgeLabel = `${ALERT_ICONS.triggered}TRIGGERED`;
+      } else {
+        badgeClass = 'badge-zone-exited'; badgeLabel = `${ALERT_ICONS.zone}EXITED`;
+      }
     } else if (alert.status === 'paused') {
       badgeClass = 'badge-inactive'; badgeLabel = `${ALERT_ICONS.paused}PAUSED`;
     } else {
@@ -2383,7 +2436,15 @@ function renderAlerts() {
       : (zoneInProgress && isCurrentlyInZone)
         ? `<span style="color:var(--accent);font-size:0.78rem;">Price inside zone · alerting every ${alert.repeatInterval}m</span><br>`
       : (zoneInProgress && !isCurrentlyInZone)
-        ? `<span style="color:var(--red);font-size:0.78rem;">Price exited zone · watching for re-entry</span><br>`
+        ? (() => {
+            const cpa = alert.zoneCreatedAbove;
+            const crossedExpected =
+              (cpa === true  && currentLivePrice < alert.zoneLow) ||
+              (cpa === false && currentLivePrice > alert.zoneHigh);
+            return crossedExpected
+              ? `<span style="color:var(--green);font-size:0.78rem;">Zone crossed — alert triggered ✓</span><br>`
+              : `<span style="color:var(--red);font-size:0.78rem;">Price exited zone · watching for re-entry</span><br>`;
+          })()
       : '';
 
     let detailLine;
@@ -4325,6 +4386,96 @@ function setJnlDir(dir) {
 }
 
 // ── Open journal modal (standalone or from alert) ─────────────────────────
+// ── Journal asset picker — shown when user taps the symbol field in LOG TRADE ──
+// Opens a lightweight searchable modal using the same ALL_ASSETS catalogue.
+// On selection, fills jnl-symbol and closes the picker.
+function openJournalAssetPicker() {
+  const existing = document.getElementById('journal-asset-picker');
+  if (existing) { existing.remove(); return; }
+
+  const ov = document.createElement('div');
+  ov.id = 'journal-asset-picker';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;flex-direction:column;';
+  ov.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+      <button onclick="document.getElementById('journal-asset-picker').remove()"
+        style="background:none;border:none;color:var(--muted);padding:4px 8px;cursor:pointer;font-size:1.1rem">✕</button>
+      <span style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase">Select Asset</span>
+    </div>
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+      <input id="jap-search" type="text" placeholder="Search symbol or name…"
+        autocomplete="off" autocorrect="off" spellcheck="false"
+        style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+               font-family:var(--mono);font-size:0.85rem;padding:10px 14px;border-radius:9px;
+               box-sizing:border-box;outline:none;"
+        oninput="filterJournalAssetPicker(this.value)">
+    </div>
+    <div id="jap-results" style="flex:1;overflow-y:auto;padding:8px 0;"></div>`;
+
+  document.body.appendChild(ov);
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+
+  // Populate with all assets immediately
+  filterJournalAssetPicker('');
+  setTimeout(() => document.getElementById('jap-search')?.focus(), 80);
+}
+
+function filterJournalAssetPicker(query) {
+  const q = (query || '').trim().toLowerCase();
+  const results = q.length < 1
+    ? ALL_ASSETS.slice(0, 80) // show first 80 when no query
+    : ALL_ASSETS.filter(a =>
+        a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
+      ).slice(0, 50);
+
+  const container = document.getElementById('jap-results');
+  if (!container) return;
+
+  if (!results.length) {
+    container.innerHTML = '<div style="padding:24px;text-align:center;font-family:var(--mono);font-size:0.72rem;color:var(--muted)">No assets found</div>';
+    return;
+  }
+
+  const catLabels = { crypto:'Crypto', forex:'Forex', commodities:'Commodities',
+                      indices:'Indices', stocks:'Stocks', synthetics:'Synthetics' };
+
+  // Group by category for legibility
+  const groups = {};
+  results.forEach(a => {
+    if (!groups[a.cat]) groups[a.cat] = [];
+    groups[a.cat].push(a);
+  });
+
+  const catOrder = ['crypto','forex','indices','commodities','stocks','synthetics'];
+  let html = '';
+  catOrder.forEach(cat => {
+    if (!groups[cat]) return;
+    html += `<div style="font-family:var(--mono);font-size:0.55rem;letter-spacing:0.1em;color:var(--muted);
+                         padding:10px 16px 4px;text-transform:uppercase">${catLabels[cat]||cat}</div>`;
+    groups[cat].forEach(a => {
+      html += `<div onclick="selectJournalAsset('${a.symbol}')"
+        style="display:flex;align-items:center;justify-content:space-between;
+               padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer;
+               -webkit-tap-highlight-color:transparent;active:background:var(--surface2)">
+        <div>
+          <div style="font-size:0.85rem;font-weight:700;color:var(--text)">${a.symbol}</div>
+          <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted);margin-top:1px">${a.name}</div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M5 2l5 5-5 5" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>`;
+    });
+  });
+  container.innerHTML = html;
+}
+
+function selectJournalAsset(symbol) {
+  const el = document.getElementById('jnl-symbol');
+  if (el) el.value = symbol;
+  document.getElementById('journal-asset-picker')?.remove();
+}
+
 function openJournalEntryForm(prefill = null) {
   // Reset form
   jnlBeforeFile = null; jnlAfterFile = null;
@@ -4424,6 +4575,29 @@ function openJournalEntryForm(prefill = null) {
   }
 
   document.getElementById('journal-modal').style.display = 'block';
+
+  // Wire up asset picker to the symbol input — tapping opens the search picker
+  // Use a small delay so the modal has rendered
+  setTimeout(() => {
+    const symEl = document.getElementById('jnl-symbol');
+    if (symEl && !symEl._pickerWired) {
+      symEl._pickerWired = true;
+      symEl.addEventListener('focus', (e) => {
+        // Only open picker when not pre-filled (pre-fills come from alert flow)
+        if (!symEl.value) {
+          e.preventDefault();
+          symEl.blur();
+          openJournalAssetPicker();
+        }
+      });
+      symEl.addEventListener('click', (e) => {
+        // Always open picker on explicit tap — lets user change asset
+        e.preventDefault();
+        symEl.blur();
+        openJournalAssetPicker();
+      });
+    }
+  }, 50);
 }
 
 function closeJournalModal() {
@@ -4635,7 +4809,8 @@ async function renderJournal() {
 
   // ── Stats strip ──────────────────────────────────────────────────────────
   const total    = filtered.length;
-  const wins     = filtered.filter(e => ['full_tp','tp2_hit','tp1_hit','breakeven','trail_stop'].includes(e.outcome)).length;
+  const wins     = filtered.filter(e => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(e.outcome)).length;
+  const breakevens = filtered.filter(e => e.outcome === 'breakeven').length;
   const losses   = filtered.filter(e => ['sl_hit','manual_exit'].includes(e.outcome)).length;
   const winRate  = total ? Math.round((wins / total) * 100) : 0;
   const pnlEntries = filtered.filter(e => e.pnl_pct != null);
@@ -4646,6 +4821,7 @@ async function renderJournal() {
   if (statsEl) statsEl.innerHTML = `
     <div class="journal-stat"><span class="journal-stat-value">${total}</span><span class="journal-stat-label">TRADES</span></div>
     <div class="journal-stat"><span class="journal-stat-value" style="color:var(--green)">${wins}</span><span class="journal-stat-label">WINS</span></div>
+    <div class="journal-stat"><span class="journal-stat-value" style="color:var(--muted)">${breakevens}</span><span class="journal-stat-label">BE</span></div>
     <div class="journal-stat"><span class="journal-stat-value" style="color:var(--red)">${losses}</span><span class="journal-stat-label">LOSSES</span></div>
     <div class="journal-stat"><span class="journal-stat-value" style="color:${winRate >= 50 ? 'var(--green)' : 'var(--red)'}">${winRate}%</span><span class="journal-stat-label">WIN RATE</span></div>
     <div class="journal-stat"><span class="journal-stat-value" style="color:${avgPnl === '—' ? 'var(--muted)' : parseFloat(avgPnl) >= 0 ? 'var(--green)' : 'var(--red)'}">${avgPnl !== '—' ? (parseFloat(avgPnl) >= 0 ? '+' : '') + avgPnl + '%' : '—'}</span><span class="journal-stat-label">AVG P&L</span></div>`;
@@ -5666,7 +5842,7 @@ function renderProfilePage(tier) {
   // Journal stats for activity snapshot
   const entries      = typeof journalEntries !== 'undefined' ? journalEntries : [];
   const total        = entries.length;
-  const wins         = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','breakeven','trail_stop'].includes(e.outcome)).length;
+  const wins         = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(e.outcome)).length;
   const winRate      = total > 0 ? Math.round((wins/total)*100) : 0;
   const consistency  = total > 0 ? Math.min(98, Math.round(60 + (wins/total)*38)) : 0;
   const pnlEntries   = entries.filter(e => e.pnl_pct != null);
@@ -5942,7 +6118,7 @@ function renderAnalyticsMenuBody(tier) {
 
   const entries     = typeof journalEntries !== 'undefined' ? journalEntries : [];
   const total       = entries.length;
-  const wins        = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','breakeven','trail_stop'].includes(e.outcome)).length;
+  const wins        = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(e.outcome)).length;
   const losses      = entries.filter(e => ['sl_hit','manual_exit'].includes(e.outcome)).length;
   const winRate     = total > 0 ? Math.round((wins / total) * 100) : 0;
   const consistency = total > 0 ? Math.min(98, Math.round(60 + (wins / total) * 38)) : 0;
@@ -5955,7 +6131,8 @@ function renderAnalyticsMenuBody(tier) {
   const daysSet  = new Set(entries.map(e => (e.trade_date||e.created_at||'').slice(0,10)));
   const sessions = daysSet.size;
 
-  const pnlEntries = entries.filter(e => e.pnl_pct != null);
+  // Avg P&L — only closed trades with real P&L data; exclude breakeven (0% artificially drags avg)
+  const pnlEntries = entries.filter(e => e.pnl_pct != null && e.outcome !== 'breakeven');
   const avgPnl = pnlEntries.length > 0
     ? (pnlEntries.reduce((s,e) => s + (e.pnl_pct||0), 0) / pnlEntries.length).toFixed(1)
     : '—';
@@ -5966,11 +6143,42 @@ function renderAnalyticsMenuBody(tier) {
     : '—';
   const tradesPerDay = sessions > 0 ? (total/sessions).toFixed(1) : '—';
 
-  const maxDrawdownEntry = entries.reduce((worst, e) => {
-    if (e.pnl_pct != null && e.pnl_pct < (worst?.pnl_pct ?? 0)) return e;
-    return worst;
-  }, null);
-  const maxDrawdown = maxDrawdownEntry ? Math.abs(maxDrawdownEntry.pnl_pct).toFixed(1) + '%' : '—';
+  // Max drawdown: cumulative peak-to-trough over the running P&L equity curve
+  // Falls back to single worst trade if fewer than 2 entries have P&L data
+  const maxDrawdown = (() => {
+    const pnlArr = entries
+      .filter(e => e.pnl_pct != null)
+      .sort((a,b) => new Date(a.trade_date||a.created_at).getTime() - new Date(b.trade_date||b.created_at).getTime())
+      .map(e => parseFloat(e.pnl_pct));
+    if (!pnlArr.length) return '—';
+    if (pnlArr.length === 1) return Math.abs(pnlArr[0]).toFixed(1) + '%';
+    let peak = 0, running = 0, maxDD = 0;
+    pnlArr.forEach(p => {
+      running += p;
+      if (running > peak) peak = running;
+      const dd = peak - running;
+      if (dd > maxDD) maxDD = dd;
+    });
+    return maxDD > 0 ? maxDD.toFixed(1) + '%' : '0%';
+  })();
+
+  // Avg trade duration — calculated from trade_date vs created_at where both exist
+  // Approximation: we compare logged date vs the oldest alert for that symbol (not perfect
+  // but useful until duration is stored as a dedicated column)
+  const durationEntries = entries.filter(e => e.trade_date && e.created_at && e.trade_date !== e.created_at);
+  const avgDurationMs = durationEntries.length > 0
+    ? durationEntries.reduce((s, e) => {
+        const diff = Math.abs(new Date(e.trade_date).getTime() - new Date(e.created_at).getTime());
+        return s + diff;
+      }, 0) / durationEntries.length
+    : 0;
+  const avgDuration = (() => {
+    if (!avgDurationMs) return '—';
+    const mins = Math.round(avgDurationMs / 60000);
+    if (mins < 60)    return `${mins}m`;
+    if (mins < 1440)  return `${Math.round(mins/60)}h`;
+    return `${Math.round(mins/1440)}d`;
+  })();
 
   let prematureExits = 0, slMoved = 0;
   entries.forEach(e => {
@@ -5992,7 +6200,7 @@ function renderAnalyticsMenuBody(tier) {
 
   const statsPayload = {
     total, wins, losses, winRate, consistency,
-    avgRR, avgPnl, avgSlSize, tradesPerDay, maxDrawdown,
+    avgRR, avgPnl, avgSlSize, tradesPerDay, maxDrawdown, avgDuration,
     prematureExits, slMoved, overtrading,
     weekTrades: weekEntries.length, weekWins, sessions,
     topSetup: topSetup ? { type: topSetup[0], count: topSetup[1] } : null,
@@ -6264,7 +6472,7 @@ function _renderEliteSection(entries, winRate, consistency, statsPayload) {
         </div>
         <div style="flex:1;min-width:100px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 10px">
           <div style="font-family:var(--mono);font-size:0.55rem;color:var(--muted);margin-bottom:3px">AVG TRADE DURATION</div>
-          <div style="font-family:var(--mono);font-size:0.9rem;font-weight:700;color:var(--text)">—</div>
+          <div style="font-family:var(--mono);font-size:0.9rem;font-weight:700;color:var(--text)">${_avgTradeDuration(entries)}</div>
         </div>
       </div>
     </div>
@@ -6278,7 +6486,7 @@ async function analyticsRefreshCoaching() {
   coachingEl.className = 'ai-loading-shimmer';
   coachingEl.textContent = 'Preparing your coaching directive…';
   const entries = typeof journalEntries !== 'undefined' ? journalEntries : [];
-  const wins    = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','breakeven','trail_stop'].includes(e.outcome)).length;
+  const wins    = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(e.outcome)).length;
   const losses  = entries.filter(e => ['sl_hit','manual_exit'].includes(e.outcome)).length;
   const total   = entries.length;
   const winRate = total > 0 ? Math.round((wins/total)*100) : 0;
@@ -6319,6 +6527,24 @@ function _maxConsecLosses(entries) {
     else cur = 0;
   });
   return max || '—';
+}
+
+// Average trade duration — uses created_at as approximate open time, trade_date as close time
+function _avgTradeDuration(entries) {
+  const valid = entries.filter(e => e.trade_date && e.created_at);
+  if (!valid.length) return '—';
+  const totalMs = valid.reduce((s, e) => {
+    const open  = new Date(e.created_at).getTime();
+    const close = new Date(e.trade_date).getTime();
+    const diff  = Math.abs(close - open);
+    return s + diff;
+  }, 0);
+  const avgMs  = totalMs / valid.length;
+  const mins   = Math.round(avgMs / 60000);
+  if (mins < 2)    return '<2m';
+  if (mins < 60)   return `${mins}m`;
+  if (mins < 1440) return `${Math.round(mins / 60)}h`;
+  return `${Math.round(mins / 1440)}d`;
 }
 
 
@@ -8012,6 +8238,9 @@ async function init() {
   // Apply saved theme before anything renders
   initTheme();
 
+  // Restore cached prices immediately so form/panel never shows blank on open
+  restorePriceCache();
+
   // Restore persisted feature settings
   slStreakWarningEnabled = localStorage.getItem('sl_streak_enabled')   === '1';
   slStreakThreshold      = parseInt(localStorage.getItem('sl_streak_threshold') || '3', 10);
@@ -8201,17 +8430,68 @@ window.addEventListener('resize', () => {
   }
 });
 
-// Refresh prices when user returns to the tab
+// ── App foreground/background lifecycle ──────────────────────────────────────
+// When the user returns to the app (tab visible or Telegram mini-app restored):
+//   1. Reconnect any dropped WS connections immediately
+//   2. Re-fetch prices so the UI is never stale
+//   3. Re-render alerts so any server-triggered alerts show without needing a reload
+//   4. Re-run alert checks against the freshest prices
+
+let _hiddenAt = 0; // timestamp when app was hidden
+
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    fetchAllPrices();
-    // Reconnect both WS connections if they dropped
-    if (!_conn1.ws || _conn1.ws.readyState > 1) connectDeriv();
-    if (!_conn2.ws || _conn2.ws.readyState > 1) connectDerivSynthetics();
-    // Don't re-init the chart tab if user is actively filling a form —
-    // mobileTab('chart') calls loadTVChart which resets scroll position
-    if (isMobileLayout() && !userTypingInForm) mobileTab(navStack[navStack.length-1], false);
+  if (document.visibilityState === 'hidden') {
+    _hiddenAt = Date.now();
+    return;
   }
+
+  // App is now visible
+  const awayMs = Date.now() - _hiddenAt;
+
+  // Always reconnect WS — connections drop when minimised
+  if (!_conn1.ws || _conn1.ws.readyState > 1) connectDeriv();
+  else resubscribeAllDeriv();
+  if (!_conn2.ws || _conn2.ws.readyState > 1) connectDerivSynthetics();
+
+  // Fetch fresh prices (always — even after a few seconds away)
+  fetchAllPrices().then(() => {
+    // Re-run alert checks against fresh prices
+    checkAlerts();
+    // Re-render alerts so any server-triggered changes show immediately
+    // (edge function may have triggered/updated alerts while app was closed)
+    if (awayMs > 5000) {
+      // Only reload alerts from DB when away for more than 5s to avoid flicker on brief focus loss
+      loadAlertsFromDB().then(dbAlerts => {
+        if (dbAlerts) {
+          // Merge: keep in-memory flags (zoneTriggeredOnce etc) where possible
+          dbAlerts.forEach(dba => {
+            const existing = alerts.find(a => a.id === dba.id);
+            if (existing) {
+              Object.assign(existing, dba);
+            }
+          });
+          // Add any new alerts from DB not in memory
+          dbAlerts.forEach(dba => {
+            if (!alerts.find(a => a.id === dba.id)) alerts.push(dba);
+          });
+          // Remove alerts deleted on server
+          const dbIds = new Set(dbAlerts.map(a => a.id));
+          alerts = alerts.filter(a => dbIds.has(a.id));
+        }
+        renderAlerts();
+        renderTradesTab();
+        renderWatchlist();
+      }).catch(() => {
+        // DB load failed — just re-render with in-memory data
+        renderAlerts();
+      });
+    } else {
+      renderAlerts();
+    }
+  });
+
+  // Restore nav state — but don't reset if user is typing in a form
+  if (isMobileLayout() && !userTypingInForm) mobileTab(navStack[navStack.length-1], false);
 });
 
 // ═══════════════════════════════════════════════
