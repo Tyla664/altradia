@@ -878,26 +878,35 @@ function getWatchlistCurrencies() {
 // ── Watchlist panel: sub-tab system ──────────────────────────────────────
 let _wlActiveSubTab = 'assets'; // 'assets' | 'strength'
 
+function _applyWlTabStyle(btn, isActive) {
+  if (!btn) return;
+  // Use CSS custom properties — they resolve correctly once DOM is in document
+  btn.style.color        = isActive ? 'var(--accent)' : 'var(--muted)';
+  btn.style.borderBottom = isActive ? '2px solid var(--accent)' : '2px solid transparent';
+  btn.style.fontWeight   = isActive ? '700' : '500';
+  btn.style.background   = isActive ? 'rgba(0,212,255,0.06)' : 'transparent';
+  btn.setAttribute('data-active', isActive ? '1' : '0');
+}
+
 function switchWlSubTab(tab) {
   _wlActiveSubTab = tab;
   const assetsEl   = document.getElementById('wl-sub-assets');
   const strengthEl = document.getElementById('wl-sub-strength');
   const btnAssets  = document.getElementById('wl-stab-assets');
   const btnStrength= document.getElementById('wl-stab-strength');
+  const fab        = document.getElementById('wl-fab');
 
   if (tab === 'assets') {
     if (assetsEl)   assetsEl.style.display   = '';
     if (strengthEl) strengthEl.style.display = 'none';
-    if (btnAssets)  { btnAssets.classList.add('active');   }
-    if (btnStrength){ btnStrength.classList.remove('active'); }
-    const fab = document.getElementById('wl-fab');
+    _applyWlTabStyle(btnAssets,   true);
+    _applyWlTabStyle(btnStrength, false);
     if (fab) fab.classList.add('visible');
   } else {
     if (assetsEl)   assetsEl.style.display   = 'none';
     if (strengthEl) strengthEl.style.display = '';
-    if (btnAssets)  { btnAssets.classList.remove('active'); }
-    if (btnStrength){ btnStrength.classList.add('active'); }
-    const fab = document.getElementById('wl-fab');
+    _applyWlTabStyle(btnAssets,   false);
+    _applyWlTabStyle(btnStrength, true);
     if (fab) fab.classList.remove('visible');
     renderStrengthTab();
   }
@@ -930,15 +939,17 @@ function renderStrengthTab() {
   const { scores, momentum, divergences } = result;
   const watchlistCurrs = getWatchlistCurrencies();
 
-  // Sort by score descending
-  const sorted = CS_CURRENCIES
-    .filter(c => scores[c] !== undefined)
-    .sort((a, b) => scores[b] - scores[a]);
+  // Only show currencies that are actually in the user's watchlist pairs
+  // e.g. AUD/USD, GBP/JPY, USD/JPY → show AUD, USD, GBP, JPY only
+  const relevantCurrs = CS_CURRENCIES.filter(c => watchlistCurrs.has(c) && scores[c] !== undefined);
 
-  if (!sorted.length) {
-    el.innerHTML = `<div style="padding:32px;text-align:center;font-family:var(--mono);font-size:0.68rem;color:var(--muted)">No forex data yet.<br><span style="font-size:0.6rem;opacity:0.6">Add major forex pairs to your watchlist to see strength scores.</span></div>`;
+  if (!relevantCurrs.length) {
+    el.innerHTML = `<div style="padding:32px;text-align:center;font-family:var(--mono);font-size:0.68rem;color:var(--muted)">No forex pairs in your watchlist.<br><span style="font-size:0.6rem;opacity:0.6">Add major forex pairs to see currency strength scores.</span></div>`;
     return;
   }
+
+  // Sort by score descending
+  const sorted = relevantCurrs.sort((a, b) => scores[b] - scores[a]);
 
   const updatedAt = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 
@@ -951,14 +962,12 @@ function renderStrengthTab() {
   sorted.forEach(c => {
     const score = scores[c] ?? 50;
     const mom   = momentum[c] ?? 0;
-    const inWl  = watchlistCurrs.has(c);
     const color = score >= 65 ? 'var(--green)' : score <= 35 ? 'var(--red)' : 'var(--accent)';
     const trend = score >= 65 ? 'Strengthening ↑' : score <= 35 ? 'Weakening ↓' : 'Neutral →';
     const momStr = mom === 0 ? '' : (mom > 0 ? `+${mom}` : `${mom}`);
     const momCol = mom > 0 ? 'var(--green)' : mom < 0 ? 'var(--red)' : 'var(--muted)';
-    const dimmed = !inWl ? 'opacity:0.45;' : '';
 
-    html += `<div style="${dimmed}display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+    html += `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
       <div style="font-family:var(--mono);font-weight:700;font-size:0.85rem;color:var(--text);width:36px;flex-shrink:0">${c}</div>
       <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
         <div style="height:100%;width:${score}%;background:${color};border-radius:3px;transition:width 0.4s ease"></div>
@@ -1183,24 +1192,33 @@ async function fetchDerivSnapshots(assets) {
           }));
         });
       };
+      // Track which derivSym symbols we're still waiting on — only count down
+      // when we get a response that corresponds to one of our own requests.
+      // This prevents stray Deriv messages (pings, echoes) from decrementing
+      // pending prematurely and resolving before all prices arrive.
+      const _pendingSyms = new Set(assets.map(a => a.derivSym));
+
       ws.onmessage = (evt) => {
         try {
           const msg = JSON.parse(evt.data);
-          if (msg.msg_type === 'history' && msg.history?.prices?.length) {
-            const sym   = msg.echo_req?.ticks_history;
-            const asset = sym ? ASSET_BY_DERIV.get(sym) : null;
+          const sym = msg.echo_req?.ticks_history;
+          // Only act on messages that correspond to one of our requests
+          if (!sym || !_pendingSyms.has(sym)) return;
+          _pendingSyms.delete(sym); // mark as received so duplicates don't double-count
+
+          if (msg.history?.prices?.length) {
+            const asset = ASSET_BY_DERIV.get(sym);
             if (asset) {
               const price = parseFloat(msg.history.prices[msg.history.prices.length - 1]);
               if (price) {
                 const prev = priceData[asset.id];
-                // Only set if we don't already have a live tick (don't overwrite fresher data)
                 if (!prev?.price || prev.src === 'deriv_snap') {
                   priceData[asset.id] = {
                     price,
-                    change: prev?.open ? (((price - prev.open) / prev.open) * 100).toFixed(4) : '0.0000',
-                    high:   prev?.high ? Math.max(prev.high, price) : price,
-                    low:    prev?.low  ? Math.min(prev.low,  price) : price,
-                    open:   prev?.open || price,
+                    change:    prev?.open ? (((price - prev.open) / prev.open) * 100).toFixed(4) : '0.0000',
+                    high:      prev?.high ? Math.max(prev.high, price) : price,
+                    low:       prev?.low  ? Math.min(prev.low,  price) : price,
+                    open:      prev?.open || price,
                     lastClose: prev?.lastClose || price,
                     vol: '—', mcap: '—', live: true, src: 'deriv_snap',
                   };
@@ -1208,15 +1226,12 @@ async function fetchDerivSnapshots(assets) {
                 }
               }
             }
-            done();
-          } else if (msg.error) {
-            done();
           }
+          done(); // decrement only for our own requests, whether success or error
         } catch(e) { done(); }
       };
       ws.onerror = () => { clearTimeout(timeout); resolve(); };
-      ws.onclose = () => { clearTimeout(timeout); resolve(); };
-      // Close after all responses or timeout
+      ws.onclose = () => {};
       const closeTimer = setTimeout(() => { try { ws.close(); } catch(e) {} }, 7000);
     } catch(e) { resolve(); }
   });
@@ -7668,13 +7683,15 @@ function _initWatchlistSubTabs() {
   const tabBar = document.createElement('div');
   tabBar.id = 'wl-subtab-bar';
   tabBar.style.cssText = 'display:flex;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;position:sticky;top:0;z-index:10;';
+  // Base style shared by both tabs
+  const _tabBase = 'flex:1;padding:10px 0;font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;background:transparent;border:none;cursor:pointer;text-transform:uppercase;transition:color 0.15s,border-bottom 0.15s;-webkit-tap-highlight-color:transparent;';
   tabBar.innerHTML = `
     <button id="wl-stab-assets" onclick="switchWlSubTab('assets')"
-      style="flex:1;padding:10px 0;font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;background:transparent;border:none;color:var(--accent);cursor:pointer;border-bottom:2px solid var(--accent);text-transform:uppercase;transition:all 0.15s">
+      style="${_tabBase}color:var(--accent);border-bottom:2px solid var(--accent);font-weight:700">
       WATCHLIST
     </button>
     <button id="wl-stab-strength" onclick="switchWlSubTab('strength')"
-      style="flex:1;padding:10px 0;font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;background:transparent;border:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;transition:all 0.15s">
+      style="${_tabBase}color:var(--muted);border-bottom:2px solid transparent;font-weight:500">
       STRENGTH
     </button>`;
   watchlistPanel.insertBefore(tabBar, watchlistPanel.firstChild);
@@ -7698,6 +7715,14 @@ function _initWatchlistSubTabs() {
   strengthBody.id = 'wl-strength-body';
   strengthWrapper.appendChild(strengthBody);
   watchlistPanel.appendChild(strengthWrapper);
+
+  // Apply correct active state immediately after injection.
+  // setTimeout(0) ensures DOM is ready; explicit color values avoid
+  // CSS variable resolution timing issues on initial render.
+  setTimeout(() => {
+    _applyWlTabStyle(document.getElementById('wl-stab-assets'),   true);
+    _applyWlTabStyle(document.getElementById('wl-stab-strength'), false);
+  }, 0);
 }
 
 // ═══════════════════════════════════════════════
