@@ -608,6 +608,8 @@ function makeDerivWS(symbols, retryRef) {
         if (selectedAsset && selectedAsset.id === asset.id) {
           refreshSelectedAssetPanel();
         }
+        // Refresh strength tab live on forex ticks
+        if (asset.cat === 'forex') _refreshStrengthIfOpen();
 
         // ── Real-time alert check on every live tick ──────────────────────
         // zone/above/below/tap: checked on EVERY tick — no throttle.
@@ -758,6 +760,304 @@ function restorePriceCache() {
 }
 
 // ═══════════════════════════════════════════════
+// CURRENCY STRENGTH METER
+// Calculated from live priceData already in memory.
+// Uses the 28 major forex pairs to score 8 currencies 0–100.
+// Called on demand when user opens the Strength tab.
+// No extra API calls — reads from the Deriv WS price feed.
+// ═══════════════════════════════════════════════
+
+const CS_PAIRS = [
+  ['EUR','USD'],['GBP','USD'],['USD','JPY'],['USD','CHF'],
+  ['USD','CAD'],['AUD','USD'],['NZD','USD'],['EUR','GBP'],
+  ['EUR','JPY'],['EUR','CHF'],['EUR','CAD'],['EUR','AUD'],
+  ['EUR','NZD'],['GBP','JPY'],['GBP','CHF'],['GBP','CAD'],
+  ['GBP','AUD'],['GBP','NZD'],['AUD','JPY'],['AUD','CHF'],
+  ['AUD','CAD'],['AUD','NZD'],['NZD','JPY'],['NZD','CHF'],
+  ['NZD','CAD'],['CAD','JPY'],['CAD','CHF'],['CHF','JPY'],
+];
+const CS_CURRENCIES = ['USD','EUR','GBP','JPY','CHF','CAD','AUD','NZD'];
+
+// Map pair id → asset id in our catalogue
+const CS_PAIR_ID = {
+  'EUR/USD':'EUR/USD','GBP/USD':'GBP/USD','USD/JPY':'USD/JPY','USD/CHF':'USD/CHF',
+  'USD/CAD':'USD/CAD','AUD/USD':'AUD/USD','NZD/USD':'NZD/USD','EUR/GBP':'EUR/GBP',
+  'EUR/JPY':'EUR/JPY','EUR/CHF':'EUR/CHF','EUR/CAD':'EUR/CAD','EUR/AUD':'EUR/AUD',
+  'EUR/NZD':'EUR/NZD','GBP/JPY':'GBP/JPY','GBP/CHF':'GBP/CHF','GBP/CAD':'GBP/CAD',
+  'GBP/AUD':'GBP/AUD','GBP/NZD':'GBP/NZD','AUD/JPY':'AUD/JPY','AUD/CHF':'AUD/CHF',
+  'AUD/CAD':'AUD/CAD','AUD/NZD':'AUD/NZD','NZD/JPY':'NZD/JPY','NZD/CHF':'NZD/CHF',
+  'NZD/CAD':'NZD/CAD','CAD/JPY':'CAD/JPY','CAD/CHF':'CAD/CHF','CHF/JPY':'CHF/JPY',
+};
+
+// Stored previous prices for momentum (filled on first calc, updated each calc)
+let _csPrevScores = {};
+let _csLastCalcMs = 0;
+let _csScoreCache = null;   // { scores, momentum, divergences, ts }
+let _csAiCache    = null;   // { text, ts }
+
+function calcCurrencyStrength() {
+  // Need at least some prices loaded
+  const nowMs = Date.now();
+  if (_csScoreCache && (nowMs - _csScoreCache.ts) < 30000) return _csScoreCache; // 30s cache
+
+  const totals = {};
+  const counts = {};
+  CS_CURRENCIES.forEach(c => { totals[c] = 0; counts[c] = 0; });
+
+  CS_PAIRS.forEach(([base, quote]) => {
+    const pairId = base + '/' + quote;
+    const assetId = CS_PAIR_ID[pairId];
+    if (!assetId) return;
+    const d = priceData[assetId];
+    if (!d?.price || !d?.open) return;
+    const pctChange = ((d.price - d.open) / d.open) * 100;
+    totals[base]  = (totals[base]  || 0) + pctChange;
+    counts[base]  = (counts[base]  || 0) + 1;
+    totals[quote] = (totals[quote] || 0) - pctChange;
+    counts[quote] = (counts[quote] || 0) + 1;
+  });
+
+  // Average % change per currency
+  const raw = {};
+  CS_CURRENCIES.forEach(c => {
+    raw[c] = counts[c] > 0 ? totals[c] / counts[c] : 0;
+  });
+
+  // Normalise to 0–100 score
+  const vals   = Object.values(raw);
+  const minVal = Math.min(...vals);
+  const maxVal = Math.max(...vals);
+  const range  = maxVal - minVal || 1;
+  const scores = {};
+  CS_CURRENCIES.forEach(c => {
+    scores[c] = Math.round(((raw[c] - minVal) / range) * 100);
+  });
+
+  // Momentum: delta vs last calc
+  const momentum = {};
+  CS_CURRENCIES.forEach(c => {
+    const prev = _csPrevScores[c];
+    momentum[c] = prev !== undefined ? scores[c] - prev : 0;
+  });
+  _csPrevScores = { ...scores };
+
+  // Divergences: pairs where both currencies are in user's watchlist assets
+  // and divergence > 20 pts (strong signal)
+  const divergences = [];
+  CS_PAIRS.forEach(([base, quote]) => {
+    const sb = scores[base], sq = scores[quote];
+    if (sb === undefined || sq === undefined) return;
+    const div = sb - sq;
+    if (Math.abs(div) >= 20) {
+      const strong = div > 0 ? base : quote;
+      const weak   = div > 0 ? quote : base;
+      const pairId = base + '/' + quote;
+      divergences.push({ pair: pairId, strong, weak, divergence: Math.abs(div) });
+    }
+  });
+  divergences.sort((a, b) => b.divergence - a.divergence);
+
+  _csScoreCache = { scores, momentum, divergences, ts: nowMs };
+  return _csScoreCache;
+}
+
+// Which currencies are in user's watchlist
+function getWatchlistCurrencies() {
+  const currencies = new Set();
+  Object.values(ASSETS).flat().forEach(asset => {
+    if (asset.cat !== 'forex') return;
+    const parts = asset.id.split('/');
+    if (parts.length === 2) {
+      currencies.add(parts[0]);
+      currencies.add(parts[1]);
+    }
+  });
+  return currencies;
+}
+
+// ── Watchlist panel: sub-tab system ──────────────────────────────────────
+let _wlActiveSubTab = 'assets'; // 'assets' | 'strength'
+
+function switchWlSubTab(tab) {
+  _wlActiveSubTab = tab;
+  const assetsEl   = document.getElementById('wl-sub-assets');
+  const strengthEl = document.getElementById('wl-sub-strength');
+  const btnAssets  = document.getElementById('wl-stab-assets');
+  const btnStrength= document.getElementById('wl-stab-strength');
+
+  if (tab === 'assets') {
+    if (assetsEl)   assetsEl.style.display   = '';
+    if (strengthEl) strengthEl.style.display = 'none';
+    if (btnAssets)  { btnAssets.classList.add('active');   }
+    if (btnStrength){ btnStrength.classList.remove('active'); }
+    const fab = document.getElementById('wl-fab');
+    if (fab) fab.classList.add('visible');
+  } else {
+    if (assetsEl)   assetsEl.style.display   = 'none';
+    if (strengthEl) strengthEl.style.display = '';
+    if (btnAssets)  { btnAssets.classList.remove('active'); }
+    if (btnStrength){ btnStrength.classList.add('active'); }
+    const fab = document.getElementById('wl-fab');
+    if (fab) fab.classList.remove('visible');
+    renderStrengthTab();
+  }
+}
+
+function renderStrengthTab() {
+  const el = document.getElementById('wl-strength-body');
+  if (!el) return;
+  const tier = getUserTier();
+
+  if (tier === 'free') {
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center;gap:14px">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="5" y="9" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M8 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </div>
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text)">Currency Strength</div>
+        <div style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);line-height:1.6;max-width:240px">See which currencies are strong or weak right now. Available on Pro and Elite.</div>
+        <button onclick="closeMenuPanel?.();openMenuPage('subscription')" style="background:var(--accent);color:#000;font-family:var(--mono);font-weight:700;font-size:0.68rem;letter-spacing:0.08em;padding:12px 24px;border:none;border-radius:10px;cursor:pointer;margin-top:4px">UPGRADE TO PRO</button>
+      </div>`;
+    return;
+  }
+
+  const result = calcCurrencyStrength();
+  if (!result) {
+    el.innerHTML = `<div style="padding:32px;text-align:center;font-family:var(--mono);font-size:0.68rem;color:var(--muted)">Waiting for price data…<br><span style="font-size:0.6rem;opacity:0.6">Add forex pairs to your watchlist to populate the strength meter.</span></div>`;
+    return;
+  }
+
+  const { scores, momentum, divergences } = result;
+  const watchlistCurrs = getWatchlistCurrencies();
+
+  // Sort by score descending
+  const sorted = CS_CURRENCIES
+    .filter(c => scores[c] !== undefined)
+    .sort((a, b) => scores[b] - scores[a]);
+
+  if (!sorted.length) {
+    el.innerHTML = `<div style="padding:32px;text-align:center;font-family:var(--mono);font-size:0.68rem;color:var(--muted)">No forex data yet.<br><span style="font-size:0.6rem;opacity:0.6">Add major forex pairs to your watchlist to see strength scores.</span></div>`;
+    return;
+  }
+
+  const updatedAt = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
+  let html = `<div style="padding:12px 16px 6px;border-bottom:1px solid var(--border)">
+    <div style="font-family:var(--mono);font-size:0.55rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:2px">CURRENCY STRENGTH</div>
+    <div style="font-family:var(--mono);font-size:0.58rem;color:var(--muted)">Updated ${updatedAt} · Based on 28 major pairs</div>
+  </div>
+  <div style="padding:10px 16px 0">`;
+
+  sorted.forEach(c => {
+    const score = scores[c] ?? 50;
+    const mom   = momentum[c] ?? 0;
+    const inWl  = watchlistCurrs.has(c);
+    const color = score >= 65 ? 'var(--green)' : score <= 35 ? 'var(--red)' : 'var(--accent)';
+    const trend = score >= 65 ? 'Strengthening ↑' : score <= 35 ? 'Weakening ↓' : 'Neutral →';
+    const momStr = mom === 0 ? '' : (mom > 0 ? `+${mom}` : `${mom}`);
+    const momCol = mom > 0 ? 'var(--green)' : mom < 0 ? 'var(--red)' : 'var(--muted)';
+    const dimmed = !inWl ? 'opacity:0.45;' : '';
+
+    html += `<div style="${dimmed}display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+      <div style="font-family:var(--mono);font-weight:700;font-size:0.85rem;color:var(--text);width:36px;flex-shrink:0">${c}</div>
+      <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${score}%;background:${color};border-radius:3px;transition:width 0.4s ease"></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:0.75rem;font-weight:700;color:${color};width:28px;text-align:right;flex-shrink:0">${score}</div>
+      ${tier === 'elite' && momStr ? `<div style="font-family:var(--mono);font-size:0.6rem;color:${momCol};width:24px;flex-shrink:0">${momStr}</div>` : '<div style="width:24px;flex-shrink:0"></div>'}
+    </div>`;
+  });
+
+  html += `</div>`;
+
+  // Elite: divergence signals
+  if (tier === 'elite' && divergences.length > 0) {
+    const topDivs = divergences.slice(0, 4);
+    html += `<div style="margin:12px 16px 0;background:rgba(255,214,0,0.04);border:1px solid rgba(255,214,0,0.2);border-radius:10px;padding:12px">
+      <div style="font-family:var(--mono);font-size:0.55rem;letter-spacing:0.1em;color:#ffd600;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polygon points="5,1 6.2,3.8 9.5,3.8 6.9,5.8 7.9,9 5,7.1 2.1,9 3.1,5.8 0.5,3.8 3.8,3.8" fill="#ffd600"/></svg>
+        BREAKOUT SIGNALS
+      </div>`;
+    topDivs.forEach(d => {
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,214,0,0.1)">
+        <div>
+          <span style="font-family:var(--mono);font-size:0.75rem;font-weight:700;color:var(--text)">${d.pair}</span>
+          <span style="font-family:var(--mono);font-size:0.6rem;color:var(--muted);margin-left:8px">${d.strong} strong · ${d.weak} weak</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:#ffd600">${d.divergence}pts</div>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // AI bias button (on-demand — one Claude call per session)
+    const aiAge = _csAiCache ? Math.round((Date.now() - _csAiCache.ts) / 60000) : null;
+    html += `<div id="cs-ai-section" style="margin:10px 16px 0">`;
+    if (_csAiCache && (Date.now() - _csAiCache.ts) < 3600000) {
+      html += `<div style="background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.15);border-radius:9px;padding:11px 12px">
+        <div style="font-family:var(--mono);font-size:0.52rem;color:var(--accent);margin-bottom:5px;letter-spacing:0.1em">AI BIAS INSIGHT · ${aiAge}m ago</div>
+        <div style="font-size:0.78rem;color:var(--text);line-height:1.5">${_csAiCache.text}</div>
+      </div>`;
+    } else {
+      html += `<button onclick="fetchStrengthAiInsight()" id="cs-ai-btn"
+        style="width:100%;padding:10px;background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:9px;color:var(--accent);font-family:var(--mono);font-size:0.65rem;font-weight:700;letter-spacing:0.08em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1C3.46 1 1 3.46 1 6.5S3.46 12 6.5 12 12 9.54 12 6.5 9.54 1 6.5 1z" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 5.5A2 2 0 0 1 8.5 6c0 1.2-1.5 1.5-2 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="6.5" cy="10" r="0.6" fill="currentColor"/></svg>
+        GET AI DIRECTIONAL BIAS
+      </button>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `<div style="height:16px"></div>`;
+  el.innerHTML = html;
+}
+
+async function fetchStrengthAiInsight() {
+  const btn = document.getElementById('cs-ai-btn');
+  if (btn) { btn.textContent = 'Analyzing…'; btn.disabled = true; }
+
+  const result = calcCurrencyStrength();
+  if (!result) return;
+
+  const { scores, divergences } = result;
+  const sorted = CS_CURRENCIES.sort((a,b) => (scores[b]??50) - (scores[a]??50));
+  const top3 = sorted.slice(0, 3).join(', ');
+  const bot3 = sorted.slice(-3).join(', ');
+  const topDiv = divergences[0];
+  const prompt = `Currency strength scores (0-100): ${sorted.map(c => `${c}:${scores[c]}`).join(', ')}. ` +
+    `Strongest: ${top3}. Weakest: ${bot3}. ` +
+    (topDiv ? `Biggest divergence: ${topDiv.pair} (${topDiv.strong} vs ${topDiv.weak}, ${topDiv.divergence}pts). ` : '') +
+    `Give a 2-sentence directional bias for today's key forex pairs. Be specific and actionable. No disclaimers.`;
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-insights`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ stats: { prompt }, mode: 'strength' }),
+    });
+    const data = await res.json();
+    if (data?.result) {
+      _csAiCache = { text: data.result, ts: Date.now() };
+      renderStrengthTab(); // re-render to show result
+    }
+  } catch(e) {
+    console.warn('Strength AI insight failed:', e);
+    if (btn) { btn.textContent = 'Failed — tap to retry'; btn.disabled = false; }
+  }
+}
+
+// ── Auto-refresh strength tab when prices update ──────────────────────────
+function _refreshStrengthIfOpen() {
+  if (_wlActiveSubTab === 'strength') {
+    _csScoreCache = null; // bust cache so re-calc happens
+    renderStrengthTab();
+  }
+}
+
+// ═══════════════════════════════════════════════
 // COINGECKO — crypto spot prices (batch)
 // ═══════════════════════════════════════════════
 function formatVol(n) {
@@ -860,6 +1160,8 @@ async function fetchAllPrices() {
   updateSessionDisplay();
   // Persist to cache so next open shows prices immediately
   savePriceCache();
+  // Refresh strength tab if open (uses prices we just fetched)
+  _refreshStrengthIfOpen();
 }
 
 // Fetch last tick price for each Deriv asset via one-shot WS calls (batched)
@@ -7354,6 +7656,48 @@ function revealApp() {
     screen.style.opacity = '0';
     setTimeout(() => { screen.style.display = 'none'; }, 370);
   }
+  // Inject currency strength sub-tab system into the watchlist panel
+  _initWatchlistSubTabs();
+}
+
+function _initWatchlistSubTabs() {
+  const watchlistPanel = document.getElementById('panel-my-watchlist');
+  if (!watchlistPanel || document.getElementById('wl-subtab-bar')) return;
+
+  // Insert sub-tab bar at the top of the watchlist panel
+  const tabBar = document.createElement('div');
+  tabBar.id = 'wl-subtab-bar';
+  tabBar.style.cssText = 'display:flex;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;position:sticky;top:0;z-index:10;';
+  tabBar.innerHTML = `
+    <button id="wl-stab-assets" onclick="switchWlSubTab('assets')"
+      style="flex:1;padding:10px 0;font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;background:transparent;border:none;color:var(--accent);cursor:pointer;border-bottom:2px solid var(--accent);text-transform:uppercase;transition:all 0.15s">
+      WATCHLIST
+    </button>
+    <button id="wl-stab-strength" onclick="switchWlSubTab('strength')"
+      style="flex:1;padding:10px 0;font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;background:transparent;border:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;transition:all 0.15s">
+      STRENGTH
+    </button>`;
+  watchlistPanel.insertBefore(tabBar, watchlistPanel.firstChild);
+
+  // Wrap the existing watchlist content in a sub-panel div
+  const assetsWrapper = document.createElement('div');
+  assetsWrapper.id = 'wl-sub-assets';
+  // Move all children except the tab bar into the wrapper
+  const children = [...watchlistPanel.children].filter(c => c !== tabBar);
+  children.forEach(c => assetsWrapper.appendChild(c));
+  watchlistPanel.appendChild(assetsWrapper);
+
+  // Create the strength sub-panel
+  const strengthWrapper = document.createElement('div');
+  strengthWrapper.id = 'wl-sub-strength';
+  strengthWrapper.style.display = 'none';
+  strengthWrapper.style.overflowY = 'auto';
+  strengthWrapper.style.flex = '1';
+
+  const strengthBody = document.createElement('div');
+  strengthBody.id = 'wl-strength-body';
+  strengthWrapper.appendChild(strengthBody);
+  watchlistPanel.appendChild(strengthWrapper);
 }
 
 // ═══════════════════════════════════════════════
