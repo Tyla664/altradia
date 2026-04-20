@@ -3492,40 +3492,22 @@ header {
    ═══════════════════════════════════════════════ */
 
 /* ── 1. MOBILE NAV — Telegram-style pill/card buttons ──────────────────── */
-/* Replace the flat tab bar with a floating pill container */
-.mobile-nav {
-  display: none;
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 150;
-  background: transparent;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  /* No border-top — floats over content */
-  border-top: none;
-  height: auto;
-  pointer-events: none; /* let taps pass through to the pill */
-}
 
-/* The inner pill container that holds all buttons */
-.mobile-nav::before {
-  display: none; /* remove if existed */
-}
-
-/* Wrap all nav buttons in a pill */
+/* Override the original flat nav bar to be a transparent container */
+/* Must keep display:flex inside @media all — only adjust layout here */
 .mobile-nav {
-  display: none;
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 150;
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-  background: transparent;
-  border-top: none;
-  height: auto;
+  background: transparent !important;
+  border-top: none !important;
+  height: auto !important;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
   pointer-events: none;
+  align-items: stretch;
 }
 
+/* The inner pill that wraps all buttons — injected by _initNavPill() in app.js */
 .mobile-nav .nav-pill-wrap {
   display: flex;
+  width: 100%;
   background: rgba(13, 21, 32, 0.96);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -3537,12 +3519,13 @@ header {
   box-shadow: 0 4px 24px rgba(0,0,0,0.5);
 }
 
-.mobile-nav-btn {
+/* Nav buttons inside the pill */
+.mobile-nav .nav-pill-wrap .mobile-nav-btn {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex: 1;
   gap: 3px;
   background: transparent;
   border: none;
@@ -3560,31 +3543,23 @@ header {
   min-width: 0;
 }
 
-/* Remove the old active underline line */
-.mobile-nav-btn.active::before {
-  display: none;
+/* Remove old underline active indicator */
+.mobile-nav .nav-pill-wrap .mobile-nav-btn::before {
+  display: none !important;
 }
 
-/* Active state — filled rounded rect like Telegram */
-.mobile-nav-btn.active {
+/* Active state: filled chip */
+.mobile-nav .nav-pill-wrap .mobile-nav-btn.active {
   color: var(--accent);
   background: rgba(0, 212, 255, 0.12);
 }
 
-.mobile-nav-btn.active .nav-icon svg {
-  filter: none; /* remove old drop-shadow */
+.mobile-nav .nav-pill-wrap .mobile-nav-btn.active .nav-icon svg {
+  filter: none;
 }
 
-.mobile-nav-btn .nav-icon {
-  font-size: 1.1rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Alert badge dot stays on top */
-.mobile-nav-btn .alert-badge-dot {
+/* Alert badge */
+.mobile-nav .nav-pill-wrap .mobile-nav-btn .alert-badge-dot {
   position: absolute;
   top: 5px;
   right: calc(50% - 15px);
@@ -3594,15 +3569,15 @@ header {
   border: 1.5px solid rgba(13,21,32,0.96);
   display: none;
 }
-.mobile-nav-btn .alert-badge-dot.show { display: block; }
+.mobile-nav .nav-pill-wrap .mobile-nav-btn .alert-badge-dot.show { display: block; }
 
-/* Light theme nav pill */
+/* Light theme */
 [data-theme="light"] .mobile-nav .nav-pill-wrap {
   background: rgba(255,255,255,0.97);
   border-color: var(--border);
   box-shadow: 0 4px 20px rgba(0,0,0,0.12);
 }
-[data-theme="light"] .mobile-nav-btn.active {
+[data-theme="light"] .mobile-nav .nav-pill-wrap .mobile-nav-btn.active {
   background: rgba(0,120,168,0.10);
 }
 
