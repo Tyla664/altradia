@@ -3486,4 +3486,714 @@ header {
   background: var(--green);
   padding: 2px 7px;
   border-radius: 10px;
+}/* ═══════════════════════════════════════════════
+   altradia — UI Patch
+   Nav pill redesign + uniform tab indicators
+   ═══════════════════════════════════════════════ */
+
+/* ── 1. MOBILE NAV — Telegram-style pill/card buttons ──────────────────── */
+/* Replace the flat tab bar with a floating pill container */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 150;
+  background: transparent;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  /* No border-top — floats over content */
+  border-top: none;
+  height: auto;
+  pointer-events: none; /* let taps pass through to the pill */
 }
+
+/* The inner pill container that holds all buttons */
+.mobile-nav::before {
+  display: none; /* remove if existed */
+}
+
+/* Wrap all nav buttons in a pill */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 150;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  background: transparent;
+  border-top: none;
+  height: auto;
+  pointer-events: none;
+}
+
+.mobile-nav .nav-pill-wrap {
+  display: flex;
+  background: rgba(13, 21, 32, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px;
+  pointer-events: all;
+  gap: 2px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+
+.mobile-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  border-radius: 14px;
+  color: var(--muted);
+  font-size: 0.5rem;
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 8px 4px 7px;
+  text-transform: uppercase;
+  position: relative;
+  transition: color 0.18s, background 0.18s;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+}
+
+/* Remove the old active underline line */
+.mobile-nav-btn.active::before {
+  display: none;
+}
+
+/* Active state — filled rounded rect like Telegram */
+.mobile-nav-btn.active {
+  color: var(--accent);
+  background: rgba(0, 212, 255, 0.12);
+}
+
+.mobile-nav-btn.active .nav-icon svg {
+  filter: none; /* remove old drop-shadow */
+}
+
+.mobile-nav-btn .nav-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Alert badge dot stays on top */
+.mobile-nav-btn .alert-badge-dot {
+  position: absolute;
+  top: 5px;
+  right: calc(50% - 15px);
+  width: 7px; height: 7px;
+  background: var(--gold);
+  border-radius: 50%;
+  border: 1.5px solid rgba(13,21,32,0.96);
+  display: none;
+}
+.mobile-nav-btn .alert-badge-dot.show { display: block; }
+
+/* Light theme nav pill */
+[data-theme="light"] .mobile-nav .nav-pill-wrap {
+  background: rgba(255,255,255,0.97);
+  border-color: var(--border);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+[data-theme="light"] .mobile-nav-btn.active {
+  background: rgba(0,120,168,0.10);
+}
+
+/* ── 2. UNIFORM TAB INDICATORS ───────────────────────────────────────────
+   All tabs across the app use the same pill/chip pattern:
+   inactive = muted text, no background
+   active   = accent text, subtle accent fill, rounded
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* Alert panel tabs (ACTIVE / TRADES / HISTORY) */
+.alert-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.alert-tab-btn {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-transform: uppercase;
+  position: relative;
+  /* Remove the old bottom border underline */
+}
+.alert-tab-btn::after { display: none; }
+
+.alert-tab-btn.active {
+  color: var(--accent);
+  background: rgba(0,212,255,0.10);
+  border-color: rgba(0,212,255,0.25);
+  font-weight: 700;
+}
+
+.alert-tab-btn:hover:not(.active) {
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+}
+
+/* Asset library modal tabs */
+.modal-tab {
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--muted);
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-weight: 500;
+  /* Remove old bottom-border underline style */
+}
+.modal-tab.active {
+  color: var(--accent);
+  background: rgba(0,212,255,0.10);
+  border-color: rgba(0,212,255,0.25);
+  font-weight: 700;
+}
+.modal-tab:hover:not(.active) {
+  color: var(--text);
+}
+
+/* Chart timeframe buttons */
+.chart-tf-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  padding: 4px 9px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chart-tf-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.chart-tf-btn.active {
+  color: var(--accent);
+  border-color: rgba(0,212,255,0.25);
+  background: rgba(0,212,255,0.10);
+  font-weight: 700;
+}
+
+/* Watchlist sub-tabs (WATCHLIST / STRENGTH) */
+#wl-subtab-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  gap: 6px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Override the inline button styles injected by _initWatchlistSubTabs */
+#wl-stab-assets,
+#wl-stab-strength {
+  flex: 0 0 auto !important;
+  padding: 6px 16px !important;
+  border-radius: 20px !important;
+  border: 1px solid transparent !important;
+  font-size: 0.62rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  cursor: pointer !important;
+  transition: all 0.18s !important;
+  font-family: var(--mono) !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+}
+
+/* Active state applied via JS _applyWlTabStyle — keep in sync */
+#wl-stab-assets[data-active="1"],
+#wl-stab-strength[data-active="1"] {
+  color: var(--accent) !important;
+  background: rgba(0,212,255,0.10) !important;
+  border-color: rgba(0,212,255,0.25) !important;
+  font-weight: 700 !important;
+}
+
+/* History filter buttons */
+.hf-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 0.61rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.hf-btn.active {
+  color: var(--accent);
+  background: rgba(0,212,255,0.10);
+  border-color: rgba(0,212,255,0.25);
+  font-weight: 700;
+}
+.hf-btn:hover:not(.active) { color: var(--text); }
+
+/* Subscription billing toggle buttons */
+.sub-billing-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.sub-billing-btn.active {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+/* Lib tabs row container — switch from border-bottom underline to pill style */
+.modal-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 0 12px;
+  scrollbar-width: none;
+}
+.modal-tabs::-webkit-scrollbar { display: none; }
+
+/* Light theme tab overrides */
+[data-theme="light"] .alert-tab-btn.active {
+  background: rgba(0,100,160,0.08);
+  border-color: rgba(0,100,160,0.2);
+}
+[data-theme="light"] .modal-tab.active {
+  background: rgba(0,100,160,0.08);
+  border-color: rgba(0,100,160,0.2);
+}
+[data-theme="light"] .chart-tf-btn.active {
+  background: rgba(0,100,160,0.08);
+  border-color: rgba(0,100,160,0.2);
+}
+[data-theme="light"] .hf-btn.active {
+  background: rgba(0,100,160,0.08);
+  border-color: rgba(0,100,160,0.2);
+}
+[data-theme="light"] #wl-stab-assets[data-active="1"],
+[data-theme="light"] #wl-stab-strength[data-active="1"] {
+  background: rgba(0,100,160,0.08) !important;
+  border-color: rgba(0,100,160,0.2) !important;
+}
+
+/* ── 3. BOTTOM CLEARANCE — nav pill is taller now ───────────────────────
+   Give panels extra bottom padding so content doesn't hide behind the pill */
+#alerts-list,
+#alerts-trades,
+#panel-my-watchlist,
+.main-panel {
+  padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+}
+#journal-list {
+  padding-bottom: calc(88px + env(safe-area-inset-bottom) + 16px) !important;
+}
+
+/* ═══════════════════════════════════════════════
+   EXTRACTED FROM app.js — inline styles → classes
+   ═══════════════════════════════════════════════ */
+
+/* ── Currency Strength Tab ─────────────────────────────────────────────── */
+.cs-gate {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 48px 24px; text-align: center; gap: 14px;
+}
+.cs-gate-icon {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.cs-gate-title { font-weight: 700; font-size: 0.95rem; color: var(--text); }
+.cs-gate-desc {
+  font-family: var(--mono); font-size: 0.65rem;
+  color: var(--muted); line-height: 1.6; max-width: 240px;
+}
+.cs-gate-btn {
+  background: var(--accent); color: #000;
+  font-family: var(--mono); font-weight: 700; font-size: 0.68rem;
+  letter-spacing: 0.08em; padding: 12px 24px;
+  border: none; border-radius: 10px; cursor: pointer; margin-top: 4px;
+}
+.cs-empty {
+  padding: 32px; text-align: center;
+  font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
+}
+.cs-empty-sub { font-size: 0.6rem; opacity: 0.6; }
+
+.cs-header {
+  padding: 12px 16px 6px; border-bottom: 1px solid var(--border);
+}
+.cs-header-label {
+  font-family: var(--mono); font-size: 0.55rem;
+  letter-spacing: 0.1em; color: var(--muted);
+  text-transform: uppercase; margin-bottom: 2px;
+}
+.cs-header-sub { font-family: var(--mono); font-size: 0.58rem; color: var(--muted); }
+
+.cs-rows { padding: 10px 16px 0; }
+
+.cs-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.cs-row-label {
+  font-family: var(--mono); font-weight: 700;
+  font-size: 0.85rem; color: var(--text);
+  width: 36px; flex-shrink: 0;
+}
+.cs-bar-track {
+  flex: 1; height: 6px; background: var(--border);
+  border-radius: 3px; overflow: hidden;
+}
+.cs-bar-fill {
+  height: 100%; border-radius: 3px; transition: width 0.4s ease;
+}
+.cs-row-score {
+  font-family: var(--mono); font-size: 0.75rem; font-weight: 700;
+  width: 28px; text-align: right; flex-shrink: 0;
+}
+.cs-row-mom {
+  font-family: var(--mono); font-size: 0.6rem;
+  width: 24px; flex-shrink: 0; text-align: right;
+}
+
+.cs-div-card {
+  margin: 12px 16px 0;
+  background: rgba(255,214,0,0.04); border: 1px solid rgba(255,214,0,0.2);
+  border-radius: 10px; padding: 12px;
+}
+.cs-div-label {
+  font-family: var(--mono); font-size: 0.55rem; letter-spacing: 0.1em;
+  color: #ffd600; text-transform: uppercase; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 5px;
+}
+.cs-div-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0; border-bottom: 1px solid rgba(255,214,0,0.1);
+}
+.cs-div-row:last-child { border-bottom: none; }
+.cs-div-pair { font-family: var(--mono); font-size: 0.75rem; font-weight: 700; color: var(--text); }
+.cs-div-meta { font-family: var(--mono); font-size: 0.6rem; color: var(--muted); margin-left: 8px; }
+.cs-div-pts { font-family: var(--mono); font-size: 0.68rem; font-weight: 700; color: #ffd600; }
+
+.cs-ai-section { margin: 10px 16px 0; }
+.cs-ai-result {
+  background: rgba(0,212,255,0.04); border: 1px solid rgba(0,212,255,0.15);
+  border-radius: 9px; padding: 11px 12px;
+}
+.cs-ai-label {
+  font-family: var(--mono); font-size: 0.52rem; color: var(--accent);
+  margin-bottom: 5px; letter-spacing: 0.1em;
+}
+.cs-ai-text { font-size: 0.78rem; color: var(--text); line-height: 1.5; }
+.cs-ai-btn {
+  width: 100%; padding: 10px;
+  background: rgba(0,212,255,0.06); border: 1px solid rgba(0,212,255,0.2);
+  border-radius: 9px; color: var(--accent);
+  font-family: var(--mono); font-size: 0.65rem; font-weight: 700;
+  letter-spacing: 0.08em; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+.cs-spacer { height: 16px; }
+
+/* ── Watchlist Sub-Tabs ─────────────────────────────────────────────────── */
+.wl-stab-bar {
+  display: flex; border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+  position: sticky; top: 0; z-index: 10;
+  padding: 8px 12px; gap: 6px;
+}
+.wl-stab-btn {
+  flex: 0 0 auto;
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.wl-stab-btn[data-active="1"] {
+  color: var(--accent);
+  background: rgba(0,212,255,0.10);
+  border-color: rgba(0,212,255,0.25);
+  font-weight: 700;
+}
+.wl-sub-strength {
+  overflow-y: auto; flex: 1;
+}
+
+/* ── Journal Asset Picker ───────────────────────────────────────────────── */
+.jap-overlay {
+  position: fixed; inset: 0; z-index: 99999;
+  background: var(--bg); display: flex; flex-direction: column;
+}
+.jap-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.jap-close-btn {
+  background: none; border: none; color: var(--muted);
+  padding: 4px 8px; cursor: pointer; font-size: 1.1rem;
+}
+.jap-title {
+  font-family: var(--mono); font-size: 0.65rem;
+  letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase;
+}
+.jap-search-wrap {
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.jap-search-input {
+  width: 100%; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--mono); font-size: 0.85rem;
+  padding: 10px 14px; border-radius: 9px;
+  box-sizing: border-box; outline: none;
+}
+.jap-search-input:focus { border-color: var(--accent); }
+.jap-results { flex: 1; overflow-y: auto; padding: 8px 0; }
+.jap-cat-label {
+  font-family: var(--mono); font-size: 0.55rem; letter-spacing: 0.1em;
+  color: var(--muted); padding: 10px 16px 4px; text-transform: uppercase;
+}
+.jap-asset-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 16px; border-bottom: 1px solid var(--border);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+}
+.jap-asset-row:active { background: var(--surface2); }
+.jap-asset-sym { font-size: 0.85rem; font-weight: 700; color: var(--text); }
+.jap-asset-name {
+  font-family: var(--mono); font-size: 0.6rem;
+  color: var(--muted); margin-top: 1px;
+}
+
+/* ── Alert card detail lines ───────────────────────────────────────────── */
+.alert-detail-muted { opacity: 0.6; font-size: 0.75em; }
+.alert-zone-active-line   { color: var(--accent); font-size: 0.78rem; }
+.alert-zone-crossed-line  { color: #e88a00; font-size: 0.78rem; }
+.alert-zone-triggered-line{ color: var(--green); font-size: 0.78rem; }
+.alert-zone-exited-line   { color: var(--red); font-size: 0.78rem; }
+
+/* ── Analytics KPI boxes ───────────────────────────────────────────────── */
+.analytics-kpi-box {
+  flex: 1; min-width: 100px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; padding: 8px 10px;
+}
+.analytics-kpi-label {
+  font-family: var(--mono); font-size: 0.55rem;
+  color: var(--muted); margin-bottom: 3px;
+}
+.analytics-kpi-val {
+  font-family: var(--mono); font-size: 0.9rem;
+  font-weight: 700; color: var(--text);
+}
+.analytics-kpi-val.kpi-red { color: var(--red); }
+
+/* ── Gate desc (shared) ────────────────────────────────────────────────── */
+.gate-desc {
+  font-family: var(--mono); font-size: 0.65rem;
+  color: var(--muted); line-height: 1.6; max-width: 240px;
+}
+
+/* ── Bottom sheet inner panel ──────────────────────────────────────────── */
+.bottom-sheet-inner {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px 16px 0 0; width: 100%; max-width: 480px;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+}
+
+/* ── Light theme overrides for extracted classes ───────────────────────── */
+[data-theme="light"] .cs-gate-btn { background: var(--accent); }
+[data-theme="light"] .cs-div-card { background: rgba(160,120,0,0.04); border-color: rgba(160,120,0,0.15); }
+[data-theme="light"] .cs-div-label { color: #8a6e00; }
+[data-theme="light"] .cs-div-pts { color: #8a6e00; }
+[data-theme="light"] .cs-ai-btn { background: rgba(0,100,160,0.06); border-color: rgba(0,100,160,0.2); }
+[data-theme="light"] .analytics-kpi-box { background: #f8fafc; }
+[data-theme="light"] .jap-overlay { background: var(--bg); }
+[data-theme="light"] .jap-header,
+[data-theme="light"] .jap-search-wrap { background: #fff; }
+[data-theme="light"] .jap-search-input { background: #f0f4f8; border-color: var(--border); }
+[data-theme="light"] .jap-asset-row:active { background: #f0f4f8; }
+[data-theme="light"] .wl-stab-btn[data-active="1"] {
+  background: rgba(0,100,160,0.10);
+  border-color: rgba(0,100,160,0.25);
+}
+[data-theme="light"] .bottom-sheet-inner { background: #fff; }
+
+/* ── Utility classes (extracted from repeated app.js inline styles) ──────── */
+.txt-mono-muted    { font-family:var(--mono); font-size:0.6rem; color:var(--muted); }
+.txt-mono-muted-sm { font-family:var(--mono); font-size:0.65rem; color:var(--muted); line-height:1.6; margin-top:4px; }
+.txt-green         { color: var(--green); }
+.txt-red           { color: var(--red); }
+.txt-default       { color: var(--text); }
+.txt-right         { text-align: right; }
+.txt-muted-06      { opacity: 0.6; }
+.txt-muted-06-sm   { opacity: 0.6; font-size: 0.75em; }
+.icon-inline       { display: inline-block; vertical-align: middle; margin-right: 3px; }
+.flex-center-sm    { display: flex; align-items: center; gap: 3px; }
+.flex-1            { flex: 1; }
+.ml-auto-noshrink  { margin-left: auto; flex-shrink: 0; }
+.mb-12             { margin-bottom: 12px; }
+.mb-24             { margin-bottom: 24px; }
+.px-16             { padding: 0 16px; }
+
+/* ── Additional extracted classes ─────────────────────────────────────── */
+
+/* Watchlist ungrouped category badge */
+.wl-cat-badge {
+  font-family: var(--mono); font-size: 0.5rem; letter-spacing: 0.08em;
+  color: var(--muted); background: var(--surface2);
+  padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+}
+
+/* Watchlist remove button */
+.wl-remove-btn {
+  background: none; border: none; color: var(--red);
+  cursor: pointer; padding: 6px;
+  display: flex; align-items: center; flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Trade setup level labels in alert cards */
+.level-label-muted { color: var(--muted); font-size: 0.72rem; }
+.level-label-red   { color: var(--red);   font-size: 0.72rem; }
+.level-label-green { color: var(--green); font-size: 0.72rem; }
+
+/* Setup alert detail overrides */
+.alert-detail-setup { font-size: 0.75rem; line-height: 1.9; }
+
+/* Modal section labels (Close trade / Trail stop headings) */
+.modal-section-label {
+  font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.12em;
+  color: var(--muted); text-align: center; margin-bottom: 16px;
+}
+
+/* Form field labels inside dynamic modals */
+.form-field-label {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.1em;
+  color: var(--muted); display: block; margin-bottom: 6px;
+}
+
+/* Modal action buttons */
+.modal-btn-cancel {
+  flex: 1; padding: 12px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--muted); font-family: var(--mono); font-size: 0.72rem;
+  border-radius: 8px; cursor: pointer;
+}
+.modal-btn-trail {
+  flex: 2; padding: 12px;
+  background: rgba(255,214,0,0.12); border: 1px solid rgba(255,214,0,0.4);
+  color: var(--gold); font-family: var(--mono); font-size: 0.75rem;
+  font-weight: 700; letter-spacing: 0.06em; border-radius: 8px; cursor: pointer;
+}
+
+/* Trail stop pct/price toggle */
+.trail-toggle-btn {
+  flex: 1; padding: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--muted); font-family: var(--mono); font-size: 0.68rem;
+  font-weight: 700; border-radius: 7px; cursor: pointer;
+}
+.trail-toggle-btn.trail-toggle-active {
+  background: rgba(0,212,255,0.15); border-color: var(--accent); color: var(--accent);
+}
+
+/* Small descriptive text in dynamic modals */
+.modal-desc-sm {
+  font-size: 0.72rem; color: var(--muted);
+  margin-bottom: 14px; font-family: var(--mono);
+}
+
+/* Light theme overrides */
+[data-theme="light"] .wl-cat-badge { background: var(--surface2); }
+[data-theme="light"] .modal-btn-cancel { background: #f0f4f8; border-color: var(--border); }
+[data-theme="light"] .trail-toggle-btn { background: #f0f4f8; border-color: var(--border); }
+[data-theme="light"] .trail-toggle-btn.trail-toggle-active { background: rgba(0,100,160,0.10); }
+
+/* ═══════════════════════════════════════════════
+   UTILITY CLASSES — extracted from app.js
+   ═══════════════════════════════════════════════ */
+
+/* SVG inline icon helpers */
+.svg-icon-sm {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* Layout utilities */
+.flex-row-xs  { display: flex; align-items: center; gap: 3px; }
+.flex-col-sm  { display: flex; flex-direction: column; gap: 10px; }
+.flex-sb-mb   { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.flex-1       { flex: 1; }
+.ml-auto      { margin-left: auto; flex-shrink: 0; }
+.text-right   { text-align: right; }
+.px-16        { padding: 0 16px; }
+.section-pad  { padding: 20px 16px 0; }
+.mb-24        { margin-bottom: 24px; }
+.mb-12        { margin-bottom: 12px; }
+
+/* Opacity utilities */
+.opacity-90   { opacity: 0.9; }
+.opacity-60   { opacity: 0.6; }
+.opacity-40   { opacity: 0.4; }
+
+/* Text helpers */
+.text-sm-muted    { opacity: 0.55; font-size: 0.72rem; }
+.text-xs-muted-sub{ font-size: 0.6rem; opacity: 0.7; font-weight: 400; margin-top: 2px; }
+.card-title-sm    { font-size: 0.82rem; font-weight: 600; margin-bottom: 2px; }
+.body-text        { font-size: 0.82rem; color: var(--text); line-height: 1.5; }
