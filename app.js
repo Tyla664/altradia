@@ -1336,14 +1336,41 @@ async function fetchStrengthAiInsight() {
   }
 
   const { scores, divergences } = result;
-  const sorted = [...CS_CURRENCIES].sort((a,b) => (scores[b]??50) - (scores[a]??50));
-  const top3 = sorted.slice(0, 3).join(', ');
-  const bot3 = sorted.slice(-3).join(', ');
-  const topDiv = divergences[0];
-  const prompt = `Currency strength scores (0-100): ${sorted.map(c => `${c}:${scores[c]}`).join(', ')}. ` +
-    `Strongest: ${top3}. Weakest: ${bot3}. ` +
-    (topDiv ? `Biggest divergence: ${topDiv.pair} (${topDiv.strong} vs ${topDiv.weak}, ${topDiv.divergence}pts). ` : '') +
-    `Give a 2-sentence directional bias for today's key forex pairs. Be specific and actionable. No disclaimers.`;
+
+  // Restrict AI bias to ONLY the user's watchlist — currencies and pairs.
+  // Collect watchlist currencies + their actual forex pairs for the prompt.
+  const wlCurrs = [...getWatchlistCurrencies()];
+  const wlForexAssets = Object.values(ASSETS).flat()
+    .filter(a => a.cat === 'forex' && a.id.includes('/'))
+    .map(a => a.id);
+
+  // If user has no forex pairs on watchlist, don't call AI — it has nothing to bias
+  if (wlForexAssets.length === 0) {
+    if (btn) { btn.textContent = 'Add forex pairs to watchlist first'; btn.disabled = false; }
+    return;
+  }
+
+  // Build a scores map that ONLY includes watchlist currencies
+  const wlScores = {};
+  wlCurrs.forEach(c => { if (scores[c] !== undefined) wlScores[c] = scores[c]; });
+
+  const sorted = Object.keys(wlScores).sort((a,b) => wlScores[b] - wlScores[a]);
+  const top = sorted.slice(0, Math.min(2, sorted.length)).join(', ');
+  const bot = sorted.slice(-Math.min(2, sorted.length)).join(', ');
+
+  // Only include divergences that are for pairs on the watchlist
+  const wlDivergences = divergences.filter(d => wlForexAssets.includes(d.pair));
+  const topDiv = wlDivergences[0];
+
+  const prompt =
+    `You are analyzing forex for a trader whose watchlist contains ONLY these pairs: ${wlForexAssets.join(', ')}. ` +
+    `You MUST restrict your analysis strictly to these pairs and their constituent currencies (${wlCurrs.join(', ')}). ` +
+    `Do NOT reference any other currency or pair. ` +
+    `Currency strength scores (0-100) for watchlist currencies: ${sorted.map(c => `${c}:${wlScores[c]}`).join(', ')}. ` +
+    `Strongest: ${top}. Weakest: ${bot}. ` +
+    (topDiv ? `Biggest watchlist divergence: ${topDiv.pair} (${topDiv.strong} strong vs ${topDiv.weak} weak, ${topDiv.divergence}pts). ` : '') +
+    `Give a 2-sentence directional bias. Only name pairs from this list: ${wlForexAssets.join(', ')}. ` +
+    `Be specific and actionable. No disclaimers.`;
 
   try {
     console.log('[AI Bias] Calling edge function with prompt:', prompt);
