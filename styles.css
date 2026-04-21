@@ -1676,11 +1676,12 @@ header {
 .mobile-nav {
   display: none;
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 150;
-  background: rgba(8,12,18,0.97);
-  backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border);
-  height: 60px;
-  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  border-top: none;
+  height: auto;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  pointer-events: none;
 }
 .mobile-nav-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -3493,17 +3494,6 @@ header {
 
 /* ── 1. MOBILE NAV — Telegram-style pill/card buttons ──────────────────── */
 
-/* Override the original flat nav bar to be a transparent container */
-/* Must keep display:flex inside @media all — only adjust layout here */
-.mobile-nav {
-  background: transparent !important;
-  border-top: none !important;
-  height: auto !important;
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
-  pointer-events: none;
-  align-items: stretch;
-}
-
 /* The inner pill that wraps all buttons — injected by _initNavPill() in app.js */
 .mobile-nav .nav-pill-wrap {
   display: flex;
@@ -3802,10 +3792,10 @@ header {
 #alerts-trades,
 #panel-my-watchlist,
 .main-panel {
-  padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
 }
 #journal-list {
-  padding-bottom: calc(88px + env(safe-area-inset-bottom) + 16px) !important;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom) + 16px) !important;
 }
 
 /* ═══════════════════════════════════════════════
