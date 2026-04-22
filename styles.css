@@ -1623,6 +1623,42 @@ header {
 #setup-tp2notify-yes.active { background: rgba(0,212,255,0.12); border-color: var(--accent); color: var(--accent); }
 #setup-tp2notify-no.active  { background: rgba(74,106,128,0.15); border-color: var(--muted); color: var(--text); }
 
+/* Trade status segmented control — Taken / Missed / Ignored */
+.jnl-status-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.jnl-status-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.jnl-status-btn:hover { border-color: var(--accent); color: var(--accent); }
+#jnl-status-taken.active   { background: rgba(0,230,118,0.12); border-color: var(--green);  color: var(--green); }
+#jnl-status-missed.active  { background: rgba(255,176,32,0.12); border-color: #ffb020;       color: #ffb020; }
+#jnl-status-ignored.active { background: rgba(74,106,128,0.18); border-color: var(--muted);  color: var(--text); }
+.jnl-status-hint {
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
 /* ── R:R ratio buttons — same base as setup-dir-btn, accent active state ── */
 .rr-btn.active {
   background: rgba(0,212,255,0.12);
@@ -4162,3 +4198,45 @@ header {
 .text-xs-muted-sub{ font-size: 0.6rem; opacity: 0.7; font-weight: 400; margin-top: 2px; }
 .card-title-sm    { font-size: 0.82rem; font-weight: 600; margin-bottom: 2px; }
 .body-text        { font-size: 0.82rem; color: var(--text); line-height: 1.5; }
+
+
+/* ── Journal status badges (Missed / Ignored) ─────────────────────────── */
+/* Rendered on the journal card summary for non-taken entries. Taken trades
+   keep their normal outcome pill + P&L without any extra decoration. */
+.journal-card-status {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+.journal-card-status.jcs-missed {
+  background: rgba(255,176,32,0.12);
+  color: #ffb020;
+  border-color: rgba(255,176,32,0.35);
+}
+.journal-card-status.jcs-ignored {
+  background: rgba(74,106,128,0.18);
+  color: var(--muted);
+  border-color: var(--border);
+}
+/* Dim non-taken journal cards so they recede visually vs real trades */
+.journal-card[data-status="missed"],
+.journal-card[data-status="ignored"] {
+  opacity: 0.78;
+}
+/* Secondary stats strip under journal stats — shows missed/ignored counts
+   without inflating headline KPIs */
+.journal-secondary-strip {
+  grid-column: 1 / -1;
+  text-align: center;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.journal-secondary-strip .jss-missed  { color: #ffb020; }
+.journal-secondary-strip .jss-ignored { color: var(--muted); }
