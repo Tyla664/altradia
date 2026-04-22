@@ -4227,16 +4227,47 @@ header {
 .journal-card[data-status="ignored"] {
   opacity: 0.78;
 }
-/* Secondary stats strip under journal stats — shows missed/ignored counts
-   without inflating headline KPIs */
-.journal-secondary-strip {
+/* Journal status pills — sit below the main stats grid to show how many
+   setups were observed but not taken. They're visually distinct from
+   headline KPIs (smaller, pill-shaped, colour-tinted) so they don't
+   compete for attention but remain scannable. */
+.journal-status-pills {
   grid-column: 1 / -1;
-  text-align: center;
-  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.jsp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
   font-family: var(--mono);
-  font-size: 0.58rem;
-  letter-spacing: 0.05em;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.jsp .jsp-count {
+  font-weight: 800;
+  font-size: 0.72rem;
+}
+.jsp .jsp-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+}
+.jsp.jsp-missed {
+  background: rgba(255,176,32,0.10);
+  border-color: rgba(255,176,32,0.35);
+  color: #ffb020;
+}
+.jsp.jsp-ignored {
+  background: rgba(74,106,128,0.14);
+  border-color: var(--border);
   color: var(--muted);
 }
-.journal-secondary-strip .jss-missed  { color: #ffb020; }
-.journal-secondary-strip .jss-ignored { color: var(--muted); }
