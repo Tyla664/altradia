@@ -528,15 +528,24 @@ let derivRetryTimer  = null;
 let derivRetryTimer2 = null;
 
 function resubscribeAllDeriv() {
-  // Only subscribe watchlist + selected asset — not all 100+ assets
+  // Subscribe watchlist + selected asset + active-alert assets. Matches
+  // connectDeriv's inclusion list so re-subscribes don't drop alert feeds.
   if (_conn1.ready && _conn1.ws && _conn1.ws.readyState === WebSocket.OPEN) {
     const watchlistAssets = Object.values(ASSETS).flat();
     const selectedArr = selectedAsset && !watchlistAssets.some(a => a.id === selectedAsset.id)
       ? [selectedAsset] : [];
+    const alertAssetIds = new Set(
+      (alerts || [])
+        .filter(a => a.status === 'active')
+        .map(a => a.assetId)
+    );
+    const alertAssets = [...alertAssetIds]
+      .map(id => ASSET_BY_ID.get(id))
+      .filter(Boolean);
     const baseSyms = ['frxEURUSD','frxGBPUSD','frxUSDJPY','frxAUDUSD','frxUSDCAD'];
     const nonSynthSyms = [
       ...new Set([
-        ...[...watchlistAssets, ...selectedArr]
+        ...[...watchlistAssets, ...selectedArr, ...alertAssets]
           .filter(a => a.derivSym && a.cat !== 'synthetics')
           .map(a => a.derivSym),
         ...baseSyms,
@@ -703,13 +712,24 @@ const _conn1 = { ws: null, ready: false, timer: null };
 const _conn2 = { ws: null, ready: false, timer: null };
 
 function connectDeriv() {
-  // Only subscribe to watchlist assets + currently selected asset
-  // Subscribing ALL_ASSETS (~100+ symbols) exceeds Deriv's per-connection limit
-  // and causes ticks to be silently dropped for many assets
+  // Subscribe to watchlist assets + currently selected asset + any assets
+  // with an active alert. Without the alert-asset inclusion, alerts set on
+  // assets not in the watchlist receive no live ticks and only get checked
+  // by the every-60s edge function — causing late/missed triggers.
   const watchlistAssets = Object.values(ASSETS).flat();
   const selectedArr = selectedAsset && !watchlistAssets.some(a => a.id === selectedAsset.id)
     ? [selectedAsset] : [];
-  const toSubscribe = [...watchlistAssets, ...selectedArr]
+  // Pull all unique asset IDs that currently have an active alert, then
+  // resolve them to catalogue entries. Filter out anything we can't look up.
+  const alertAssetIds = new Set(
+    (alerts || [])
+      .filter(a => a.status === 'active')
+      .map(a => a.assetId)
+  );
+  const alertAssets = [...alertAssetIds]
+    .map(id => ASSET_BY_ID.get(id))
+    .filter(Boolean);
+  const toSubscribe = [...watchlistAssets, ...selectedArr, ...alertAssets]
     .filter(a => a.derivSym && a.cat !== 'synthetics');
   // Always include a base set of major pairs even if watchlist is empty
   const baseSyms = ['frxEURUSD','frxGBPUSD','frxUSDJPY','frxAUDUSD','frxUSDCAD'];
@@ -2926,6 +2946,12 @@ async function createAlert() {
 
   alerts.push(newAlert);
 
+  // Immediately subscribe to this asset's Deriv tick stream so the alert
+  // starts receiving live ticks without waiting for the 60s resubscribe cycle.
+  // Critical for assets not on the watchlist — otherwise only the edge
+  // function would check them, causing late triggers.
+  try { subscribeDerivAsset(assetInfo); } catch(e) {}
+
   try {
     const saved = await saveAlert(newAlert);
     const idx = alerts.findIndex(a => a.id === newAlert.id);
@@ -4402,6 +4428,10 @@ async function createSetupAlert() {
   };
 
   alerts.push(newAlert);
+
+  // Immediately subscribe to this asset's Deriv tick stream so the setup
+  // alert starts receiving live ticks right away.
+  try { subscribeDerivAsset(selectedAsset); } catch(e) {}
 
   // Navigate immediately — don't wait for DB save so UX feels instant
   renderAlerts();
