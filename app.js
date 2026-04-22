@@ -4069,6 +4069,11 @@ function checkAlerts() {
 
 let setupDirection  = 'long';
 let setupTp2Notify  = true;
+// Setup alert screenshot — stored as the "before" image in the trade journal
+// when the user later logs the trade. Can be a freshly selected File or a URL
+// from an existing alert being edited.
+let setupShotFile       = null;
+let setupShotExistingUrl = null;
 
 function setSetupDirection(dir) {
   setupDirection = dir;
@@ -4234,19 +4239,32 @@ async function createSetupAlert() {
     const existing = alerts.find(a => a.id === editingAlertId);
     if (existing) {
       const oldJ = getJournal(existing);
+      // Resolve the setup screenshot: new upload wins; else keep the existing
+      // tracker (which is the URL if user kept it, or null if they deleted it).
+      let editedSetupShot = oldJ.setupScreenshot || null;
+      if (setupShotFile) {
+        try {
+          const url = await uploadScreenshot(setupShotFile, 'setup');
+          if (url) editedSetupShot = url;
+        } catch(e) { console.warn('setup screenshot upload failed:', e); }
+      } else if (setupShotExistingUrl === null && oldJ.setupScreenshot) {
+        // User explicitly removed the existing screenshot (via × button)
+        editedSetupShot = null;
+      }
       const updatedJournal = {
         ...oldJ,
-        direction:     setupDirection,
-        sl:            isNaN(sl)   ? oldJ.sl   : sl,
-        tp1:           isNaN(tp1)  ? oldJ.tp1  : tp1,
-        tp2:           tp2 !== null ? tp2 : oldJ.tp2 || null,
-        tp3:           tp3 !== null ? tp3 : oldJ.tp3 || null,
-        tp2Notify:     setupTp2Notify,
-        setupType:     setupType   || oldJ.setupType   || null,
-        entryReason:   entryReason || oldJ.entryReason || null,
-        htfContext:    htfContext  || oldJ.htfContext  || null,
-        emotionBefore: emotionBefore || oldJ.emotionBefore || null,
-        tradeStatus:   oldJ.tradeStatus || 'watching',
+        direction:       setupDirection,
+        sl:              isNaN(sl)   ? oldJ.sl   : sl,
+        tp1:             isNaN(tp1)  ? oldJ.tp1  : tp1,
+        tp2:             tp2 !== null ? tp2 : oldJ.tp2 || null,
+        tp3:             tp3 !== null ? tp3 : oldJ.tp3 || null,
+        tp2Notify:       setupTp2Notify,
+        setupType:       setupType   || oldJ.setupType   || null,
+        entryReason:     entryReason || oldJ.entryReason || null,
+        htfContext:      htfContext  || oldJ.htfContext  || null,
+        emotionBefore:   emotionBefore || oldJ.emotionBefore || null,
+        tradeStatus:     oldJ.tradeStatus || 'watching',
+        setupScreenshot: editedSetupShot,
       };
       Object.assign(existing, {
         targetPrice:  isNaN(entry) ? existing.targetPrice : entry,
@@ -4277,6 +4295,8 @@ async function createSetupAlert() {
         const fel = document.getElementById(fid);
         if (fel) fel.selectedIndex = 0;
       });
+      // Reset the setup screenshot state and preview
+      removeSetupShot(null);
       // Reset R:R selector
       setupMinRR = null;
       document.querySelectorAll('.rr-btn').forEach(b => b.classList.remove('active'));
@@ -4329,6 +4349,17 @@ async function createSetupAlert() {
     }
   }
 
+  // Upload the setup screenshot (if any) before building the journal. We store
+  // the resulting URL inside the note JSON so it travels with the alert and
+  // can be used as the "Before" image when the user eventually logs the trade.
+  let setupScreenshotUrl = setupShotExistingUrl || null;
+  if (setupShotFile) {
+    try {
+      const url = await uploadScreenshot(setupShotFile, 'setup');
+      if (url) setupScreenshotUrl = url;
+    } catch(e) { console.warn('setup screenshot upload failed:', e); }
+  }
+
   // Pack all journal + trade data into the note field as JSON
   const currentPriceNow = priceData[selectedAsset.id]?.price || null;
   const journal = {
@@ -4346,6 +4377,9 @@ async function createSetupAlert() {
     // Store live price at creation so checkSetupLevels can verify price
     // must actually TRAVEL to entry, not fire if already past it at creation
     priceAtCreation: currentPriceNow,
+    // URL of the setup chart screenshot. Becomes the "Before" image in the
+    // trade journal entry when the user logs the completed trade.
+    setupScreenshot: setupScreenshotUrl,
   };
 
   const newAlert = {
@@ -4384,6 +4418,8 @@ async function createSetupAlert() {
     const el = document.getElementById(id);
     if (el) el.selectedIndex = 0;
   });
+  // Reset setup screenshot state and preview
+  removeSetupShot(null);
   // Reset R:R selector
   setupMinRR = null;
   document.querySelectorAll('.rr-btn').forEach(b => b.classList.remove('active'));
@@ -4680,6 +4716,20 @@ function editSetupAlert(id) {
   document.getElementById('setup-tp2notify-yes')?.classList.toggle('active',  notify);
   document.getElementById('setup-tp2notify-no')?.classList.toggle('active',  !notify);
   setupTp2Notify = notify;
+
+  // ── Step 6b: Restore existing setup screenshot into the preview so the user
+  // sees it's still attached. Can be deleted or replaced via the × / re-upload.
+  setupShotFile = null;
+  setupShotExistingUrl = null;
+  if (j.setupScreenshot) renderExistingSetupShot(j.setupScreenshot);
+  else {
+    // No existing screenshot — ensure the preview is in the empty state
+    const prev = document.getElementById('setup-shot-preview');
+    if (prev) {
+      prev.className = 'screenshot-preview-empty';
+      prev.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.4"/><circle cx="8.5" cy="9.5" r="1.5" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.6"/><path d="M3 17l5-5 3 3 3-3 5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.5"/></svg><span>Tap to upload your chart setup</span>`;
+    }
+  }
 
   // ── Step 7: Update button to UPDATE SETUP
   const btn = document.getElementById('set-alert-btn');
@@ -5077,6 +5127,11 @@ let jnlAfterFile       = null;
 let editingJournalId   = null; // set when editing an existing journal entry
 let jnlBeforeUrl       = null;
 let jnlAfterUrl        = null;
+// When editing an existing entry, these hold the URLs of screenshots already
+// on the entry so we can render them in the preview and preserve them on save
+// unless the user explicitly deletes them via the per-image remove button.
+let jnlExistingBeforeUrl = null;
+let jnlExistingAfterUrl  = null;
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
 async function loadJournalFromDB() {
@@ -5187,6 +5242,55 @@ function handleScreenshotUpload(slot, input) {
 
   if (slot === 'before') jnlBeforeFile = file;
   else                    jnlAfterFile  = file;
+}
+
+// Handle image selection for the setup alert screenshot uploader.
+function handleSetupShotUpload(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  setupShotFile = file;
+  setupShotExistingUrl = null; // new upload supersedes any existing URL
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const el = document.getElementById('setup-shot-preview');
+    if (!el) return;
+    el.className = 'screenshot-preview-filled';
+    el.innerHTML = `
+      <img src="${e.target.result}" class="screenshot-preview-img" alt="Setup">
+      <button class="screenshot-preview-remove" onclick="removeSetupShot(event)" title="Remove">&#x2715;</button>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Called by the × button in the setup screenshot preview to clear it.
+function removeSetupShot(e) {
+  if (e) e.stopPropagation();
+  setupShotFile = null;
+  setupShotExistingUrl = null;
+  const inp = document.getElementById('setup-shot-input');
+  if (inp) inp.value = '';
+  const el = document.getElementById('setup-shot-preview');
+  if (el) {
+    el.className = 'screenshot-preview-empty';
+    el.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.4"/><circle cx="8.5" cy="9.5" r="1.5" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.6"/><path d="M3 17l5-5 3 3 3-3 5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.5"/></svg><span>Tap to upload your chart setup</span>`;
+  }
+}
+
+// Render an existing setup screenshot URL (when the user edits an alert that
+// already has one) into the preview box with a remove button.
+function renderExistingSetupShot(url) {
+  if (!url) return;
+  setupShotExistingUrl = url;
+  setupShotFile = null;
+  const el = document.getElementById('setup-shot-preview');
+  if (!el) return;
+  const safeUrl = url.replace(/'/g, "\\'");
+  el.className = 'screenshot-preview-filled';
+  el.innerHTML = `
+    <img src="${url}" class="screenshot-preview-img" alt="Setup"
+         onclick="openImageFullscreen('${safeUrl}')">
+    <button type="button" class="screenshot-preview-remove"
+      onclick="removeSetupShot(event)" title="Remove this image">&#x2715;</button>`;
 }
 
 function removeScreenshot(slot, e) {
@@ -5327,10 +5431,54 @@ function selectJournalAsset(symbol) {
   document.getElementById('journal-asset-picker')?.remove();
 }
 
+// Render an existing screenshot URL into a preview slot, with a trash icon
+// overlay that lets the user explicitly remove the image from the entry.
+// "which" is 'before' or 'after' — used to clear the corresponding tracker.
+function _renderExistingScreenshotPreview(previewId, url, which) {
+  const el = document.getElementById(previewId);
+  if (!el) return;
+  const safeUrl = url.replace(/'/g, "\\'");
+  el.className = 'screenshot-preview-filled';
+  el.innerHTML = `
+    <img src="${url}" alt="${which === 'before' ? 'Before' : 'After'}" class="screenshot-preview-img"
+         onclick="openImageFullscreen('${safeUrl}')">
+    <button type="button" class="screenshot-preview-remove"
+      onclick="event.stopPropagation(); removeJournalScreenshot('${which}')"
+      title="Remove this image">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="9" y1="3" x2="3" y2="9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </button>`;
+}
+
+// Called by the trash-overlay button in the edit form when the user wants to
+// remove an existing screenshot from the entry. Clears the tracker and resets
+// the preview tile to its empty "Tap to upload" state.
+function removeJournalScreenshot(which) {
+  if (which === 'before') {
+    jnlExistingBeforeUrl = null;
+    jnlBeforeFile = null;
+    const input = document.getElementById('jnl-before-input');
+    if (input) input.value = '';
+  } else if (which === 'after') {
+    jnlExistingAfterUrl = null;
+    jnlAfterFile = null;
+    const input = document.getElementById('jnl-after-input');
+    if (input) input.value = '';
+  }
+  const el = document.getElementById(`jnl-${which}-preview`);
+  if (el) {
+    el.className = 'screenshot-preview-empty';
+    el.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.4"/><circle cx="8.5" cy="9.5" r="1.5" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.6"/><path d="M3 17l5-5 3 3 3-3 5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.5"/></svg><span>Tap to upload</span>`;
+  }
+}
+
 function openJournalEntryForm(prefill = null) {
   // Reset form
   jnlBeforeFile = null; jnlAfterFile = null;
   jnlBeforeUrl  = null; jnlAfterUrl  = null;
+  jnlExistingBeforeUrl = null; jnlExistingAfterUrl = null;
   setJnlDir('long');
   setJnlStatus('taken');
   ['jnl-symbol','jnl-entry','jnl-exit','jnl-sl','jnl-tp1','jnl-tp2','jnl-tp3','jnl-pnl','jnl-entry-reason','jnl-htf','jnl-lessons'].forEach(id => {
@@ -5425,7 +5573,22 @@ function openJournalEntryForm(prefill = null) {
       const el = document.getElementById('jnl-lessons');
       if (el && !el.value) el.value = `Closed early: ${prefill.closeReason}`;
     }
+    // Existing screenshots (edit path) — show them as image thumbnails so the
+    // user sees the entry's images are still attached. Stored in separate
+    // existing-URL globals so we can preserve them on save unless deleted.
+    if (prefill.screenshotBefore) {
+      jnlExistingBeforeUrl = prefill.screenshotBefore;
+      _renderExistingScreenshotPreview('jnl-before-preview', prefill.screenshotBefore, 'before');
+    }
+    if (prefill.screenshotAfter) {
+      jnlExistingAfterUrl = prefill.screenshotAfter;
+      _renderExistingScreenshotPreview('jnl-after-preview', prefill.screenshotAfter, 'after');
+    }
   }
+
+  // Update the save button text: "UPDATE ENTRY" when editing, otherwise default.
+  const saveBtn = document.getElementById('journal-save-btn');
+  if (saveBtn) saveBtn.textContent = editingJournalId ? 'UPDATE ENTRY' : 'SAVE TO JOURNAL';
 
   document.getElementById('journal-modal').style.display = 'block';
 
@@ -5525,13 +5688,20 @@ async function saveJournalEntry() {
     const existingIdx = journalEntries.findIndex(e => String(e.id) === String(editId));
     const existing = existingIdx !== -1 ? journalEntries[existingIdx] : null;
 
-    // Keep old screenshots if no new ones uploaded
-    const hasNewScreenshots = capturedFiles.before || capturedFiles.after;
+    // Decide the fate of each screenshot:
+    // - If user uploaded a NEW file → upload and use new URL
+    // - If user KEPT the existing image (didn't tap trash) → preserve existing URL
+    // - If user DELETED the existing image (tapped trash, no replacement) → null it
+    const hasNewBefore = !!capturedFiles.before;
+    const hasNewAfter  = !!capturedFiles.after;
+    const keepExistingBefore = !hasNewBefore && jnlExistingBeforeUrl !== null;
+    const keepExistingAfter  = !hasNewAfter  && jnlExistingAfterUrl  !== null;
+
     const updatedRecord = {
       ...record,
       id: editId,
-      screenshot_before: existing?.screenshot_before || null,
-      screenshot_after:  existing?.screenshot_after  || null,
+      screenshot_before: keepExistingBefore ? (existing?.screenshot_before || null) : null,
+      screenshot_after:  keepExistingAfter  ? (existing?.screenshot_after  || null) : null,
     };
     if (existingIdx !== -1) journalEntries[existingIdx] = updatedRecord;
 
@@ -5542,19 +5712,25 @@ async function saveJournalEntry() {
     if (isMobileLayout()) mobileTab('journal');
     showToast('Entry Updated', `${symbol} journal entry updated.`, 'success');
 
-    // Upload new screenshots if provided, then patch DB
+    // Upload any new screenshots. Preserved/deleted cases don't need upload.
     const [beforeUrl, afterUrl] = await Promise.all([
-      hasNewScreenshots ? uploadScreenshot(capturedFiles.before, 'before') : Promise.resolve(null),
-      hasNewScreenshots ? uploadScreenshot(capturedFiles.after,  'after')  : Promise.resolve(null),
+      hasNewBefore ? uploadScreenshot(capturedFiles.before, 'before') : Promise.resolve(null),
+      hasNewAfter  ? uploadScreenshot(capturedFiles.after,  'after')  : Promise.resolve(null),
     ]);
     if (beforeUrl) updatedRecord.screenshot_before = beforeUrl;
     if (afterUrl)  updatedRecord.screenshot_after  = afterUrl;
     if (existingIdx !== -1) journalEntries[existingIdx] = updatedRecord;
 
+    // Build the DB patch — explicitly null deleted images so they're cleared
+    // in Supabase rather than silently kept.
     const patchData = { ...record };
     delete patchData.user_id; delete patchData.trade_date;
-    if (beforeUrl) patchData.screenshot_before = beforeUrl;
-    if (afterUrl)  patchData.screenshot_after  = afterUrl;
+    if (beforeUrl)                      patchData.screenshot_before = beforeUrl;
+    else if (keepExistingBefore)        delete patchData.screenshot_before;  // leave DB value intact
+    else                                patchData.screenshot_before = null;  // user deleted it
+    if (afterUrl)                       patchData.screenshot_after  = afterUrl;
+    else if (keepExistingAfter)         delete patchData.screenshot_after;
+    else                                patchData.screenshot_after  = null;
 
     try {
       await fetch(`${SUPABASE_URL}/rest/v1/trade_journal?id=eq.${editId}`, {
@@ -5639,21 +5815,24 @@ function logTradeFromAlert(alertId) {
   // For manual_exit states, leave exit price blank for user to fill
   const isFinalState = ['full_tp','sl_hit','tp1_hit','tp2_hit'].includes(j.tradeStatus || '');
   openJournalEntryForm({
-    alertId:       alertId,
-    symbol:        alert.symbol,
-    direction:     j.direction,
-    entry:         alert.targetPrice,
-    sl:            j.sl,
-    tp1:           j.tp1,
-    tp2:           j.tp2,
-    tp3:           j.tp3,
-    outcome:       outcomeMap[j.tradeStatus] || 'manual_exit',
-    timeframe:     alert.timeframe,
-    setupType:     j.setupType,
-    entryReason:   j.entryReason,
-    htfContext:    j.htfContext,
-    emotionBefore: j.emotionBefore,
-    isManualClose: !isFinalState, // blank exit price if manually closing
+    alertId:          alertId,
+    symbol:           alert.symbol,
+    direction:        j.direction,
+    entry:            alert.targetPrice,
+    sl:               j.sl,
+    tp1:              j.tp1,
+    tp2:              j.tp2,
+    tp3:              j.tp3,
+    outcome:          outcomeMap[j.tradeStatus] || 'manual_exit',
+    timeframe:        alert.timeframe,
+    setupType:        j.setupType,
+    entryReason:      j.entryReason,
+    htfContext:       j.htfContext,
+    emotionBefore:    j.emotionBefore,
+    isManualClose:    !isFinalState, // blank exit price if manually closing
+    // Use the setup alert's chart screenshot as the journal's "Before" image.
+    // User can replace or delete it in the journal form before saving.
+    screenshotBefore: j.setupScreenshot || null,
   });
 }
 
@@ -6261,23 +6440,26 @@ function editJournalEntry(id) {
   document.getElementById('journal-detail-overlay')?.remove();
 
   openJournalEntryForm({
-    symbol:        entry.symbol,
-    direction:     entry.direction,
-    entry:         entry.entry_price,
-    exitPrice:     entry.exit_price,
-    sl:            entry.sl_price,
-    tp1:           entry.tp1_price,
-    tp2:           entry.tp2_price,
-    tp3:           entry.tp3_price,
-    outcome:       entry.outcome,
-    timeframe:     entry.timeframe,
-    setupType:     entry.setup_type,
-    entryReason:   entry.entry_reason,
-    htfContext:    entry.htf_context,
-    emotionBefore: entry.emotion_before,
-    emotionAfter:  entry.emotion_after,
-    pnl:           entry.pnl_pct,
-    lessons:       entry.lessons,
+    symbol:           entry.symbol,
+    direction:        entry.direction,
+    status:           entry.trade_status || 'taken',
+    entry:            entry.entry_price,
+    exitPrice:        entry.exit_price,
+    sl:               entry.sl_price,
+    tp1:              entry.tp1_price,
+    tp2:              entry.tp2_price,
+    tp3:              entry.tp3_price,
+    outcome:          entry.outcome,
+    timeframe:        entry.timeframe,
+    setupType:        entry.setup_type,
+    entryReason:      entry.entry_reason,
+    htfContext:       entry.htf_context,
+    emotionBefore:    entry.emotion_before,
+    emotionAfter:     entry.emotion_after,
+    pnl:              entry.pnl_pct,
+    lessons:          entry.lessons,
+    screenshotBefore: entry.screenshot_before,
+    screenshotAfter:  entry.screenshot_after,
   });
 
   // Update modal title to EDIT TRADE
