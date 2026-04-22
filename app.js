@@ -892,55 +892,76 @@ const _csPendingReqs = new Map();
 // REST fallback via Frankfurter API — ECB-backed, free, no key, rarely blocked
 // Used when Deriv WebSocket is unavailable (ISP-blocked, firewall, etc.)
 async function fetchStrengthPricesRest() {
+  // Frankfurter publishes daily ECB fixings, so yesterday-vs-today can be
+  // identical when the latest publish hasn't happened yet (weekends/holidays).
+  // We use a multi-day window (5 trading days back) so the comparison always
+  // has meaningful movement to normalise against.
   try {
-    // Get yesterday's rates (open) and today's rates (close)
-    const today     = new Date();
-    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-    const yyyymmdd  = (d) => d.toISOString().slice(0, 10);
+    const today    = new Date();
+    const syms     = 'EUR,GBP,JPY,CHF,CAD,AUD,NZD';
+    const yyyymmdd = (d) => d.toISOString().slice(0, 10);
 
-    // Fetch both dates in parallel against USD base
-    const [latestRes, prevRes] = await Promise.all([
-      fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR,GBP,JPY,CHF,CAD,AUD,NZD'),
-      fetch(`https://api.frankfurter.dev/v1/${yyyymmdd(yesterday)}?base=USD&symbols=EUR,GBP,JPY,CHF,CAD,AUD,NZD`),
-    ]);
-    if (!latestRes.ok || !prevRes.ok) throw new Error('Frankfurter fetch failed');
+    // Try increasing lookbacks until we get rates different from today's.
+    // 5 calendar days back normally covers a business week.
+    const lookbackDates = [5, 7, 10, 14].map(days =>
+      yyyymmdd(new Date(today.getTime() - days * 86400000))
+    );
+
+    const latestRes = await fetch(`https://api.frankfurter.dev/v1/latest?base=USD&symbols=${syms}`);
+    if (!latestRes.ok) throw new Error('Frankfurter /latest fetch failed: HTTP ' + latestRes.status);
     const latest = await latestRes.json();
-    const prev   = await prevRes.json();
+    if (!latest.rates) throw new Error('Frankfurter /latest returned no rates');
 
-    // Frankfurter gives rates as base→other. Convert to our pair format.
-    // For EUR/USD we need USD_per_EUR = 1 / (EUR_per_USD)
-    const calc = (base, quote, rates) => {
-      if (base === 'USD') return 1 / rates[quote]; // inverse for X/USD where X≠USD
-      if (quote === 'USD') return rates[base];     // already USD_per_base
-      return rates[base] / rates[quote];           // cross
-    };
+    // Try lookback dates in order; first one with distinct rates wins.
+    let prev = null;
+    for (const date of lookbackDates) {
+      try {
+        const res = await fetch(`https://api.frankfurter.dev/v1/${date}?base=USD&symbols=${syms}`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (!data.rates) continue;
+        // Confirm at least one rate differs from latest (otherwise pick further back)
+        const anyDifferent = Object.keys(data.rates).some(k =>
+          Math.abs((data.rates[k] - latest.rates[k]) / latest.rates[k]) > 0.0005
+        );
+        if (anyDifferent) { prev = data; break; }
+      } catch(e) { /* try next lookback */ }
+    }
+    if (!prev) {
+      console.warn('[Strength] Could not find a distinct historical date in Frankfurter');
+      return 0;
+    }
 
     const pairs = Object.keys(CS_DERIV_SYM);
     let loaded = 0;
     pairs.forEach(pairId => {
       const [base, quote] = pairId.split('/');
       try {
-        // For EUR/USD, GBP/USD etc. Frankfurter returns 0.92 (EUR per USD)
-        // We need USD per EUR = 1/0.92 = 1.087
         let currentPrice, openPrice;
+        // Frankfurter's rates object is keyed by quote currency when base=USD,
+        // so it gives us "EUR per 1 USD", "JPY per 1 USD", etc. We convert to
+        // our standard pair quote convention (e.g. EUR/USD = USD_per_EUR).
         if (quote === 'USD') {
+          // X/USD — inverse of (X per USD)
           currentPrice = 1 / latest.rates[base];
           openPrice    = 1 / prev.rates[base];
         } else if (base === 'USD') {
+          // USD/X — direct (X per USD)
           currentPrice = latest.rates[quote];
           openPrice    = prev.rates[quote];
         } else {
-          // Cross pair — e.g. EUR/GBP = (EUR/USD) / (GBP/USD) = (1/latest.rates.EUR) / (1/latest.rates.GBP) = latest.rates.GBP / latest.rates.EUR
+          // Cross pair, e.g. EUR/GBP = (USD/GBP) / (USD/EUR) = GBP_per_USD / EUR_per_USD
           currentPrice = latest.rates[quote] / latest.rates[base];
-          openPrice    = prev.rates[quote] / prev.rates[base];
+          openPrice    = prev.rates[quote]   / prev.rates[base];
         }
-        if (currentPrice && openPrice && isFinite(currentPrice) && isFinite(openPrice)) {
+        if (currentPrice && openPrice && isFinite(currentPrice) && isFinite(openPrice)
+            && currentPrice !== openPrice) {
           _csPrices[pairId] = { price: currentPrice, open: openPrice };
           loaded++;
         }
-      } catch(e) {}
+      } catch(e) { /* skip this pair */ }
     });
-    console.log(`[Strength] REST fallback loaded ${loaded}/28 pairs via Frankfurter`);
+    console.log(`[Strength] REST fallback loaded ${loaded}/28 pairs via Frankfurter (lookback: ${prev.date})`);
     return loaded;
   } catch(e) {
     console.warn('[Strength] REST fallback failed:', e);
@@ -950,15 +971,19 @@ async function fetchStrengthPricesRest() {
 
 async function fetchStrengthPrices() {
   const now = Date.now();
-  // Re-fetch at most every 60s if we have enough data already
+  // Only honour the cache if we actually have enough data. A failed prior attempt
+  // (leaving _csPrices empty) should not block retries for 60 seconds.
   if (now - _csPricesFetchedAt < 60000 && Object.keys(_csPrices).length >= 14) return;
-  _csPricesFetchedAt = now;
 
-  // Try Deriv WS first; if that yields insufficient data, fall back to REST (Frankfurter)
+  // Try Deriv WS first; if that yields insufficient data, fall back to REST.
   await fetchStrengthPricesWs();
   if (Object.keys(_csPrices).length < 14) {
     console.log('[Strength] Deriv WS only got', Object.keys(_csPrices).length, '— falling back to REST');
     await fetchStrengthPricesRest();
+  }
+  // Only mark the timestamp on a successful fetch so failed attempts can retry.
+  if (Object.keys(_csPrices).length >= 4) {
+    _csPricesFetchedAt = now;
   }
 }
 
@@ -1114,20 +1139,32 @@ function calcCurrencyStrength() {
     counts[quote] = (counts[quote] || 0) + 1;
   });
 
-  // Average % change per currency
+  // Average % change per currency. A currency with zero pair-data points
+  // gets no score (we'll mark it undefined so the renderer can show a placeholder).
   const raw = {};
+  const currenciesWithData = [];
   CS_CURRENCIES.forEach(c => {
-    raw[c] = counts[c] > 0 ? totals[c] / counts[c] : 0;
+    if (counts[c] > 0) {
+      raw[c] = totals[c] / counts[c];
+      currenciesWithData.push(c);
+    }
   });
 
-  // Normalise to 0–100 score
-  const vals   = Object.values(raw);
+  // If we couldn't score a single currency, return null so the renderer
+  // shows the empty/loading state rather than zero bars for everything.
+  if (currenciesWithData.length === 0) return null;
+
+  // Normalise to 0–100 score across currencies that actually have data
+  const vals   = currenciesWithData.map(c => raw[c]);
   const minVal = Math.min(...vals);
   const maxVal = Math.max(...vals);
-  const range  = maxVal - minVal || 1;
+  const range  = maxVal - minVal;
   const scores = {};
   CS_CURRENCIES.forEach(c => {
-    scores[c] = Math.round(((raw[c] - minVal) / range) * 100);
+    if (raw[c] === undefined) return;
+    // If the full spread is tiny (< 0.02% — essentially a flat market or
+    // fixed-rate source), show a neutral 50 to avoid noisy amplification.
+    scores[c] = range < 0.0002 ? 50 : Math.round(((raw[c] - minVal) / range) * 100);
   });
 
   // Momentum: delta vs last calc
