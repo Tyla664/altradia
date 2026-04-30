@@ -2349,6 +2349,21 @@ function goBack() {
 // Android physical/gesture back button
 window.addEventListener('popstate', (e) => {
   if (!isMobileLayout()) return;
+
+  // If a journal-detail overlay is open, close it FIRST and consume the
+  // back action — don't fall through to tab navigation. The overlay
+  // pushed its own history state on open; the user's back gesture is
+  // popping THAT state, not asking for a tab change.
+  const jd = document.getElementById('journal-detail-overlay');
+  if (jd) {
+    jd.remove();
+    // Re-push our current tab state so subsequent back presses still
+    // navigate tabs correctly.
+    const curTab = navStack[navStack.length - 1] || 'watchlist';
+    window.history.pushState({ twTab: curTab }, '', '');
+    return;
+  }
+
   if (navStack.length > 1) {
     navStack.pop();
     const prev = navStack[navStack.length - 1];
@@ -4492,11 +4507,29 @@ async function _createSetupAlertInner() {
   // the resulting URL inside the note JSON so it travels with the alert and
   // can be used as the "Before" image when the user eventually logs the trade.
   let setupScreenshotUrl = setupShotExistingUrl || null;
+  let setupScreenshotFailed = false;
   if (setupShotFile) {
     try {
       const url = await uploadScreenshot(setupShotFile, 'setup');
-      if (url) setupScreenshotUrl = url;
-    } catch(e) { console.warn('setup screenshot upload failed:', e); }
+      if (url) {
+        setupScreenshotUrl = url;
+      } else {
+        setupScreenshotFailed = true;
+      }
+    } catch(e) {
+      console.warn('setup screenshot upload failed:', e);
+      setupScreenshotFailed = true;
+    }
+  }
+  // Surface upload failure so the user knows their image didn't save —
+  // otherwise it disappears silently and they only notice when logging
+  // the trade later (which is the bug originally reported).
+  if (setupScreenshotFailed) {
+    showToast(
+      'Screenshot Upload Failed',
+      'Setup created, but the chart screenshot didn\'t upload. Edit the alert to retry.',
+      'error',
+    );
   }
 
   // Pack all journal + trade data into the note field as JSON
@@ -5917,11 +5950,16 @@ async function saveJournalEntry() {
   renderJournal();
   if (isMobileLayout()) mobileTab('journal');
 
-  // Step 2 — dismiss linked setup alert right away
+  // Step 2 — dismiss linked setup alert right away. We render BOTH the
+  // alerts and trades tabs because the dismissed alert was very likely
+  // visible on the Trades tab (setup alerts that progressed past entry
+  // appear there). Without renderTradesTab() the closed trade lingers
+  // until manual reload — exactly the bug reported.
   if (linkedAlertId) {
     alerts = alerts.filter(a => a.id !== linkedAlertId);
     deleteAlertFromDB(linkedAlertId);
     renderAlerts();
+    renderTradesTab();
   }
 
   showToast('Trade Logged', `${symbol} saved to journal.`, 'success');
@@ -6731,6 +6769,15 @@ function openJournalDetail(entryId) {
     </div>`;
 
   document.body.appendChild(ov);
+  // Push a synthetic history state so the back button / edge swipe
+  // pops THIS overlay first instead of falling through to tab nav. The
+  // popstate listener (below) recognises the marker and closes the
+  // overlay cleanly. State marker name matches the close path so both
+  // sides agree on what to do.
+  try {
+    window.history.pushState({ journalDetail: true, entryId: String(entryId) }, '', '');
+  } catch (_) { /* history API unavailable */ }
+
 
   // Wire up swiper if shots exist
   if (shots.length > 1) {
@@ -7437,9 +7484,9 @@ function renderProfilePage(tier) {
 
   // Recent trade rows
   const outcomeLabel = o => ({
-    full_tp:'FULL TP', tp2_hit:'TP2', tp1_hit:'TP1', breakeven:'BE', sl_hit:'SL', manual_exit:'CLOSED'
+    full_tp:'FULL TP', tp2_hit:'TP2', tp1_hit:'TP1', trail_stop:'TRAIL', breakeven:'BE', sl_hit:'SL', manual_exit:'CLOSED'
   }[o] || o || '—');
-  const outcomeColor = o => ['full_tp','tp2_hit','tp1_hit'].includes(o) ? 'var(--green)' : o==='sl_hit'||o==='manual_exit' ? 'var(--red)' : 'var(--muted)';
+  const outcomeColor = o => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(o) ? 'var(--green)' : o==='sl_hit'||o==='manual_exit' ? 'var(--red)' : 'var(--muted)';
 
   const recentRows = recent.map(e => {
     const d = new Date(e.trade_date||e.created_at).toLocaleDateString([],{day:'2-digit',month:'short'});
