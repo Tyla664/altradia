@@ -3824,6 +3824,13 @@ async function _fireSetupTransitionAtomic(alert, j, nextStatus, currentPrice) {
   // transitions like entry_hit → sl_hit when price moves quickly.
   if (j[`lastFired_${nextStatus}`] && (nowMs - parseInt(j[`lastFired_${nextStatus}`])) < 30000) return;
 
+  // Capture the previous state BEFORE mutating in memory — we'll use it as
+  // the CAS predicate for the conditional PATCH. The state-based lock
+  // closes a race the old time-based lock couldn't: edge cron running
+  // long after frontend's fire (minutes later, well past any time window)
+  // would otherwise re-claim the same transition and re-send Telegram.
+  const expectedPrev = j.tradeStatus || 'watching';
+
   // Mutate the in-memory note synchronously so the next checkSetupLevels
   // tick reads the new tradeStatus and skips the watching/etc branch.
   // This works regardless of whether the network call succeeds.
@@ -3832,11 +3839,14 @@ async function _fireSetupTransitionAtomic(alert, j, nextStatus, currentPrice) {
   if (nextStatus === 'entry_hit') j.entryFiredMs = nowMs;
   alert.note = JSON.stringify(j);
 
-  // 5-second lock window — wide enough to bridge cross-writer write→read
-  // latency, short enough not to block legitimate rapid transitions.
-  const cutoff = new Date(nowMs - 5000).toISOString();
-  const url    = `${SUPABASE_URL}/rest/v1/alerts?id=eq.${encodeURIComponent(alert.id)}` +
-                 `&or=(last_triggered_at.is.null,last_triggered_at.lt.${encodeURIComponent(cutoff)})`;
+  // CAS predicate: only PATCH if the row's note still shows the prev state
+  // we expect. If another writer already advanced past it, our PATCH
+  // returns 0 rows and we skip Telegram. The substring `"tradeStatus":"X"`
+  // is reliably produced by JSON.stringify (no spaces) so the LIKE pattern
+  // matches deterministically.
+  const expectedPattern = `*"tradeStatus":"${expectedPrev}"*`;
+  const url = `${SUPABASE_URL}/rest/v1/alerts?id=eq.${encodeURIComponent(alert.id)}` +
+              `&note=like.${encodeURIComponent(expectedPattern)}`;
 
   let won = false;
   try {
@@ -4503,34 +4513,13 @@ async function _createSetupAlertInner() {
     }
   }
 
-  // Upload the setup screenshot (if any) before building the journal. We store
-  // the resulting URL inside the note JSON so it travels with the alert and
-  // can be used as the "Before" image when the user eventually logs the trade.
-  let setupScreenshotUrl = setupShotExistingUrl || null;
-  let setupScreenshotFailed = false;
-  if (setupShotFile) {
-    try {
-      const url = await uploadScreenshot(setupShotFile, 'setup');
-      if (url) {
-        setupScreenshotUrl = url;
-      } else {
-        setupScreenshotFailed = true;
-      }
-    } catch(e) {
-      console.warn('setup screenshot upload failed:', e);
-      setupScreenshotFailed = true;
-    }
-  }
-  // Surface upload failure so the user knows their image didn't save —
-  // otherwise it disappears silently and they only notice when logging
-  // the trade later (which is the bug originally reported).
-  if (setupScreenshotFailed) {
-    showToast(
-      'Screenshot Upload Failed',
-      'Setup created, but the chart screenshot didn\'t upload. Edit the alert to retry.',
-      'error',
-    );
-  }
+  // We DO NOT upload the setup screenshot here — that takes 3-5 seconds
+  // and would block the entire creation flow. Instead we initialise the
+  // note with whatever URL is already known (existing in edit mode, or
+  // null) and kick off the upload in the background after navigation.
+  // The post-creation patch (further below) attaches the URL to the alert
+  // once upload completes.
+  const setupScreenshotUrl = setupShotExistingUrl || null;
 
   // Pack all journal + trade data into the note field as JSON
   const currentPriceNow = priceData[selectedAsset.id]?.price || null;
@@ -4629,14 +4618,56 @@ async function _createSetupAlertInner() {
   const rrWarn = document.getElementById('rr-warning');
   if (rrWarn) rrWarn.style.display = 'none';
 
-  // DB save + Telegram in background
-  try {
-    const saved = await saveAlert(newAlert);
-    const idx = alerts.findIndex(a => a.id === newAlert.id);
-    if (idx !== -1 && saved?.id) alerts[idx].id = saved.id;
-  } catch(e) {
-    console.warn('createSetupAlert: DB save failed', e);
-  }
+  // DB save + screenshot upload + Telegram, all in the background. The
+  // user is already on the trade card page — these run async without
+  // blocking UI. We capture the file reference here because removeSetupShot
+  // above wiped it from the global.
+  const screenshotPending = !!setupShotFile;
+  const fileRef = setupShotFile;
+  (async () => {
+    let saved;
+    let screenshotUrl = setupShotExistingUrl || null;
+    try {
+      // Run DB save and screenshot upload in parallel where applicable.
+      const savePromise   = saveAlert(newAlert);
+      const uploadPromise = (screenshotPending && fileRef)
+        ? uploadScreenshot(fileRef, 'setup').catch(e => { console.warn('setup screenshot upload failed:', e); return null; })
+        : Promise.resolve(null);
+      const [savedResult, uploadedUrl] = await Promise.all([savePromise, uploadPromise]);
+      saved = savedResult;
+      if (uploadedUrl) screenshotUrl = uploadedUrl;
+
+      // Replace temp id with real DB id in local state.
+      const idx = alerts.findIndex(a => a.id === newAlert.id);
+      if (idx !== -1 && saved?.id) alerts[idx].id = saved.id;
+
+      // If we got a fresh screenshot URL after the alert was already saved,
+      // patch the note in the DB with the URL so it persists across reloads.
+      if (saved?.id && screenshotPending && uploadedUrl) {
+        journal.setupScreenshot = uploadedUrl;
+        const newNote = JSON.stringify(journal);
+        if (idx !== -1) alerts[idx].note = newNote;
+        try {
+          await updateAlert(saved.id, { note: newNote });
+          renderAlerts();
+        } catch(e) {
+          console.warn('setup screenshot note patch failed:', e);
+        }
+      }
+
+      // Surface upload failure so the user can re-edit and retry.
+      if (screenshotPending && !uploadedUrl) {
+        showToast(
+          'Screenshot Upload Failed',
+          'Setup is active, but the chart image didn\'t upload. Edit the alert to retry.',
+          'error',
+        );
+      }
+    } catch(e) {
+      console.warn('createSetupAlert: DB save failed', e);
+    }
+  })();
+
   if (telegramEnabled && telegramChatId && tgNotifPrefs.confirmation) {
     sendTelegram(tgSetupCreatedMessage(selectedAsset.symbol, setupDirection, entry, sl, tp1, tp2, tp3, timeframe, journal));
   }
@@ -5931,12 +5962,24 @@ async function saveJournalEntry() {
     else                                patchData.screenshot_after  = null;
 
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/trade_journal?id=eq.${editId}`, {
+      // Must use _authedFetch — RLS rejects anon-key bearers post-migration.
+      // Was the bug behind "I uploaded a before image, but it's still nowhere
+      // to be found": PATCH 401'd silently and the entry never gained the
+      // screenshot URL.
+      const patchRes = await _authedFetch(`${SUPABASE_URL}/rest/v1/trade_journal?id=eq.${editId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patchData),
       });
-      if (hasNewScreenshots) { renderJournal(); showToast('Done', 'Screenshots updated.', 'success'); }
+      if (!patchRes.ok) {
+        console.warn('edit journal PATCH failed:', patchRes.status, await patchRes.text().catch(() => ''));
+        showToast('Update Failed', 'Could not update the entry. Please try again.', 'error');
+        return;
+      }
+      // Re-render to surface the new screenshot URL in the journal list.
+      // The undefined `hasNewScreenshots` reference was a ReferenceError that
+      // silently aborted this branch. New flag computed properly.
+      if (hasNewBefore || hasNewAfter) { renderJournal(); showToast('Done', 'Screenshots updated.', 'success'); }
     } catch(e) { console.warn('edit journal patch failed', e); }
     return;
   }
@@ -8420,7 +8463,29 @@ registerServiceWorker();
     const backBtn = twa.BackButton;
     if (backBtn) {
       backBtn.onClick(() => {
-        // Try our in-app back logic first
+        // Try our in-app back logic first.
+        //
+        // PRIORITY 1: any dynamically-created overlay (journal detail,
+        // image fullscreen, close-choice, trail-stop, asset picker,
+        // export, payment, feedback). These don't live inside the menu
+        // panel so the menu-page check below misses them. Closing any
+        // visible one beats dropping back to tab nav, which would feel
+        // like the gesture did nothing useful.
+        const overlayIds = [
+          'journal-detail-overlay',
+          'image-fullscreen-overlay',
+          'close-choice-modal',
+          'trail-stop-modal',
+          'journal-asset-picker',
+          'export-modal-overlay',
+          'payment-modal-overlay',
+          'feedback-overlay',
+        ];
+        for (const id of overlayIds) {
+          const el = document.getElementById(id);
+          if (el) { el.remove(); return; }
+        }
+
         const openPages = document.querySelectorAll('.menu-page.open');
         if (openPages.length) {
           // Close topmost sub-page
