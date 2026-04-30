@@ -4595,6 +4595,13 @@ async function _createSetupAlertInner() {
 
   alerts.push(newAlert);
 
+  // Capture the screenshot file reference BEFORE the form reset wipes
+  // the `setupShotFile` global. Without this, `removeSetupShot(null)` a
+  // few lines down nulls the global, and the background upload block
+  // ends up capturing null — silently dropping the screenshot.
+  const _capturedShotFile        = setupShotFile;
+  const _capturedShotPending     = !!setupShotFile;
+
   // Navigate immediately — don't wait for DB save so UX feels instant
   renderAlerts();
   showToast('Trade Setup Created', `${selectedAsset.symbol} setup alert active — watching for entry at ${formatPrice(entry, selectedAsset.id)}.`, 'success');
@@ -4620,10 +4627,11 @@ async function _createSetupAlertInner() {
 
   // DB save + screenshot upload + Telegram, all in the background. The
   // user is already on the trade card page — these run async without
-  // blocking UI. We capture the file reference here because removeSetupShot
-  // above wiped it from the global.
-  const screenshotPending = !!setupShotFile;
-  const fileRef = setupShotFile;
+  // blocking UI. We use the file reference captured BEFORE the form
+  // reset (the global setupShotFile has already been nulled by
+  // removeSetupShot() above).
+  const screenshotPending = _capturedShotPending;
+  const fileRef           = _capturedShotFile;
   (async () => {
     let saved;
     let screenshotUrl = setupShotExistingUrl || null;
@@ -6057,9 +6065,18 @@ function logTradeFromAlert(alertId) {
     watching: 'manual_exit',
   };
 
-  // For final states (sl_hit, tp hits), auto-fill exit price from levels
-  // For manual_exit states, leave exit price blank for user to fill
+  // For final states (sl_hit, tp hits), auto-fill exit price from levels.
+  // For manual closes (trade was 'running' or 'watching'), default exit to
+  // the CURRENT live price — that's what the user is closing AT. They can
+  // still edit before saving if their broker fill differs.
   const isFinalState = ['full_tp','sl_hit','tp1_hit','tp2_hit'].includes(j.tradeStatus || '');
+  let manualExitPrice = null;
+  if (!isFinalState) {
+    const livePrice = priceData[alert.assetId]?.price;
+    if (typeof livePrice === 'number' && isFinite(livePrice) && livePrice > 0) {
+      manualExitPrice = livePrice;
+    }
+  }
   openJournalEntryForm({
     alertId:          alertId,
     symbol:           alert.symbol,
@@ -6075,7 +6092,11 @@ function logTradeFromAlert(alertId) {
     entryReason:      j.entryReason,
     htfContext:       j.htfContext,
     emotionBefore:    j.emotionBefore,
-    isManualClose:    !isFinalState, // blank exit price if manually closing
+    // For manual closes, isManualClose stays true (so the level-based
+    // auto-fill in openJournalEntryForm doesn't override) — but we pass
+    // exitPrice explicitly below, which the form picks up regardless.
+    isManualClose:    !isFinalState,
+    exitPrice:        manualExitPrice,
     // Use the setup alert's chart screenshot as the journal's "Before" image.
     // User can replace or delete it in the journal form before saving.
     screenshotBefore: j.setupScreenshot || null,
