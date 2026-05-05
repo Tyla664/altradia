@@ -3023,13 +3023,18 @@ async function _createAlertInner() {
 
   alerts.push(newAlert);
 
-  try {
-    const saved = await saveAlert(newAlert);
-    const idx = alerts.findIndex(a => a.id === newAlert.id);
-    if (idx !== -1 && saved?.id) alerts[idx].id = saved.id;
-  } catch(e) {
-    console.warn('createAlert: DB save failed', e);
-  }
+  // Defer DB save to background — user navigates instantly, save happens
+  // async. Same pattern as setup alerts. Without this, network round-trip
+  // causes a 1-3 second freeze on "Set Alert" tap.
+  (async () => {
+    try {
+      const saved = await saveAlert(newAlert);
+      const idx = alerts.findIndex(a => a.id === newAlert.id);
+      if (idx !== -1 && saved?.id) alerts[idx].id = saved.id;
+    } catch(e) {
+      console.warn('createAlert: DB save failed', e);
+    }
+  })();
 
   // Reset form
   document.getElementById('alert-price').value            = '';
@@ -4403,18 +4408,16 @@ async function _createSetupAlertInner() {
     const existing = alerts.find(a => a.id === editingAlertId);
     if (existing) {
       const oldJ = getJournal(existing);
-      // Resolve the setup screenshot: new upload wins; else keep the existing
-      // tracker (which is the URL if user kept it, or null if they deleted it).
-      let editedSetupShot = oldJ.setupScreenshot || null;
-      if (setupShotFile) {
-        try {
-          const url = await uploadScreenshot(setupShotFile, 'setup');
-          if (url) editedSetupShot = url;
-        } catch(e) { console.warn('setup screenshot upload failed:', e); }
-      } else if (setupShotExistingUrl === null && oldJ.setupScreenshot) {
-        // User explicitly removed the existing screenshot (via × button)
-        editedSetupShot = null;
-      }
+      // The screenshot field on the alert (column) is the source of truth.
+      // We read it first; if the user left the existing one alone, we
+      // preserve it. If they explicitly removed it, we set null. New
+      // uploads happen in the BACKGROUND so navigation isn't blocked.
+      const userRemovedExisting = (setupShotExistingUrl === null) &&
+                                  (existing.setupScreenshotUrl || oldJ.setupScreenshot);
+      // Capture the pending file BEFORE the form reset wipes it.
+      const editShotPending = !!setupShotFile;
+      const editShotFile    = setupShotFile;
+
       const updatedJournal = {
         ...oldJ,
         direction:       setupDirection,
@@ -4428,8 +4431,17 @@ async function _createSetupAlertInner() {
         htfContext:      htfContext  || oldJ.htfContext  || null,
         emotionBefore:   emotionBefore || oldJ.emotionBefore || null,
         tradeStatus:     oldJ.tradeStatus || 'watching',
-        setupScreenshot: editedSetupShot,
+        // Note: setupScreenshot in the note is no longer the canonical
+        // source. Keep whatever was there for backward-compat reads only.
+        setupScreenshot: oldJ.setupScreenshot || null,
       };
+      // Determine the screenshot URL synchronously: only changed if user
+      // explicitly deleted. New uploads patched in background, AFTER
+      // navigation, so the Update button feels instant.
+      const newScreenshotUrl = userRemovedExisting
+        ? null
+        : (existing.setupScreenshotUrl || null);
+
       Object.assign(existing, {
         targetPrice:  isNaN(entry) ? existing.targetPrice : entry,
         zoneLow:      isNaN(entry) || isNaN(sl) ? existing.zoneLow  : Math.min(entry, sl),
@@ -4437,15 +4449,48 @@ async function _createSetupAlertInner() {
         timeframe:    timeframe || null,
         note:         JSON.stringify(updatedJournal),
         status:       'active',
+        setupScreenshotUrl: newScreenshotUrl,
       });
-      await updateAlert(editingAlertId, {
-        target_price: existing.targetPrice,
-        zone_low:     existing.zoneLow,
-        zone_high:    existing.zoneHigh,
-        timeframe:    existing.timeframe,
-        note:         existing.note,
-        status:       'active',
-      });
+
+      // Metadata PATCH in background — local state already reflects the
+      // edit via Object.assign above, so the trade card renders correctly
+      // immediately. Without this the user would still see ~1s of lag on
+      // tap "Update" even when no new screenshot is being uploaded.
+      const editingId = editingAlertId;
+      (async () => {
+        try {
+          await updateAlert(editingId, {
+            target_price:         existing.targetPrice,
+            zone_low:             existing.zoneLow,
+            zone_high:            existing.zoneHigh,
+            timeframe:            existing.timeframe,
+            note:                 existing.note,
+            status:               'active',
+            setup_screenshot_url: newScreenshotUrl,
+          });
+        } catch(e) {
+          console.warn('saveEditedSetup: metadata PATCH failed', e);
+        }
+      })();
+
+      // Background screenshot upload + column patch — runs after navigation.
+      if (editShotPending && editShotFile) {
+        (async () => {
+          try {
+            const url = await uploadScreenshot(editShotFile, 'setup');
+            if (!url) {
+              showToast('Upload Failed', 'Couldn\'t upload the new screenshot. Please retry.', 'error');
+              return;
+            }
+            const target = alerts.find(a => a.id === editingId);
+            if (target) target.setupScreenshotUrl = url;
+            await updateAlert(editingId, { setup_screenshot_url: url });
+            renderAlerts();
+          } catch(e) {
+            console.warn('edit screenshot background patch failed:', e);
+          }
+        })();
+      }
       editingAlertId = null;
       const btn = document.getElementById('set-alert-btn');
       if (btn) { btn.textContent = 'SET ALERT'; btn.style.background = ''; btn.style.borderColor = ''; }
@@ -4591,6 +4636,9 @@ async function _createSetupAlertInner() {
     status:       'active',
     createdAt:    new Date().toLocaleDateString([], {day:'2-digit',month:'short',year:'numeric'}) + ' · ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:true}),
     createdMs:    Date.now(),
+    // Top-level field; populated asynchronously after upload completes.
+    // Initialised to whatever URL we already had (edit mode) or null.
+    setupScreenshotUrl: setupShotExistingUrl || null,
   };
 
   alerts.push(newAlert);
@@ -4634,36 +4682,32 @@ async function _createSetupAlertInner() {
   const fileRef           = _capturedShotFile;
   (async () => {
     let saved;
-    let screenshotUrl = setupShotExistingUrl || null;
     try {
-      // Run DB save and screenshot upload in parallel where applicable.
+      // Run DB save and screenshot upload in parallel.
       const savePromise   = saveAlert(newAlert);
       const uploadPromise = (screenshotPending && fileRef)
         ? uploadScreenshot(fileRef, 'setup').catch(e => { console.warn('setup screenshot upload failed:', e); return null; })
         : Promise.resolve(null);
       const [savedResult, uploadedUrl] = await Promise.all([savePromise, uploadPromise]);
       saved = savedResult;
-      if (uploadedUrl) screenshotUrl = uploadedUrl;
 
       // Replace temp id with real DB id in local state.
       const idx = alerts.findIndex(a => a.id === newAlert.id);
       if (idx !== -1 && saved?.id) alerts[idx].id = saved.id;
 
-      // If we got a fresh screenshot URL after the alert was already saved,
-      // patch the note in the DB with the URL so it persists across reloads.
+      // Patch screenshot URL on the DEDICATED COLUMN, never the note JSON.
+      // This is the architecturally correct fix: the engine owns `note`,
+      // the upload owns `setup_screenshot_url`. They never collide.
       if (saved?.id && screenshotPending && uploadedUrl) {
-        journal.setupScreenshot = uploadedUrl;
-        const newNote = JSON.stringify(journal);
-        if (idx !== -1) alerts[idx].note = newNote;
+        if (idx !== -1) alerts[idx].setupScreenshotUrl = uploadedUrl;
         try {
-          await updateAlert(saved.id, { note: newNote });
+          await updateAlert(saved.id, { setup_screenshot_url: uploadedUrl });
           renderAlerts();
         } catch(e) {
-          console.warn('setup screenshot note patch failed:', e);
+          console.warn('setup screenshot column patch failed:', e);
         }
       }
 
-      // Surface upload failure so the user can re-edit and retry.
       if (screenshotPending && !uploadedUrl) {
         showToast(
           'Screenshot Upload Failed',
@@ -6098,9 +6142,32 @@ function logTradeFromAlert(alertId) {
     isManualClose:    !isFinalState,
     exitPrice:        manualExitPrice,
     // Use the setup alert's chart screenshot as the journal's "Before" image.
-    // User can replace or delete it in the journal form before saving.
-    screenshotBefore: j.setupScreenshot || null,
+    // Prefer the dedicated column (post-migration alerts); fall back to
+    // note.setupScreenshot for older alerts created before the schema change.
+    screenshotBefore: alert.setupScreenshotUrl || j.setupScreenshot || null,
   });
+}
+
+// ── Classify a journal entry into win / be / loss ─────────────────────────
+// Manual closes are evaluated by computed PnL: a profitable manual exit
+// counts as a win, not a loss. Without this, locking in profit early
+// gets misreported as a losing trade and tanks the user's win rate.
+function _classifyOutcome(e) {
+  const o = e.outcome;
+  if (['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(o)) return 'win';
+  if (o === 'breakeven') return 'be';
+  if (o === 'sl_hit')    return 'loss';
+  if (o === 'manual_exit') {
+    const entry = parseFloat(e.entry_price);
+    const exit  = parseFloat(e.exit_price);
+    if (!entry || !exit) return 'loss';  // missing data → conservative default
+    const isLong = (e.direction || 'long') === 'long';
+    const pnl    = isLong ? (exit - entry) / entry : (entry - exit) / entry;
+    if (pnl >  0.0005) return 'win';   // > +0.05% counts as win
+    if (pnl < -0.0005) return 'loss';  // < -0.05% counts as loss
+    return 'be';                        // within ±0.05% → break-even
+  }
+  return 'loss';
 }
 
 // ── Render journal page ────────────────────────────────────────────────────
@@ -6132,9 +6199,39 @@ async function renderJournal() {
   const missed  = filtered.filter(e => e.trade_status === 'missed').length;
   const ignored = filtered.filter(e => e.trade_status === 'ignored').length;
   const total    = taken.length;
-  const wins     = taken.filter(e => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(e.outcome)).length;
-  const breakevens = taken.filter(e => e.outcome === 'breakeven').length;
-  const losses   = taken.filter(e => ['sl_hit','manual_exit'].includes(e.outcome)).length;
+
+  // Classify manual_exit by computed P&L. A manually-closed trade taken in
+  // profit shouldn't count as a loss; conversely, manually closed at loss
+  // counts as a loss. SL-style outcomes always count as losses (with
+  // breakeven recognised separately). TP outcomes always count as wins.
+  // For manual_exit specifically:
+  //   exit > entry on long  (or exit < entry on short) → win
+  //   exit ≈ entry                                      → breakeven
+  //   exit < entry on long  (or exit > entry on short) → loss
+  const manualOutcome = (e) => {
+    if (e.outcome !== 'manual_exit') return e.outcome;
+    const entryP = parseFloat(e.entry_price);
+    const exitP  = parseFloat(e.exit_price);
+    if (!isFinite(entryP) || !isFinite(exitP) || entryP <= 0) return 'manual_exit';
+    const pctMove = (exitP - entryP) / entryP;
+    const beThreshold = 0.0005; // 0.05% — tighter than typical fee
+    const isLong = (e.direction || '').toLowerCase() === 'long';
+    const dir = isLong ? pctMove : -pctMove;
+    if (Math.abs(dir) < beThreshold) return 'breakeven_manual';
+    return dir > 0 ? 'manual_win' : 'manual_loss';
+  };
+  const wins     = taken.filter(e => {
+    const o = manualOutcome(e);
+    return ['full_tp','tp2_hit','tp1_hit','trail_stop','manual_win'].includes(o);
+  }).length;
+  const breakevens = taken.filter(e => {
+    const o = manualOutcome(e);
+    return o === 'breakeven' || o === 'breakeven_manual';
+  }).length;
+  const losses   = taken.filter(e => {
+    const o = manualOutcome(e);
+    return o === 'sl_hit' || o === 'manual_loss';
+  }).length;
   const winRate  = total ? Math.round((wins / total) * 100) : 0;
 
   if (statsEl) statsEl.innerHTML = `
@@ -7492,7 +7589,7 @@ function renderProfilePage(tier) {
   const allJournal   = typeof journalEntries !== 'undefined' ? journalEntries : [];
   const entries      = allJournal.filter(e => (e.trade_status || 'taken') === 'taken');
   const total        = entries.length;
-  const wins         = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(e.outcome)).length;
+  const wins         = entries.filter(e => _classifyOutcome(e) === 'win').length;
   const winRate      = total > 0 ? Math.round((wins/total)*100) : 0;
   const consistency  = total > 0 ? Math.min(98, Math.round(60 + (wins/total)*38)) : 0;
   const pnlEntries   = entries.map(e => ({ ...e, _pnl: resolveEntryPnl(e) })).filter(e => e._pnl != null);
@@ -7775,8 +7872,8 @@ function renderAnalyticsMenuBody(tier) {
   const missedCount = allEntries.filter(e => e.trade_status === 'missed').length;
   const ignoredCount = allEntries.filter(e => e.trade_status === 'ignored').length;
   const total       = entries.length;
-  const wins        = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(e.outcome)).length;
-  const losses      = entries.filter(e => ['sl_hit','manual_exit'].includes(e.outcome)).length;
+  const wins        = entries.filter(e => _classifyOutcome(e) === 'win').length;
+  const losses      = entries.filter(e => _classifyOutcome(e) === 'loss').length;
   const winRate     = total > 0 ? Math.round((wins / total) * 100) : 0;
   const consistency = total > 0 ? Math.min(98, Math.round(60 + (wins / total) * 38)) : 0;
 
@@ -8153,8 +8250,8 @@ async function analyticsRefreshCoaching() {
   coachingEl.className = 'ai-loading-shimmer';
   coachingEl.textContent = 'Preparing your coaching directive…';
   const entries = typeof journalEntries !== 'undefined' ? journalEntries : [];
-  const wins    = entries.filter(e => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(e.outcome)).length;
-  const losses  = entries.filter(e => ['sl_hit','manual_exit'].includes(e.outcome)).length;
+  const wins    = entries.filter(e => _classifyOutcome(e) === 'win').length;
+  const losses  = entries.filter(e => _classifyOutcome(e) === 'loss').length;
   const total   = entries.length;
   const winRate = total > 0 ? Math.round((wins/total)*100) : 0;
   const daysSet = new Set(entries.map(e => (e.trade_date||e.created_at||'').slice(0,10)));
@@ -8188,9 +8285,11 @@ async function analyticsRefreshCoaching() {
 }
 
 function _maxConsecLosses(entries) {
+  // Profitable manual closes are wins, not losses, for streak purposes too.
+  // Using _classifyOutcome keeps this consistent with the journal stats.
   let max = 0, cur = 0;
   entries.forEach(e => {
-    if (['sl_hit','manual_exit'].includes(e.outcome)) { cur++; max = Math.max(max,cur); }
+    if (_classifyOutcome(e) === 'loss') { cur++; max = Math.max(max,cur); }
     else cur = 0;
   });
   return max || '—';
@@ -9300,6 +9399,17 @@ function initPullToRefresh() {
     let refreshing = false;
 
     el.addEventListener('touchstart', e => {
+      // Defensive cleanup — if a previous gesture didn't release cleanly
+      // and left the indicator open, snap it shut now. Without this,
+      // half-pulls can leave the spinner floating until the user fully
+      // pulls again to refresh.
+      if (!refreshing && parseFloat(indicator.style.height || '0') > 0) {
+        indicator.style.transition = 'height 0.2s ease';
+        indicator.style.height = '0px';
+        spinner.classList.remove('spinning');
+        label.textContent = 'Pull to refresh';
+        setTimeout(() => { indicator.style.transition = ''; }, 220);
+      }
       // Only begin PTR when scrolled to the very top
       if (el.scrollTop > 2) return;
       // Skip PTR if the touch began inside the chart. The chart has its
@@ -9315,10 +9425,28 @@ function initPullToRefresh() {
       triggered = false;
     }, { passive: true });
 
+    // Snap the PTR indicator closed and clear visual state. Used both
+    // when the user reverses direction mid-pull and when the touch is
+    // cancelled. Without this, a half-pull leaves the indicator partially
+    // extended, visually pushing the watchlist sub-tab pills off-screen
+    // until the user does a full pull-and-release.
+    const ptrSnapBack = () => {
+      indicator.style.transition = 'height 0.2s ease';
+      indicator.style.height = '0px';
+      spinner.classList.remove('spinning');
+      label.textContent = 'Pull to refresh';
+      setTimeout(() => { indicator.style.transition = ''; }, 220);
+      triggered = false;
+    };
+
     el.addEventListener('touchmove', e => {
       if (!pulling || refreshing) return;
       const dy = (e.touches[0].clientY - startY) * RESIST;
-      if (dy <= 0) { pulling = false; return; }
+      if (dy <= 0) {
+        pulling = false;
+        ptrSnapBack();
+        return;
+      }
 
       const h = Math.min(dy, MAX_PULL);
       indicator.style.height = h + 'px';
@@ -9374,9 +9502,7 @@ function initPullToRefresh() {
     el.addEventListener('touchcancel', () => {
       if (!refreshing) {
         pulling = false;
-        indicator.style.height = '0px';
-        spinner.classList.remove('spinning');
-        label.textContent = 'Pull to refresh';
+        ptrSnapBack();
       }
     }, { passive: true });
   });
@@ -10642,20 +10768,30 @@ async function saveEditedAlert() {
     zoneTriggeredOnce: false,
   });
 
-  // Save to DB
-  await updateAlert(editingAlertId, {
-    condition,
-    target_price:    targetPrice,
-    zone_low:        isZone ? zoneLow      : null,
-    zone_high:       isZone ? zoneHigh     : null,
-    tap_tolerance:   isTap  ? tapTolerance : null,
-    timeframe:       timeframe || null,
-    repeat_interval: repeatInterval,
-    note,
-    status:          'active',
-    last_triggered_at: null,
-    proximity_warn_count: 0,
-  });
+  // DB save in background — UI updates and tab switch happen immediately.
+  // The local `alert` was already updated via Object.assign above so the
+  // alert card on the Trades tab shows the new values without waiting for
+  // the round-trip.
+  const _editId = editingAlertId;
+  (async () => {
+    try {
+      await updateAlert(_editId, {
+        condition,
+        target_price:    targetPrice,
+        zone_low:        isZone ? zoneLow      : null,
+        zone_high:       isZone ? zoneHigh     : null,
+        tap_tolerance:   isTap  ? tapTolerance : null,
+        timeframe:       timeframe || null,
+        repeat_interval: repeatInterval,
+        note,
+        status:          'active',
+        last_triggered_at: null,
+        proximity_warn_count: 0,
+      });
+    } catch(e) {
+      console.warn('saveEditedAlert: DB update failed', e);
+    }
+  })();
 
   // Exit edit mode
   editingAlertId = null;
