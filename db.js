@@ -356,6 +356,9 @@ async function loadAlertsFromDB() {
       triggeredDirection: r.triggered_direction,
       lastTriggeredAt: r.last_triggered_at ? new Date(r.last_triggered_at).getTime() : 0,
       zoneTriggeredOnce: r.condition === 'zone' && parseInt(r.repeat_interval) > 0 && !!r.last_triggered_at,
+      // Setup screenshot URL — top-level column rather than buried in note JSON,
+      // so background uploads don't race with engine state mutations.
+      setupScreenshotUrl: r.setup_screenshot_url || null,
     }));
   } catch (e) {
     console.warn('DB: loadAlerts failed', e);
@@ -381,6 +384,7 @@ async function saveAlert(alert) {
       timeframe:       alert.timeframe      || null,
       repeat_interval: alert.repeatInterval || 0,
       tap_tolerance:   alert.tapTolerance   || null,
+      setup_screenshot_url: alert.setupScreenshotUrl || null,
     });
     return { ...alert, id: rows[0].id };
   } catch (e) {
