@@ -360,6 +360,22 @@ async function loadAlertsFromDB() {
       // so background uploads don't race with engine state mutations.
       setupScreenshotUrl: r.setup_screenshot_url || null,
     }));
+    // Log setup alerts' screenshot fields after mapping so we can see
+    // exactly what came back from DB. If raw_setup_screenshot_url is
+    // undefined the column doesn't exist; if null the column exists but
+    // has no data.
+    try {
+      const setups = (rows || []).filter(r => r.condition === 'setup');
+      if (setups.length) {
+        console.log('[shot] step4 loadAlertsFromDB setup rows:', setups.map(r => ({
+          id:                       r.id,
+          symbol:                   r.symbol,
+          raw_setup_screenshot_url: r.setup_screenshot_url,
+          note_has_screenshot:      (r.note || '').includes('setupScreenshot'),
+          note_preview:             (r.note || '').slice(0, 200),
+        })));
+      }
+    } catch(_) {}
   } catch (e) {
     console.warn('DB: loadAlerts failed', e);
     return null;
@@ -370,7 +386,7 @@ async function saveAlert(alert) {
   if (!currentUserId) await ensureAuth();
   if (!currentUserId) return alert;
   try {
-    const rows = await db.insert('alerts', {
+    const insertPayload = {
       user_id:         currentUserId,
       asset_id:        alert.assetId,
       symbol:          alert.symbol,
@@ -385,7 +401,23 @@ async function saveAlert(alert) {
       repeat_interval: alert.repeatInterval || 0,
       tap_tolerance:   alert.tapTolerance   || null,
       setup_screenshot_url: alert.setupScreenshotUrl || null,
-    });
+    };
+    if (alert.condition === 'setup') {
+      console.log('[shot] step3 db.saveAlert payload:', {
+        condition:            insertPayload.condition,
+        setup_screenshot_url: insertPayload.setup_screenshot_url,
+        note_has_screenshot:  (insertPayload.note || '').includes('setupScreenshot'),
+        note_preview:         (insertPayload.note || '').slice(0, 200),
+      });
+    }
+    const rows = await db.insert('alerts', insertPayload);
+    if (alert.condition === 'setup') {
+      console.log('[shot] step3b db.saveAlert response:', {
+        gotRow:               !!rows?.[0],
+        returnedId:           rows?.[0]?.id,
+        returned_screenshot:  rows?.[0]?.setup_screenshot_url,
+      });
+    }
     return { ...alert, id: rows[0].id };
   } catch (e) {
     console.warn('DB: saveAlert failed', e);
