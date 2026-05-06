@@ -4558,13 +4558,23 @@ async function _createSetupAlertInner() {
     }
   }
 
-  // We DO NOT upload the setup screenshot here — that takes 3-5 seconds
-  // and would block the entire creation flow. Instead we initialise the
-  // note with whatever URL is already known (existing in edit mode, or
-  // null) and kick off the upload in the background after navigation.
-  // The post-creation patch (further below) attaches the URL to the alert
-  // once upload completes.
-  const setupScreenshotUrl = setupShotExistingUrl || null;
+  // Pre-compute the screenshot URL synchronously from a deterministic path.
+  // The actual file upload runs in background AFTER navigation, but the URL
+  // it WILL have is known up-front. This lets us write the URL to both the
+  // note JSON and the dedicated column at insert time — no post-hoc PATCH,
+  // no race with the engine, no chance of a refresh wiping the URL.
+  // If the background upload fails, the URL points to a missing file
+  // (acceptable — the journal entry will gracefully render with no image
+  // and the user can re-upload via edit).
+  let setupScreenshotUrl = setupShotExistingUrl || null;
+  let _setupShotPath = null;  // path for the pending background upload
+  if (setupShotFile && !setupScreenshotUrl) {
+    const ext = (setupShotFile.name || 'shot.jpg').split('.').pop() || 'jpg';
+    _setupShotPath = _screenshotPath('setup', ext);
+    if (_setupShotPath) {
+      setupScreenshotUrl = _screenshotUrlFromPath(_setupShotPath);
+    }
+  }
 
   // Pack all journal + trade data into the note field as JSON
   const currentPriceNow = priceData[selectedAsset.id]?.price || null;
@@ -4673,42 +4683,27 @@ async function _createSetupAlertInner() {
   const rrWarn = document.getElementById('rr-warning');
   if (rrWarn) rrWarn.style.display = 'none';
 
-  // DB save + screenshot upload + Telegram, all in the background. The
-  // user is already on the trade card page — these run async without
-  // blocking UI. We use the file reference captured BEFORE the form
-  // reset (the global setupShotFile has already been nulled by
-  // removeSetupShot() above).
-  const screenshotPending = _capturedShotPending;
-  const fileRef           = _capturedShotFile;
+  // Background work: DB save + actual file upload to the pre-computed path.
+  // The URL itself was already written to newAlert.note and
+  // newAlert.setupScreenshotUrl synchronously above, so it persists through
+  // any refresh from DB regardless of when the upload completes.
+  const fileRef = _capturedShotFile;
+  const uploadPath = _setupShotPath;
   (async () => {
-    let saved;
     try {
-      // Run DB save and screenshot upload in parallel.
       const savePromise   = saveAlert(newAlert);
-      const uploadPromise = (screenshotPending && fileRef)
-        ? uploadScreenshot(fileRef, 'setup').catch(e => { console.warn('setup screenshot upload failed:', e); return null; })
-        : Promise.resolve(null);
-      const [savedResult, uploadedUrl] = await Promise.all([savePromise, uploadPromise]);
-      saved = savedResult;
+      const uploadPromise = (fileRef && uploadPath)
+        ? _uploadToPath(fileRef, uploadPath).catch(() => false)
+        : Promise.resolve(true);
+      const [saved, uploadOk] = await Promise.all([savePromise, uploadPromise]);
 
-      // Replace temp id with real DB id in local state.
+      // Replace temp id with real DB id.
       const idx = alerts.findIndex(a => a.id === newAlert.id);
       if (idx !== -1 && saved?.id) alerts[idx].id = saved.id;
 
-      // Patch screenshot URL on the DEDICATED COLUMN, never the note JSON.
-      // This is the architecturally correct fix: the engine owns `note`,
-      // the upload owns `setup_screenshot_url`. They never collide.
-      if (saved?.id && screenshotPending && uploadedUrl) {
-        if (idx !== -1) alerts[idx].setupScreenshotUrl = uploadedUrl;
-        try {
-          await updateAlert(saved.id, { setup_screenshot_url: uploadedUrl });
-          renderAlerts();
-        } catch(e) {
-          console.warn('setup screenshot column patch failed:', e);
-        }
-      }
-
-      if (screenshotPending && !uploadedUrl) {
+      // If upload failed, the URL we already saved points at a missing
+      // file. Surface it so the user can edit and retry.
+      if (fileRef && !uploadOk) {
         showToast(
           'Screenshot Upload Failed',
           'Setup is active, but the chart image didn\'t upload. Edit the alert to retry.',
@@ -5478,29 +5473,50 @@ function compressImage(file, maxDim = 1200, quality = 0.82) {
   });
 }
 
-async function uploadScreenshot(file, slot) {
-  if (!file || !currentUserId) return null;
+// Compute the deterministic public URL for an upload path. Does NOT touch
+// the network — just returns the URL the file WILL have once uploaded.
+// Lets the caller commit the URL to local state + DB synchronously and
+// upload the file in the background, eliminating the need to patch state
+// after the fact (which used to clobber engine state).
+function _screenshotPath(slot, ext) {
+  if (!currentUserId) return null;
+  return `${currentUserId}/${Date.now()}_${slot}.${ext}`;
+}
+function _screenshotUrlFromPath(path) {
+  if (!path) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/trade-screenshots/${path}`;
+}
+
+// Upload to a pre-computed path. Returns true on success, false on failure.
+async function _uploadToPath(file, path) {
+  if (!file || !path) return false;
   try {
-    // Compress to max 1200px before upload to save storage and bandwidth
     file = await compressImage(file, 1200, 0.82) || file;
-    const ext      = file.name.split('.').pop() || 'jpg';
-    const path     = `${currentUserId}/${Date.now()}_${slot}.${ext}`;
-    const res      = await _authedFetch(
+    const res = await _authedFetch(
       `${SUPABASE_URL}/storage/v1/object/trade-screenshots/${path}`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type':  file.type || 'image/jpeg',
-        },
+        headers: { 'Content-Type': file.type || 'image/jpeg' },
         body: file,
       }
     );
     if (!res.ok) throw new Error('Upload failed');
-    return `${SUPABASE_URL}/storage/v1/object/public/trade-screenshots/${path}`;
-  } catch(e) {
+    return true;
+  } catch (e) {
     console.warn('Screenshot upload failed:', e);
-    return null;
+    return false;
   }
+}
+
+async function uploadScreenshot(file, slot) {
+  if (!file || !currentUserId) return null;
+  // Compress for size estimate; actual compression happens in _uploadToPath
+  // again but compressImage is idempotent on already-compressed input.
+  const ext  = file.name.split('.').pop() || 'jpg';
+  const path = _screenshotPath(slot, ext);
+  if (!path) return null;
+  const ok = await _uploadToPath(file, path);
+  return ok ? _screenshotUrlFromPath(path) : null;
 }
 
 // ── Preview uploaded image inline before save ──────────────────────────────
@@ -6163,9 +6179,12 @@ function _classifyOutcome(e) {
     if (!entry || !exit) return 'loss';  // missing data → conservative default
     const isLong = (e.direction || 'long') === 'long';
     const pnl    = isLong ? (exit - entry) / entry : (entry - exit) / entry;
-    if (pnl >  0.0005) return 'win';   // > +0.05% counts as win
-    if (pnl < -0.0005) return 'loss';  // < -0.05% counts as loss
-    return 'be';                        // within ±0.05% → break-even
+    // Floating-point noise floor only. Any real directional move is a win or
+    // loss; only true rounding-error closes count as break-even. The previous
+    // 0.05% buffer was hiding small but real losses (e.g. -0.01%).
+    if (pnl >  1e-7) return 'win';
+    if (pnl < -1e-7) return 'loss';
+    return 'be';
   }
   return 'loss';
 }
@@ -6214,7 +6233,9 @@ async function renderJournal() {
     const exitP  = parseFloat(e.exit_price);
     if (!isFinite(entryP) || !isFinite(exitP) || entryP <= 0) return 'manual_exit';
     const pctMove = (exitP - entryP) / entryP;
-    const beThreshold = 0.0005; // 0.05% — tighter than typical fee
+    // Floating-point noise floor only. Consistent with _classifyOutcome.
+    // Previously a 0.05% buffer was hiding small but real losses.
+    const beThreshold = 1e-7;
     const isLong = (e.direction || '').toLowerCase() === 'long';
     const dir = isLong ? pctMove : -pctMove;
     if (Math.abs(dir) < beThreshold) return 'breakeven_manual';
@@ -7643,11 +7664,29 @@ function renderProfilePage(tier) {
     revenge:       entries.filter(e=>/revenge|fomo/i.test((e.lessons||'')+(e.entry_reason||''))).length,
   };
 
-  // Recent trade rows
-  const outcomeLabel = o => ({
-    full_tp:'FULL TP', tp2_hit:'TP2', tp1_hit:'TP1', trail_stop:'TRAIL', breakeven:'BE', sl_hit:'SL', manual_exit:'CLOSED'
-  }[o] || o || '—');
-  const outcomeColor = o => ['full_tp','tp2_hit','tp1_hit','trail_stop'].includes(o) ? 'var(--green)' : o==='sl_hit'||o==='manual_exit' ? 'var(--red)' : 'var(--muted)';
+  // Recent trade rows. For manual exits we look at computed P&L to label
+  // and colour them — a profitable manual close is a WIN (green), a losing
+  // manual close is a LOSS (red), break-even is muted. Without this every
+  // manual close shows red "CLOSED" even if the trade locked in profit.
+  const outcomeLabel = (e) => {
+    const o = e.outcome;
+    const baseLabels = {
+      full_tp:'FULL TP', tp2_hit:'TP2', tp1_hit:'TP1', trail_stop:'TRAIL',
+      breakeven:'BE', sl_hit:'SL',
+    };
+    if (baseLabels[o]) return baseLabels[o];
+    if (o === 'manual_exit') {
+      const cls = _classifyOutcome(e);
+      return cls === 'win' ? 'CLOSED +' : cls === 'loss' ? 'CLOSED −' : 'CLOSED';
+    }
+    return o || '—';
+  };
+  const outcomeColor = (e) => {
+    const cls = _classifyOutcome(e);
+    return cls === 'win'  ? 'var(--green)'
+         : cls === 'loss' ? 'var(--red)'
+         :                  'var(--muted)';
+  };
 
   const recentRows = recent.map(e => {
     const d = new Date(e.trade_date||e.created_at).toLocaleDateString([],{day:'2-digit',month:'short'});
@@ -7659,7 +7698,7 @@ function renderProfilePage(tier) {
         ${(isPro||isElite) && behaviorNote ? behaviorNote : ''}
       </div>
       <div class="profile-trade-right">
-        <span class="profile-trade-outcome" style="color:${outcomeColor(e.outcome)}">${outcomeLabel(e.outcome)}</span>
+        <span class="profile-trade-outcome" style="color:${outcomeColor(e)}">${outcomeLabel(e)}</span>
         <span class="profile-trade-date">${d}</span>
       </div>
     </div>`;
