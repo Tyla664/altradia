@@ -43,6 +43,42 @@ function _getTelegramHints() {
   return { initData: '', telegramId: '' };
 }
 
+// Wait for Telegram.WebApp.initDataUnsafe to be populated before attempting
+// auth. After a Telegram cache clear, the WebView reloads and our app boot
+// can race ahead of telegram-web-app.js initialization. Without this wait,
+// ensureAuth() runs with empty init_data, mint-jwt 401s, every DB call
+// returns null, and the UI renders empty (no watchlist, no alerts, no
+// journal). Polls every 50ms up to ~3s. Resolves when ready, or times
+// out and lets the caller fall through to dev-mode fallback (browser).
+function _waitForTelegramReady(maxMs = 3000) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const check = () => {
+      try {
+        const tg = window.Telegram?.WebApp;
+        // Inside Telegram: wait for initDataUnsafe.user.id specifically.
+        if (tg?.initDataUnsafe?.user?.id) {
+          console.log('[auth] Telegram.WebApp ready after', Date.now() - start, 'ms');
+          return resolve(true);
+        }
+        // Outside Telegram (browser): the SDK script either didn't load OR
+        // there's no Telegram context at all. Give up quickly so dev-mode
+        // fallback can kick in.
+        if (!tg && Date.now() - start > 200) {
+          console.log('[auth] no Telegram.WebApp after 200ms — assuming browser');
+          return resolve(false);
+        }
+      } catch (_) { /* keep polling */ }
+      if (Date.now() - start >= maxMs) {
+        console.warn('[auth] Telegram.WebApp not ready after', maxMs, 'ms — proceeding anyway');
+        return resolve(false);
+      }
+      setTimeout(check, 50);
+    };
+    check();
+  });
+}
+
 // Mint a fresh JWT via the Edge Function. Falls back to dev mode in a
 // regular browser ONLY if the Edge Function is configured with
 // ALTRADIA_DEV_MODE=1 in its secrets.
@@ -103,6 +139,10 @@ async function _mintJwt() {
 // `lastAuthError` so app.js can show a toast.
 let lastAuthError = null;
 async function ensureAuth() {
+  // Wait for Telegram WebApp SDK to populate initDataUnsafe before
+  // attempting to mint a JWT. This is critical after Telegram cache
+  // clear when our app boot races telegram-web-app.js init.
+  await _waitForTelegramReady();
   const nowSec = Math.floor(Date.now() / 1000);
   if (_altradiaJwt && _jwtExpiresAt > nowSec + 30) return _altradiaJwt;
   if (_authPromise) return _authPromise;
