@@ -723,7 +723,10 @@ async function fetchOandaSnapshot(assets) {
             lwSeries.removePriceLine(lwLivePriceLine);
             lwLivePriceLine = lwSeries.createPriceLine({
               price,
-              color:            'rgba(var(--accent-rgb),0.85)',
+              // Literal color — LightweightCharts is canvas-based and does
+              // NOT parse CSS variables. var(--accent-rgb) here would
+              // silently fail. Hardcoded to brand teal #00D1B2.
+              color:            'rgba(0,209,178,0.85)',
               lineWidth:        1,
               lineStyle:        0,
               axisLabelVisible: true,
@@ -1634,7 +1637,7 @@ async function fetchFinnhubStockPrices(assets) {
           lwSeries.removePriceLine(lwLivePriceLine);
           lwLivePriceLine = lwSeries.createPriceLine({
             price,
-            color:            'rgba(var(--accent-rgb),0.85)',
+            color:            'rgba(0,209,178,0.85)',
             lineWidth:        1,
             lineStyle:        0,
             axisLabelVisible: true,
@@ -2575,11 +2578,15 @@ function setChartLoading(on) {
 // ── Main chart loader ──────────────────────────────────────────────────────
 async function loadLWChart(asset, force = false) {
   if (!asset) return;
+  console.log('[chart] loadLWChart called', { asset: asset.symbol, tf: lwCurrentTF, force, userTyping: userTypingInForm });
   // Don't reload chart while user is actively filling the alert form
-  if (userTypingInForm) return;
+  if (userTypingInForm) { console.log('[chart] BAILED — userTypingInForm'); return; }
   // Skip reload if already showing this asset+TF — unless forced
   // This prevents keyboard open/close from resetting the chart
-  if (!force && lwChart && lwCurrentAsset && lwCurrentAsset.id === asset.id && lwLastTF === lwCurrentTF) return;
+  if (!force && lwChart && lwCurrentAsset && lwCurrentAsset.id === asset.id && lwLastTF === lwCurrentTF) {
+    console.log('[chart] BAILED — already showing this asset+TF');
+    return;
+  }
   lwLastTF = lwCurrentTF;
   lwCurrentAsset = asset;
 
@@ -2592,9 +2599,11 @@ async function loadLWChart(asset, force = false) {
   setChartLoading(true);
 
   const candles = await fetchOHLC(asset, lwCurrentTF);
+  console.log('[chart] fetchOHLC returned', { count: Array.isArray(candles) ? candles.length : 0, sample: candles?.[0] });
 
   setChartLoading(false);
   if (!candles || candles.length === 0) {
+    console.warn('[chart] no candles — showing empty-state message');
     showChartMsg('No chart data available for ' + asset.symbol);
     return;
   }
@@ -2624,7 +2633,9 @@ async function loadLWChart(asset, force = false) {
       }
       lwSeries.applyOptions({ priceFormat: _priceFormat });
     }
+    console.log('[chart] calling setData with', candles.length, 'candles');
     lwSeries.setData(candles);
+    console.log('[chart] setData succeeded');
 
     // Create live price line — shows current price with label on the right axis
     try {
@@ -2633,7 +2644,7 @@ async function loadLWChart(asset, force = false) {
       if (initPrice) {
         lwLivePriceLine = lwSeries.createPriceLine({
           price:            initPrice,
-          color:            'rgba(var(--accent-rgb),0.85)',
+          color:            'rgba(0,209,178,0.85)',
           lineWidth:        1,
           lineStyle:        0, // solid
           axisLabelVisible: true,
@@ -2892,7 +2903,10 @@ function drawAlertLines(assetId) {
   alerts
     .filter(a => a.assetId === assetId && a.status === 'active')
     .forEach(alert => {
-      const green = '#00e676', red = '#ff3d5a', cyan = '#00d4ff', gold = '#f0b429';
+      // Chart colors are literals — LightweightCharts is canvas-based and
+      // cannot parse CSS variables. Updated to match the new brand palette
+      // (teal/red/green from the brand system).
+      const green = '#22C55E', red = '#EF4444', cyan = '#00D1B2', gold = '#F59E0B';
 
       // For setup alerts: note contains JSON — show clean trade setup lines instead
       if (alert.condition === 'setup') {
