@@ -4548,3 +4548,247 @@ header {
   background: rgba(0,120,168,0.08);
   border-color: rgba(0,120,168,0.3);
 }
+
+
+/* ────────────────────────────────────────────────────────────────────
+   HOME PAGE SHELL (B.3)
+   Greeting + carded sections (Watchlist / Currency Strength / Briefing).
+   View modes are driven by [data-view] on #home-shell:
+     [data-view="home"]            (default)
+     [data-view="watchlist-full"]  (only Watchlist section visible)
+     [data-view="strength-full"]   (only Strength section, full meter)
+   ──────────────────────────────────────────────────────────────────── */
+
+#home-shell {
+  padding: 12px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Greeting block ── */
+.home-greeting {
+  padding: 4px 4px 0;
+}
+.home-greeting-line {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  line-height: 1.25;
+}
+.home-greeting-name {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.home-greeting-sub {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── Section card ── */
+.home-section {
+  /* base section spacing */
+}
+.home-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 14px 14px;
+  box-shadow: 0 1px 2px rgba(11,15,20,0.04), 0 4px 12px rgba(11,15,20,0.03);
+}
+[data-theme="dark"] .home-card {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
+}
+.home-section-header {
+  display: flex; align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.home-section-title {
+  font-family: var(--display);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+.home-section-actions {
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.home-add-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb),0.10);
+  border: 1px solid rgba(var(--accent-rgb),0.22);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+  padding: 0;
+}
+.home-add-btn:hover  { background: rgba(var(--accent-rgb),0.16); }
+.home-add-btn:active { transform: scale(0.92); }
+.home-view-all {
+  font-size: 0.8125rem;
+  color: var(--accent);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 2px;
+  user-select: none;
+  white-space: nowrap;
+}
+.home-view-all:hover { opacity: 0.8; }
+
+/* ── View-mode visibility ── */
+/* Default home view: all sections visible, watchlist capped at 5 (the cap
+   is enforced in JS), strength compact, briefing placeholder. */
+#home-shell[data-view="home"] [data-section="watchlist"],
+#home-shell[data-view="home"] [data-section="strength"],
+#home-shell[data-view="home"] [data-section="briefing"] {
+  display: block;
+}
+#home-shell[data-view="home"] #wl-sub-strength { display: none !important; }
+#home-shell[data-view="home"] #home-strength-compact { display: block; }
+
+/* Watchlist-full view: only watchlist section visible, no cap (JS handles). */
+#home-shell[data-view="watchlist-full"] [data-section="strength"],
+#home-shell[data-view="watchlist-full"] [data-section="briefing"] {
+  display: none;
+}
+
+/* Strength-full view: full strength meter, other sections hidden. */
+#home-shell[data-view="strength-full"] [data-section="watchlist"],
+#home-shell[data-view="strength-full"] [data-section="briefing"] {
+  display: none;
+}
+#home-shell[data-view="strength-full"] #home-strength-compact { display: none; }
+#home-shell[data-view="strength-full"] #wl-sub-strength { display: block !important; }
+
+/* Back-to-home link inside strength full view */
+.home-fullview-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--accent);
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 10px;
+  padding: 6px 0;
+}
+.home-fullview-back:hover { opacity: 0.8; }
+
+/* ── Compact strength rows (Home only) ── */
+.home-strength-loading {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 14px 0;
+}
+.home-strength-locked {
+  text-align: center;
+  padding: 14px 8px;
+}
+.home-strength-locked-text {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.home-strength-locked-btn {
+  background: rgba(var(--accent-rgb),0.12);
+  border: 1px solid rgba(var(--accent-rgb),0.3);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.home-strength-group {
+  margin-bottom: 12px;
+}
+.home-strength-group:last-child { margin-bottom: 0; }
+.home-strength-group-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+.home-strength-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 2px;
+}
+.home-strength-cur {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--text);
+  width: 38px;
+  flex-shrink: 0;
+}
+.home-strength-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.home-strength-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.home-strength-bar.strong { background: linear-gradient(90deg, var(--accent), var(--green)); }
+.home-strength-bar.weak   { background: linear-gradient(90deg, var(--red), #F59E0B); }
+.home-strength-score {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Briefing empty state ── */
+.home-briefing-empty {
+  text-align: center;
+  padding: 18px 8px 10px;
+  color: var(--muted);
+}
+.home-briefing-empty-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.home-briefing-empty-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* ── Watchlist content tweaks INSIDE home-card ── */
+/* Original watchlist used outer panel padding; inside the card we already
+   have card padding, so reset margins on the existing market-group blocks
+   to fit cleanly. */
+#wl-sub-assets { padding: 0; }
+#wl-sub-assets .market-group { margin: 0 0 8px 0; }
+#wl-sub-assets .market-group:last-child { margin-bottom: 0; }
+#wl-sub-assets .market-group-label {
+  padding-left: 2px;
+  margin-bottom: 6px;
+}
+#wl-sub-assets .wl-panel-header {
+  display: none; /* the section header replaces this */
+}
+#wl-sub-assets .wl-empty-state {
+  padding: 20px 0;
+}
