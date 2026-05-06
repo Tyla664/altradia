@@ -335,6 +335,26 @@ async function loadAlertsFromDB() {
       filter: { 'user_id': `eq.${currentUserId}` },
       order: 'created_at.asc',
     });
+    // Log raw rows BEFORE mapping (was previously placed after the return,
+    // which made it dead code — the function exited before logging fired).
+    // Log unconditionally — "no setup rows found" is a useful signal too.
+    try {
+      const allCount   = (rows || []).length;
+      const setups     = (rows || []).filter(r => r.condition === 'setup');
+      console.log('[shot] step4 loadAlertsFromDB:', {
+        totalRows:   allCount,
+        setupRows:   setups.length,
+        setups: setups.map(r => ({
+          id:                       r.id,
+          symbol:                   r.symbol,
+          raw_setup_screenshot_url: r.setup_screenshot_url,
+          column_exists:            ('setup_screenshot_url' in r),
+          note_has_screenshot:      (r.note || '').includes('setupScreenshot'),
+          note_preview:             (r.note || '').slice(0, 220),
+        })),
+      });
+    } catch(e) { console.warn('[shot] step4 log failed:', e); }
+
     return rows.map(r => ({
       id: r.id,
       assetId: r.asset_id,
@@ -356,26 +376,8 @@ async function loadAlertsFromDB() {
       triggeredDirection: r.triggered_direction,
       lastTriggeredAt: r.last_triggered_at ? new Date(r.last_triggered_at).getTime() : 0,
       zoneTriggeredOnce: r.condition === 'zone' && parseInt(r.repeat_interval) > 0 && !!r.last_triggered_at,
-      // Setup screenshot URL — top-level column rather than buried in note JSON,
-      // so background uploads don't race with engine state mutations.
       setupScreenshotUrl: r.setup_screenshot_url || null,
     }));
-    // Log setup alerts' screenshot fields after mapping so we can see
-    // exactly what came back from DB. If raw_setup_screenshot_url is
-    // undefined the column doesn't exist; if null the column exists but
-    // has no data.
-    try {
-      const setups = (rows || []).filter(r => r.condition === 'setup');
-      if (setups.length) {
-        console.log('[shot] step4 loadAlertsFromDB setup rows:', setups.map(r => ({
-          id:                       r.id,
-          symbol:                   r.symbol,
-          raw_setup_screenshot_url: r.setup_screenshot_url,
-          note_has_screenshot:      (r.note || '').includes('setupScreenshot'),
-          note_preview:             (r.note || '').slice(0, 200),
-        })));
-      }
-    } catch(_) {}
   } catch (e) {
     console.warn('DB: loadAlerts failed', e);
     return null;
