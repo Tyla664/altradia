@@ -4541,22 +4541,10 @@ async function _createSetupAlertInner() {
     if (tp1 >= entry) return showToast('Invalid TP1', 'For a short, TP1 must be below entry.', 'error');
   }
 
-  // ── Duplicate check: one active setup alert per asset ───────────────────
-  if (!editingAlertId) {
-    const dupSetup = alerts.find(a =>
-      a.condition === 'setup' &&
-      a.assetId === selectedAsset.id &&
-      a.status === 'active'
-    );
-    if (dupSetup) {
-      const j = getJournal(dupSetup);
-      return showToast(
-        'Duplicate Setup',
-        `You already have an active ${j.direction === 'long' ? 'LONG' : 'SHORT'} setup on ${selectedAsset.symbol}. Edit or delete it first.`,
-        'error'
-      );
-    }
-  }
+  // (Per-asset uniqueness check removed — multiple setups on the same
+  // asset with different levels are legitimately separate trade ideas
+  // (e.g. breakout vs. pullback). The check below catches GENUINE
+  // duplicates: same entry + SL + TP1.)
 
   // Pre-compute the screenshot URL synchronously from a deterministic path.
   // The actual file upload runs in background AFTER navigation, but the URL
@@ -7002,7 +6990,7 @@ function openJournalDetail(entryId) {
       ${noteRows ? `<div class="jdetail-notes" style="margin-top:16px">${noteRows}</div>` : ''}
       ${shotsHtml ? `<div style="margin-top:20px">${shotsHtml}</div>` : ''}
       <div style="margin-top:20px;display:flex;gap:10px">
-        <button onclick="deleteJournalEntry('${entry.id}');document.getElementById('journal-detail-overlay')?.remove()" style="flex:1;padding:11px;background:rgba(255,61,90,0.1);border:1px solid rgba(255,61,90,0.3);color:var(--red);font-family:var(--mono);font-size:0.65rem;border-radius:7px;cursor:pointer;letter-spacing:0.06em">DELETE ENTRY</button>
+        <button onclick="deleteJournalEntry('${entry.id}')" style="flex:1;padding:11px;background:rgba(255,61,90,0.1);border:1px solid rgba(255,61,90,0.3);color:var(--red);font-family:var(--mono);font-size:0.65rem;border-radius:7px;cursor:pointer;letter-spacing:0.06em">DELETE ENTRY</button>
       </div>
     </div>`;
 
@@ -7097,11 +7085,24 @@ function openImageFullscreen(url, allUrls = []) {
 }
 
 async function deleteJournalEntry(id) {
-  journalEntries = journalEntries.filter(e => e.id !== id);
-  await deleteJournalEntryFromDB(id);
-  renderJournal();
-  // Close detail overlay if open
-  document.getElementById('journal-detail-overlay')?.remove();
+  // Build a user-friendly description from the entry being deleted, so the
+  // confirmation modal is specific rather than generic.
+  const entry = journalEntries.find(e => String(e.id) === String(id));
+  const symbol = entry?.symbol || 'this trade';
+  const dir    = entry?.direction
+    ? (entry.direction.toLowerCase() === 'long' ? ' LONG' : ' SHORT')
+    : '';
+  showConfirm(
+    'Delete Entry',
+    `Remove the journal entry for <b>${symbol}${dir}</b>?<br><small style="opacity:0.65;font-size:0.75rem">This cannot be undone.</small>`,
+    async () => {
+      journalEntries = journalEntries.filter(e => e.id !== id);
+      await deleteJournalEntryFromDB(id);
+      renderJournal();
+      document.getElementById('journal-detail-overlay')?.remove();
+      showToast('Entry Deleted', `${symbol} entry removed.`, 'success');
+    }
+  );
 }
 
 function editJournalEntry(id) {
