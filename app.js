@@ -10177,17 +10177,20 @@ async function init() {
   }
   updateTgBtn();
 
+  console.log('[shot] step8 about to call loadAlertsFromDB...');
   const dbAlerts = await loadAlertsFromDB();
-  if (dbAlerts !== null) {
-    const setupCount = dbAlerts.filter(a => a.condition === 'setup').length;
-    if (setupCount > 0) {
-      console.log('[shot] step8 boot-load alerts (setups):', dbAlerts
-        .filter(a => a.condition === 'setup')
-        .map(a => ({ id: a.id, symbol: a.symbol, setupScreenshotUrl: a.setupScreenshotUrl, note_has: (a.note||'').includes('setupScreenshot') }))
-      );
-    }
-    alerts = dbAlerts;
-  }
+  console.log('[shot] step8b loadAlertsFromDB returned:', {
+    isNull:      dbAlerts === null,
+    count:       Array.isArray(dbAlerts) ? dbAlerts.length : 0,
+    setupCount:  Array.isArray(dbAlerts) ? dbAlerts.filter(a => a.condition === 'setup').length : 0,
+    setups: Array.isArray(dbAlerts) ? dbAlerts.filter(a => a.condition === 'setup').map(a => ({
+      id:                 a.id,
+      symbol:             a.symbol,
+      setupScreenshotUrl: a.setupScreenshotUrl,
+      note_has:           (a.note || '').includes('setupScreenshot'),
+    })) : [],
+  });
+  if (dbAlerts !== null) alerts = dbAlerts;
 
   await initAlertHistory();
 
