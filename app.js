@@ -4575,6 +4575,12 @@ async function _createSetupAlertInner() {
       setupScreenshotUrl = _screenshotUrlFromPath(_setupShotPath);
     }
   }
+  console.log('[shot] step1 createSetup pre-compute:', {
+    hasFile:           !!setupShotFile,
+    existingUrl:       setupShotExistingUrl,
+    computedPath:      _setupShotPath,
+    finalUrlForJournal: setupScreenshotUrl,
+  });
 
   // Pack all journal + trade data into the note field as JSON
   const currentPriceNow = priceData[selectedAsset.id]?.price || null;
@@ -4648,8 +4654,15 @@ async function _createSetupAlertInner() {
     createdMs:    Date.now(),
     // Top-level field; populated asynchronously after upload completes.
     // Initialised to whatever URL we already had (edit mode) or null.
-    setupScreenshotUrl: setupShotExistingUrl || null,
+    setupScreenshotUrl: setupScreenshotUrl,
   };
+
+  console.log('[shot] step2 newAlert built:', {
+    id:                  newAlert.id,
+    setupScreenshotUrl:  newAlert.setupScreenshotUrl,
+    note_has_screenshot: (newAlert.note || '').includes('setupScreenshot'),
+    note_preview:        (newAlert.note || '').slice(0, 200),
+  });
 
   alerts.push(newAlert);
 
@@ -4689,6 +4702,12 @@ async function _createSetupAlertInner() {
   // any refresh from DB regardless of when the upload completes.
   const fileRef = _capturedShotFile;
   const uploadPath = _setupShotPath;
+  console.log('[shot] step10 background closure inputs:', {
+    hasFileRef:    !!fileRef,
+    uploadPath,
+    newAlertId:    newAlert.id,
+    newAlertUrl:   newAlert.setupScreenshotUrl,
+  });
   (async () => {
     try {
       const savePromise   = saveAlert(newAlert);
@@ -4696,6 +4715,11 @@ async function _createSetupAlertInner() {
         ? _uploadToPath(fileRef, uploadPath).catch(() => false)
         : Promise.resolve(true);
       const [saved, uploadOk] = await Promise.all([savePromise, uploadPromise]);
+      console.log('[shot] step10b background results:', {
+        savedId:                saved?.id,
+        savedUrl:               saved?.setupScreenshotUrl,
+        uploadOk,
+      });
 
       // Replace temp id with real DB id.
       const idx = alerts.findIndex(a => a.id === newAlert.id);
@@ -6086,7 +6110,16 @@ async function saveJournalEntry() {
   record.screenshot_before = beforeUrl || null;
   record.screenshot_after  = afterUrl  || null;
 
+  console.log('[shot] step7 saveJournalToDB payload:', {
+    screenshot_before: record.screenshot_before,
+    screenshot_after:  record.screenshot_after,
+    symbol:            record.symbol,
+  });
   const saved = await saveJournalToDB(record);
+  console.log('[shot] step7b saveJournalToDB result:', {
+    success:                  !!saved,
+    saved_screenshot_before:  saved?.screenshot_before,
+  });
   if (saved) {
     const idx = journalEntries.findIndex(e => e.id === tempId);
     if (idx !== -1) journalEntries[idx] = saved;
@@ -6105,6 +6138,12 @@ async function saveJournalEntry() {
 function logTradeFromAlert(alertId) {
   const alert = alerts.find(a => a.id === alertId);
   if (!alert) return;
+  console.log('[shot] step5 logTradeFromAlert alert:', {
+    id:                  alert.id,
+    setupScreenshotUrl:  alert.setupScreenshotUrl,
+    note_has_screenshot: (alert.note || '').includes('setupScreenshot'),
+    note_preview:        (alert.note || '').slice(0, 200),
+  });
   let j = {};
   try { j = JSON.parse(alert.note || '{}'); } catch(e) {}
 
@@ -6160,7 +6199,13 @@ function logTradeFromAlert(alertId) {
     // Use the setup alert's chart screenshot as the journal's "Before" image.
     // Prefer the dedicated column (post-migration alerts); fall back to
     // note.setupScreenshot for older alerts created before the schema change.
-    screenshotBefore: alert.setupScreenshotUrl || j.setupScreenshot || null,
+    screenshotBefore: (function() {
+      const fromColumn = alert.setupScreenshotUrl;
+      const fromNote   = j.setupScreenshot;
+      const final      = fromColumn || fromNote || null;
+      console.log('[shot] step6 prefill.screenshotBefore:', { fromColumn, fromNote, final });
+      return final;
+    })(),
   });
 }
 
@@ -9210,9 +9255,9 @@ function revealApp() {
   _initNavPill();
   // Inject currency strength sub-tab system into the watchlist panel
   _initWatchlistSubTabs();
-  // Attach pull-to-refresh to all scroll panels. Idempotent — safe to call
-  // multiple times. This must run AFTER panels exist in the DOM.
-  initPullToRefresh();
+  // (Pull-to-refresh removed — was causing layout issues with watchlist
+  // pills and didn't actually trigger a useful refresh anyway. Users can
+  // pull-down on the watchlist or use the menu refresh option instead.)
 }
 
 function _initNavPill() {
@@ -9385,167 +9430,11 @@ function updateSessionDisplay() {
 // ═══════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════
-// PULL TO REFRESH
-// Attaches to all scrollable mobile panels.
-// Pulling down ≥ 64px from the top triggers a
-// full data refresh (prices, alerts, watchlist).
+// PULL TO REFRESH — REMOVED
+// Was causing layout issues (pushing watchlist pills off-screen,
+// stuck half-pull state). Removed entirely; users refresh via
+// menu or app reopen.
 // ═══════════════════════════════════════════════
-function initPullToRefresh() {
-  // Only active on mobile layout
-  if (!isMobileLayout()) return;
-  // Idempotent: if we've already attached PTR, skip. This guards against
-  // revealApp() running twice during onboarding transitions.
-  if (window._ptrInitialized) return;
-  window._ptrInitialized = true;
-
-  const THRESHOLD   = 64;   // px of pull needed to trigger
-  const MAX_PULL    = 96;   // px cap on indicator height
-  const RESIST      = 0.45; // rubber-band resistance factor
-
-  // Panels that should have PTR. journal-list is the inner scroll
-  // container for the journal, so it gets its own indicator.
-  const panelIds = [
-    'panel-watchlist',
-    'panel-community',
-    'panel-alerts',
-    'panel-main',
-    'journal-list',
-  ];
-
-  panelIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-
-    // Inject PTR indicator at top of each panel
-    const indicator = document.createElement('div');
-    indicator.className = 'ptr-indicator';
-    indicator.innerHTML = `
-      <div class="ptr-inner">
-        <svg class="ptr-spinner" width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.8"
-            stroke-dasharray="20 18" stroke-linecap="round" opacity="0.9"/>
-        </svg>
-        <span class="ptr-label">Pull to refresh</span>
-      </div>`;
-    el.insertBefore(indicator, el.firstChild);
-
-    const label    = indicator.querySelector('.ptr-label');
-    const spinner  = indicator.querySelector('.ptr-spinner');
-
-    let startY    = 0;
-    let pulling   = false;
-    let triggered = false;
-    let refreshing = false;
-
-    el.addEventListener('touchstart', e => {
-      // Defensive cleanup — if a previous gesture didn't release cleanly
-      // and left the indicator open, snap it shut now. Without this,
-      // half-pulls can leave the spinner floating until the user fully
-      // pulls again to refresh.
-      if (!refreshing && parseFloat(indicator.style.height || '0') > 0) {
-        indicator.style.transition = 'height 0.2s ease';
-        indicator.style.height = '0px';
-        spinner.classList.remove('spinning');
-        label.textContent = 'Pull to refresh';
-        setTimeout(() => { indicator.style.transition = ''; }, 220);
-      }
-      // Only begin PTR when scrolled to the very top
-      if (el.scrollTop > 2) return;
-      // Skip PTR if the touch began inside the chart. The chart has its
-      // own pinch/pan/scroll behaviour — letting touches there bubble
-      // up into PTR causes accidental refreshes when the user just
-      // wants to interact with the chart.
-      const tgt = e.target;
-      if (tgt && tgt.closest && tgt.closest('#tv-container, #lw-chart, .tv-container')) {
-        return;
-      }
-      startY   = e.touches[0].clientY;
-      pulling  = true;
-      triggered = false;
-    }, { passive: true });
-
-    // Snap the PTR indicator closed and clear visual state. Used both
-    // when the user reverses direction mid-pull and when the touch is
-    // cancelled. Without this, a half-pull leaves the indicator partially
-    // extended, visually pushing the watchlist sub-tab pills off-screen
-    // until the user does a full pull-and-release.
-    const ptrSnapBack = () => {
-      indicator.style.transition = 'height 0.2s ease';
-      indicator.style.height = '0px';
-      spinner.classList.remove('spinning');
-      label.textContent = 'Pull to refresh';
-      setTimeout(() => { indicator.style.transition = ''; }, 220);
-      triggered = false;
-    };
-
-    el.addEventListener('touchmove', e => {
-      if (!pulling || refreshing) return;
-      const dy = (e.touches[0].clientY - startY) * RESIST;
-      if (dy <= 0) {
-        pulling = false;
-        ptrSnapBack();
-        return;
-      }
-
-      const h = Math.min(dy, MAX_PULL);
-      indicator.style.height = h + 'px';
-
-      if (dy >= THRESHOLD && !triggered) {
-        triggered = true;
-        spinner.classList.add('spinning');
-        label.textContent = 'Release to refresh';
-      } else if (dy < THRESHOLD && triggered) {
-        triggered = false;
-        spinner.classList.remove('spinning');
-        label.textContent = 'Pull to refresh';
-      }
-    }, { passive: true });
-
-    el.addEventListener('touchend', async () => {
-      if (!pulling) return;
-      pulling = false;
-
-      if (!triggered) {
-        // Snap back without refresh
-        indicator.style.transition = 'height 0.25s ease';
-        indicator.style.height = '0px';
-        setTimeout(() => { indicator.style.transition = ''; }, 260);
-        return;
-      }
-
-      // Hold indicator open while refreshing
-      refreshing = true;
-      indicator.style.height = '52px';
-      label.textContent = 'Refreshing…';
-
-      try {
-        await refreshAll();
-        // Also reload journal if on journal panel
-        if (id === 'journal-list') renderJournal();
-      } catch(e) {
-        console.warn('PTR refresh error:', e);
-      }
-
-      // Collapse indicator after refresh
-      indicator.style.transition = 'height 0.3s ease';
-      indicator.style.height = '0px';
-      setTimeout(() => {
-        indicator.style.transition = '';
-        spinner.classList.remove('spinning');
-        label.textContent = 'Pull to refresh';
-        refreshing = false;
-        triggered  = false;
-      }, 320);
-    }, { passive: true });
-
-    el.addEventListener('touchcancel', () => {
-      if (!refreshing) {
-        pulling = false;
-        ptrSnapBack();
-      }
-    }, { passive: true });
-  });
-}
 
 // ═══════════════════════════════════════════════
 // SUBSCRIPTION & PAYMENTS
@@ -10289,7 +10178,16 @@ async function init() {
   updateTgBtn();
 
   const dbAlerts = await loadAlertsFromDB();
-  if (dbAlerts !== null) alerts = dbAlerts;
+  if (dbAlerts !== null) {
+    const setupCount = dbAlerts.filter(a => a.condition === 'setup').length;
+    if (setupCount > 0) {
+      console.log('[shot] step8 boot-load alerts (setups):', dbAlerts
+        .filter(a => a.condition === 'setup')
+        .map(a => ({ id: a.id, symbol: a.symbol, setupScreenshotUrl: a.setupScreenshotUrl, note_has: (a.note||'').includes('setupScreenshot') }))
+      );
+    }
+    alerts = dbAlerts;
+  }
 
   await initAlertHistory();
 
@@ -10430,10 +10328,22 @@ document.addEventListener('visibilitychange', () => {
       // Only reload alerts from DB when away for more than 5s to avoid flicker on brief focus loss
       loadAlertsFromDB().then(dbAlerts => {
         if (dbAlerts) {
-          // Merge: keep in-memory flags (zoneTriggeredOnce etc) where possible
+          // Merge: keep in-memory flags (zoneTriggeredOnce etc) where possible.
+          // CAUTION: Object.assign overwrites the in-memory setupScreenshotUrl
+          // even when the DB column is null. We log here to catch this case.
           dbAlerts.forEach(dba => {
             const existing = alerts.find(a => a.id === dba.id);
             if (existing) {
+              if (existing.condition === 'setup') {
+                console.log('[shot] step9 refresh-merge:', {
+                  id:                 existing.id,
+                  symbol:             existing.symbol,
+                  in_memory_url:      existing.setupScreenshotUrl,
+                  db_url:             dba.setupScreenshotUrl,
+                  in_memory_note_has: (existing.note||'').includes('setupScreenshot'),
+                  db_note_has:        (dba.note||'').includes('setupScreenshot'),
+                });
+              }
               Object.assign(existing, dba);
             }
           });
