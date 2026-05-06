@@ -25,7 +25,13 @@
   --muted:       #64748B;
   --header-bg:   rgba(255,255,255,0.92);
   --grid-line:   rgba(0,209,178,0.04);
-  --mono:    'SF Mono', 'SFMono-Regular', ui-monospace, Menlo, Monaco, 'Courier New', monospace;
+  /* --mono is intentionally set to the SAME value as --sans. The codebase
+     has 272 places that use var(--mono) for the old monospace data-display
+     aesthetic; the new brand uses Inter throughout. Pointing both vars at
+     Inter (which has tabular numerals) gives consistent typography app-wide
+     without a sweeping find-replace. If we ever need real monospace again
+     (e.g. for code blocks), use a fresh variable. */
+  --mono:    'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
   --sans:    'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
   --display: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -1427,7 +1433,7 @@ header {
 
 .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
 .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
-.empty-state p { font-size: 0.875rem; font-family: var(--sans); line-height: 1.55; color: var(--muted); }
+.empty-state p { font-size: 0.875rem; line-height: 1.55; color: var(--muted); }
 
 .skeleton { background: linear-gradient(90deg, var(--border) 25%, var(--surface2) 50%, var(--border) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
 @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
