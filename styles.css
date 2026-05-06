@@ -4792,3 +4792,117 @@ header {
 #wl-sub-assets .wl-empty-state {
   padding: 20px 0;
 }
+
+
+/* ── Home compact watchlist rows ──────────────────────────────────────
+   Used in the home overview only. Always flat (no category groups), 
+   always compact (icon + symbol + name + price + % change). The full
+   list (with categories, badges, remove buttons) is in #wl-sub-assets
+   and only visible when the user expands via "View all". */
+.home-wl-row {
+  display: flex; align-items: center;
+  padding: 10px 4px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.home-wl-row:last-child { border-bottom: none; }
+.home-wl-row:hover  { background: rgba(var(--accent-rgb),0.04); }
+.home-wl-row:active { background: rgba(var(--accent-rgb),0.08); }
+.home-wl-row-left {
+  display: flex; align-items: center; gap: 10px;
+  flex: 1; min-width: 0;
+}
+.home-wl-icon {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+.home-wl-icon-crypto      { background: linear-gradient(135deg, #F7931A, #FFB347); }
+.home-wl-icon-forex       { background: linear-gradient(135deg, #3B82F6, #60A5FA); }
+.home-wl-icon-commodities { background: linear-gradient(135deg, #F59E0B, #FBBF24); }
+.home-wl-icon-indices     { background: linear-gradient(135deg, #8B5CF6, #A78BFA); }
+.home-wl-icon-stocks      { background: linear-gradient(135deg, #00D1B2, #5EEAD4); }
+.home-wl-icon-synthetics  { background: linear-gradient(135deg, #64748B, #94A3B8); }
+.home-wl-text {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  gap: 1px;
+}
+.home-wl-symbol {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--text);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-wl-name {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-wl-row-right {
+  display: flex; flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.home-wl-price {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+.home-wl-change {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.home-wl-change.pos { color: var(--green); }
+.home-wl-change.neg { color: var(--red); }
+
+/* Empty state inside the watchlist card */
+.home-wl-empty {
+  text-align: center;
+  padding: 24px 8px 12px;
+  color: var(--muted);
+}
+.home-wl-empty-text {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.home-wl-empty-sub {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* Empty state when watchlist has no FX pairs (strength can't show anything) */
+.home-strength-empty {
+  text-align: center;
+  padding: 16px 8px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* When in home view, the full-list container (#wl-sub-assets) stays
+   hidden — only the compact rows show. When in watchlist-full, the 
+   inverse: hide compact rows, show the full grouped/flat list. */
+#home-shell[data-view="home"] #wl-sub-assets        { display: none !important; }
+#home-shell[data-view="home"] #home-watchlist-rows  { display: block; }
+#home-shell[data-view="watchlist-full"] #wl-sub-assets        { display: block !important; }
+#home-shell[data-view="watchlist-full"] #home-watchlist-rows  { display: none; }
+#home-shell[data-view="strength-full"] #home-watchlist-rows   { display: none; }
