@@ -1168,28 +1168,13 @@ function _applyWlTabStyle(btn, isActive) {
   btn.style.cssText = '';
 }
 
+// Legacy shim — old WATCHLIST/STRENGTH sub-tab system was replaced by the
+// home shell (greeting + carded sections). This stays as a no-op alias to
+// the new helpers so any legacy call sites keep working.
 function switchWlSubTab(tab) {
   _wlActiveSubTab = tab;
-  const assetsEl   = document.getElementById('wl-sub-assets');
-  const strengthEl = document.getElementById('wl-sub-strength');
-  const btnAssets  = document.getElementById('wl-stab-assets');
-  const btnStrength= document.getElementById('wl-stab-strength');
-  const fab        = document.getElementById('wl-fab');
-
-  if (tab === 'assets') {
-    if (assetsEl)   assetsEl.style.display   = '';
-    if (strengthEl) strengthEl.style.display = 'none';
-    _applyWlTabStyle(btnAssets,   true);
-    _applyWlTabStyle(btnStrength, false);
-    if (fab) fab.classList.add('visible');
-  } else {
-    if (assetsEl)   assetsEl.style.display   = 'none';
-    if (strengthEl) strengthEl.style.display = '';
-    _applyWlTabStyle(btnAssets,   false);
-    _applyWlTabStyle(btnStrength, true);
-    if (fab) fab.classList.remove('visible');
-    renderStrengthTab();
-  }
+  if (tab === 'strength') openStrengthFull();
+  else _applyHomeViewMode('home');
 }
 
 function renderStrengthTab() {
@@ -1410,13 +1395,17 @@ async function fetchStrengthAiInsight() {
   }
 }
 
-// ── Auto-refresh strength tab when prices update ──────────────────────────
+// ── Auto-refresh strength when prices update ──────────────────────────────
+// Now refreshes BOTH the home page compact rows (always visible when on
+// home overview) AND the full meter view (when expanded). Either way, if
+// scores changed we want fresh bars.
 function _refreshStrengthIfOpen() {
-  if (_wlActiveSubTab === 'strength') {
-    // Bust only the active timeframe's cache. Other TFs may still be valid
-    // (their prices/candles weren't touched by this update path).
-    _csScoreCache[_csTimeframe] = null;
+  // Bust only the active timeframe's cache. Other TFs may still be valid.
+  _csScoreCache[_csTimeframe] = null;
+  if (typeof _homeViewMode !== 'undefined' && _homeViewMode === 'strength-full') {
     renderStrengthTab();
+  } else if (typeof _renderHomeStrengthCompact === 'function') {
+    _renderHomeStrengthCompact();
   }
 }
 
@@ -1895,6 +1884,13 @@ function updateWatchlistSelection() {
 // type 'forex'   → two stacked flag images (base + quote currency)
 // type 'commodity'→ static SVG inline (no good free CDN)
 function renderWatchlist() {
+  // Home-view cap: when on the home overview, only show the first N assets
+  // across all categories. Full list is reachable via "View all →". The
+  // cap doesn't apply when _homeViewMode is 'watchlist-full' (toggle
+  // expanded the section).
+  const isHome = (typeof _homeViewMode !== 'undefined' && _homeViewMode === 'home');
+  const renderCap = isHome ? HOME_WATCHLIST_CAP : Infinity;
+  let renderedCount = 0;
   let totalCount = 0;
   const catLabels = { crypto:'CRYPTO', forex:'FOREX', commodities:'COMMODITIES', indices:'INDICES', stocks:'STOCKS', synthetics:'SYNTHETICS' };
 
@@ -1910,6 +1906,8 @@ function renderWatchlist() {
         labelEl.style.display = assets.length ? '' : 'none';
       }
       assets.forEach(asset => {
+        totalCount++; // count even when capped so the toggle decision is correct
+        if (renderedCount >= renderCap) return; // skip rendering past cap
         const hasAlert  = alerts.some(a => a.assetId === asset.id && a.status === 'active');
         const isSelected = !isMobileLayout() && selectedAsset && selectedAsset.id === asset.id;
         const card = document.createElement('div');
@@ -1928,7 +1926,8 @@ function renderWatchlist() {
           selectAsset(asset);
         };
         container.appendChild(card);
-        totalCount++;
+        renderedCount++;
+        // (totalCount was incremented above so capped-out assets still count)
       });
     });
     // Show ungrouped flat container if exists — hide it
@@ -1995,6 +1994,21 @@ function renderWatchlist() {
   // Show/hide empty state
   const empty = document.getElementById('wl-empty');
   if (empty) empty.style.display = totalCount === 0 ? '' : 'none';
+
+  // Show/hide "View all →" / "View less ↑" toggle on the home page.
+  // Visible only when there are more assets than the home cap. The label
+  // reflects the current view mode.
+  const toggle = document.getElementById('home-wl-toggle');
+  if (toggle) {
+    if (totalCount > HOME_WATCHLIST_CAP) {
+      toggle.hidden = false;
+      toggle.textContent = (typeof _homeViewMode !== 'undefined' && _homeViewMode === 'watchlist-full')
+        ? 'View less ↑'
+        : 'View all →';
+    } else {
+      toggle.hidden = true;
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -2226,7 +2240,7 @@ function selectAsset(asset) {
 // ═══════════════════════════════════════════════
 // ── NAVIGATION HISTORY STACK ──────────────────────
 // Tracks panel history so back button/swipe works correctly
-const navStack = ['chart']; // start on chart
+const navStack = ['watchlist']; // start on Home (the renamed Watchlist tab)
 
 // Returns true when the mobile bottom nav is active (regardless of device width)
 // This handles landscape phones, tablets, and any unusual viewport sizes correctly.
@@ -2298,10 +2312,18 @@ function mobileTab(tab, pushState = true) {
     if (unlockBar) unlockBar.classList.toggle('visible', getUserTier() === 'free');
   } else if (tab === 'watchlist') {
     document.getElementById('panel-watchlist').classList.add('mobile-active');
-    if (fab) fab.classList.add('visible');
+    // FAB stays hidden on Home — the inline "+" in the Watchlist section
+    // header replaces it. The FAB element/CSS is preserved for any future
+    // surface that wants a floating add button.
+    if (fab) fab.classList.remove('visible');
     document.getElementById('mnav-my-watchlist')?.classList.add('active');
     alertSourceId = null; updateAlertEditBtn();
+    // Always land back at home overview when user navigates to this tab
+    // — don't preserve a previously-expanded watchlist or strength view.
+    if (typeof _applyHomeViewMode === 'function') _applyHomeViewMode('home');
     renderWatchlist();
+    // Refresh greeting in case user landed near a time-of-day boundary
+    if (typeof _updateHomeGreeting === 'function') _updateHomeGreeting();
   } else if (tab === 'chart') {
     if (fab) fab.classList.remove('visible');
     const panel = document.getElementById('panel-main');
@@ -2408,6 +2430,16 @@ window.addEventListener('popstate', (e) => {
     menuPanel.style.transform !== 'translateX(100%)';
   if (menuOpen) {
     if (typeof closeMenuPanel === 'function') closeMenuPanel();
+    consumeBackAndStay();
+    return;
+  }
+
+  // PRIORITY 4: in-place home view modes (expanded watchlist or full
+  // strength meter). System back should collapse back to home overview
+  // rather than navigating away from the Home tab entirely.
+  if (typeof _homeViewMode !== 'undefined' && _homeViewMode !== 'home') {
+    if (typeof _applyHomeViewMode === 'function') _applyHomeViewMode('home');
+    if (typeof renderWatchlist === 'function') renderWatchlist();
     consumeBackAndStay();
     return;
   }
@@ -8820,6 +8852,16 @@ async function _waitTwa(maxMs = 3000) {
           menuPanel.style.display === 'flex' &&
           menuPanel.style.transform !== 'translateX(100%)';
         if (menuOpen) { closeMenuPanel(); return; }
+
+        // Home view-mode collapse: if the user expanded the watchlist or
+        // strength meter on the home page, BackButton collapses to home
+        // overview rather than navigating away.
+        if (typeof _homeViewMode !== 'undefined' && _homeViewMode !== 'home') {
+          if (typeof _applyHomeViewMode === 'function') _applyHomeViewMode('home');
+          if (typeof renderWatchlist === 'function') renderWatchlist();
+          return;
+        }
+
         if (navStack.length > 1) { goBack(); return; }
         // At root — hide the back button since there's nowhere to go back to
         backBtn.hide();
@@ -8832,15 +8874,22 @@ async function _waitTwa(maxMs = 3000) {
       const _updateBackBtn = () => {
         const openPages = document.querySelectorAll('.menu-page.open');
         const menuPanel = document.getElementById('menu-panel');
+        // (intentionally exposed on window below so home view-mode helpers
+        // can ping it after toggling the shell)
         const menuOpen  = menuPanel &&
           menuPanel.style.display === 'flex' &&
           menuPanel.style.transform !== 'translateX(100%)';
-        if (navStack.length > 1 || openPages.length || menuOpen) {
+        // Home view-mode counts as a navigable depth too — when expanded
+        // we want a back affordance so the user can collapse without
+        // tab-switching.
+        const expandedHome = (typeof _homeViewMode !== 'undefined' && _homeViewMode !== 'home');
+        if (navStack.length > 1 || openPages.length || menuOpen || expandedHome) {
           backBtn.show();
         } else {
           backBtn.hide();
         }
       };
+      window._updateBackBtn = _updateBackBtn;
       // Poll every 300ms — lightweight enough and avoids patching every function
       setInterval(_updateBackBtn, 300);
     }
@@ -9379,45 +9428,203 @@ function _initNavPill() {
   nav.appendChild(pill);
 }
 
+// ── Home page shell (B.3) ─────────────────────────────────────────────
+// Replaces the old WATCHLIST/STRENGTH sub-tab system with a stacked
+// home view: greeting + three carded sections (Watchlist / Currency
+// Strength / Economic Briefing). View mode lives in _homeViewMode:
+//   'home'             → home overview (default landing)
+//   'watchlist-full'   → expanded watchlist (all assets, no other sections)
+//   'strength-full'    → full strength meter view (with breakout signals)
+// All transitions happen inside panel-watchlist — no new routes.
+let _homeViewMode = 'home';
+const HOME_WATCHLIST_CAP = 5;
+const HOME_STRENGTH_CAP  = 3;
+
 function _initWatchlistSubTabs() {
+  // Function name preserved for backward compat with the existing call
+  // site in setupAllSidePanels(). Internally it now builds the home shell.
   const watchlistPanel = document.getElementById('panel-my-watchlist');
-  if (!watchlistPanel || document.getElementById('wl-subtab-bar')) return;
+  if (!watchlistPanel || document.getElementById('home-shell')) return;
 
-  // Insert sub-tab bar at the top of the watchlist panel
-  const tabBar = document.createElement('div');
-  tabBar.id = 'wl-subtab-bar';
-  tabBar.className = 'wl-stab-bar';
-  tabBar.innerHTML = `
-    <button id="wl-stab-assets" onclick="switchWlSubTab('assets')" class="wl-stab-btn" data-active="1">WATCHLIST</button>
-    <button id="wl-stab-strength" onclick="switchWlSubTab('strength')" class="wl-stab-btn" data-active="0">STRENGTH</button>`;
-  watchlistPanel.insertBefore(tabBar, watchlistPanel.firstChild);
+  // Capture the existing watchlist children (market-group blocks for
+  // CRYPTO/FOREX/STOCKS/COMMODITIES/INDICES/SYNTHETICS + empty state)
+  // before we wipe and rebuild. We'll move them into the new wl-sub-assets
+  // container so renderWatchlist() keeps targeting the same element IDs.
+  const existingChildren = [...watchlistPanel.children];
 
-  // Wrap the existing watchlist content in a sub-panel div
-  const assetsWrapper = document.createElement('div');
-  assetsWrapper.id = 'wl-sub-assets';
-  // Move all children except the tab bar into the wrapper
-  const children = [...watchlistPanel.children].filter(c => c !== tabBar);
-  children.forEach(c => assetsWrapper.appendChild(c));
-  watchlistPanel.appendChild(assetsWrapper);
+  // Build the home shell skeleton.
+  watchlistPanel.innerHTML = `
+    <div id="home-shell">
+      <!-- Greeting block -->
+      <div class="home-greeting">
+        <div class="home-greeting-line" id="home-greeting-line">Welcome back 👋</div>
+        <div class="home-greeting-sub">Here's your market overview</div>
+      </div>
 
-  // Create the strength sub-panel
-  const strengthWrapper = document.createElement('div');
-  strengthWrapper.id = 'wl-sub-strength';
-  strengthWrapper.className = 'wl-sub-strength';
-  strengthWrapper.style.display = 'none';
+      <!-- Watchlist section -->
+      <section class="home-section home-card" data-section="watchlist">
+        <header class="home-section-header">
+          <h2 class="home-section-title">Watchlist</h2>
+          <div class="home-section-actions">
+            <button class="home-add-btn" onclick="openAddModal()" title="Add asset" aria-label="Add asset">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <line x1="8" y1="3" x2="8" y2="13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="3" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>View all →</a>
+          </div>
+        </header>
+        <div id="wl-sub-assets"></div>
+      </section>
 
-  const strengthBody = document.createElement('div');
-  strengthBody.id = 'wl-strength-body';
-  strengthWrapper.appendChild(strengthBody);
-  watchlistPanel.appendChild(strengthWrapper);
+      <!-- Currency Strength section -->
+      <section class="home-section home-card" data-section="strength">
+        <header class="home-section-header">
+          <h2 class="home-section-title">Currency Strength</h2>
+          <div class="home-section-actions">
+            <a class="home-view-all" onclick="openStrengthFull()">View all →</a>
+          </div>
+        </header>
+        <div id="home-strength-compact"></div>
+        <div id="wl-sub-strength" class="wl-sub-strength" style="display:none">
+          <div class="home-fullview-back" onclick="closeStrengthFull()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <polyline points="9,2 4,7 9,12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+            Back to Home
+          </div>
+          <div id="wl-strength-body"></div>
+        </div>
+      </section>
 
-  // Apply correct active state immediately after injection.
-  // setTimeout(0) ensures DOM is ready; explicit color values avoid
-  // CSS variable resolution timing issues on initial render.
-  setTimeout(() => {
-    _applyWlTabStyle(document.getElementById('wl-stab-assets'),   true);
-    _applyWlTabStyle(document.getElementById('wl-stab-strength'), false);
-  }, 0);
+      <!-- Economic Briefing section (placeholder until briefing is wired in-app) -->
+      <section class="home-section home-card" data-section="briefing">
+        <header class="home-section-header">
+          <h2 class="home-section-title">Economic Briefing</h2>
+        </header>
+        <div class="home-briefing-empty">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="opacity:0.4;margin-bottom:8px">
+            <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="8" y1="3" x2="8" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="16" y1="3" x2="16" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <div class="home-briefing-empty-text">Today's briefing will appear here</div>
+          <div class="home-briefing-empty-sub">Receive it on Telegram in the meantime</div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  // Move the captured market-group children into wl-sub-assets so all the
+  // existing renderWatchlist() targets (#crypto-list, #forex-list, etc.,
+  // #wl-empty, #wl-count) continue to resolve unchanged.
+  const assetsContainer = document.getElementById('wl-sub-assets');
+  existingChildren.forEach(c => assetsContainer.appendChild(c));
+
+  // Update greeting using the user's first name (already populated by
+  // the auth flow into telegramUserName).
+  _updateHomeGreeting();
+
+  // Initial render: home view
+  _applyHomeViewMode('home');
+}
+
+// Tick-on every minute so "Good morning/afternoon/evening" shifts with
+// the user's local time of day.
+function _updateHomeGreeting() {
+  const el = document.getElementById('home-greeting-line');
+  if (!el) return;
+  const h = new Date().getHours();
+  const partOfDay = h < 5 ? 'evening'
+                  : h < 12 ? 'morning'
+                  : h < 17 ? 'afternoon'
+                  : h < 21 ? 'evening'
+                  : 'evening';
+  const name = (typeof telegramUserName === 'string' && telegramUserName && telegramUserName !== 'there')
+    ? telegramUserName
+    : 'Trader';
+  el.innerHTML = `Good ${partOfDay}, <span class="home-greeting-name">${name}</span> 👋`;
+}
+
+// Apply CSS classes that show/hide sections per view mode.
+// 'home'           → all three sections visible, watchlist capped, strength compact
+// 'watchlist-full' → only watchlist section visible, all assets
+// 'strength-full'  → strength section showing full meter (other sections hidden)
+function _applyHomeViewMode(mode) {
+  _homeViewMode = mode;
+  const shell = document.getElementById('home-shell');
+  if (shell) shell.dataset.view = mode;
+  _renderHomeStrengthCompact();
+  // Tell the Telegram BackButton handler to re-evaluate visibility.
+  // (The handler exposes itself on window if it was wired during boot.)
+  try { if (typeof window._updateBackBtn === 'function') window._updateBackBtn(); } catch(_) {}
+}
+
+// Render top-3 strongest + top-3 weakest currencies as compact rows.
+// Uses the existing calcCurrencyStrength() output. If scores aren't ready
+// yet (price data still loading), shows a loading state.
+function _renderHomeStrengthCompact() {
+  const el = document.getElementById('home-strength-compact');
+  if (!el) return;
+  const tier = (typeof getUserTier === 'function') ? getUserTier() : 'free';
+  if (tier === 'free') {
+    el.innerHTML = `
+      <div class="home-strength-locked">
+        <div class="home-strength-locked-text">Currency strength is a Pro feature</div>
+        <button class="home-strength-locked-btn" onclick="openMenuPage('subscription')">Upgrade to unlock</button>
+      </div>`;
+    return;
+  }
+  // Try to use cached strength scores; if missing, kick a fetch and show loading.
+  let result = (typeof calcCurrencyStrength === 'function') ? calcCurrencyStrength() : null;
+  if (!result || !result.scores) {
+    el.innerHTML = `<div class="home-strength-loading">Loading currency data…</div>`;
+    if (typeof fetchStrengthPrices === 'function') {
+      fetchStrengthPrices().then(() => _renderHomeStrengthCompact()).catch(() => {});
+    }
+    return;
+  }
+  // Sort currencies by score descending; pick top N strongest and top N weakest.
+  const entries = Object.entries(result.scores).sort((a, b) => b[1] - a[1]);
+  const top    = entries.slice(0, HOME_STRENGTH_CAP);
+  const bottom = entries.slice(-HOME_STRENGTH_CAP).reverse(); // weakest at top of weak list
+  const row = (c, score, isStrong) => `
+    <div class="home-strength-row">
+      <span class="home-strength-cur">${c}</span>
+      <div class="home-strength-bar-wrap">
+        <div class="home-strength-bar ${isStrong ? 'strong' : 'weak'}" style="width:${Math.max(8, score)}%"></div>
+      </div>
+      <span class="home-strength-score">${Math.round(score)}</span>
+    </div>`;
+  el.innerHTML = `
+    <div class="home-strength-group">
+      <div class="home-strength-group-label">Strongest</div>
+      ${top.map(([c, s]) => row(c, s, true)).join('')}
+    </div>
+    <div class="home-strength-group">
+      <div class="home-strength-group-label">Weakest</div>
+      ${bottom.map(([c, s]) => row(c, s, false)).join('')}
+    </div>`;
+}
+
+// Toggle watchlist between capped and full views (in-place expand).
+function toggleHomeWatchlist() {
+  _applyHomeViewMode(_homeViewMode === 'watchlist-full' ? 'home' : 'watchlist-full');
+  const link = document.getElementById('home-wl-toggle');
+  if (link) link.textContent = (_homeViewMode === 'watchlist-full') ? 'View less ↑' : 'View all →';
+  // Re-render so the cap is applied/removed visually.
+  if (typeof renderWatchlist === 'function') renderWatchlist();
+}
+
+// Switch into/out of full strength meter view (uses existing renderStrengthTab).
+function openStrengthFull() {
+  _applyHomeViewMode('strength-full');
+  if (typeof renderStrengthTab === 'function') renderStrengthTab();
+}
+function closeStrengthFull() {
+  _applyHomeViewMode('home');
 }
 
 // ═══════════════════════════════════════════════
@@ -10394,8 +10601,9 @@ async function init() {
   updateSessionDisplay();
   setInterval(updateSessionDisplay, 10000);
 
-  // Navigate straight to chart on load
-  mobileTab('chart', false);
+  // Navigate to Home on load (the renamed Watchlist tab — internal key
+  // stays 'watchlist' so all routing/storage keeps working).
+  mobileTab('watchlist', false);
   revealApp();
 
 }
