@@ -1427,7 +1427,7 @@ header {
 
 .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
 .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
-.empty-state p { font-size: 0.75rem; font-family: var(--mono); line-height: 1.6; }
+.empty-state p { font-size: 0.875rem; font-family: var(--sans); line-height: 1.55; color: var(--muted); }
 
 .skeleton { background: linear-gradient(90deg, var(--border) 25%, var(--surface2) 50%, var(--border) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
 @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
