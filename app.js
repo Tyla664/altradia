@@ -6099,21 +6099,32 @@ async function saveJournalEntry() {
 
   showToast('Trade Logged', `${symbol} saved to journal.`, 'success');
 
-  // Step 3 — upload screenshots + save to DB in background
-  const hasScreenshots = capturedFiles.before || capturedFiles.after;
-  // Screenshots upload silently in background
+  // Step 3 — upload screenshots + save to DB in background.
+  // Same logic as the EDIT path above: only upload if a NEW file was
+  // captured. If the form was pre-populated with an existing URL (e.g.
+  // from the setup alert's screenshot) and the user didn't replace it,
+  // keep that URL — don't overwrite with null. Without this branch,
+  // logging a trade from a setup alert nukes the "before" image at save.
+  const hasNewBefore       = !!capturedFiles.before;
+  const hasNewAfter        = !!capturedFiles.after;
+  const keepExistingBefore = !hasNewBefore && jnlExistingBeforeUrl !== null;
+  const keepExistingAfter  = !hasNewAfter  && jnlExistingAfterUrl  !== null;
 
   const [beforeUrl, afterUrl] = await Promise.all([
-    uploadScreenshot(capturedFiles.before, 'before'),
-    uploadScreenshot(capturedFiles.after,  'after'),
+    hasNewBefore ? uploadScreenshot(capturedFiles.before, 'before') : Promise.resolve(null),
+    hasNewAfter  ? uploadScreenshot(capturedFiles.after,  'after')  : Promise.resolve(null),
   ]);
-  record.screenshot_before = beforeUrl || null;
-  record.screenshot_after  = afterUrl  || null;
+  // Resolve final URLs: new upload > kept existing > null (user deleted it)
+  record.screenshot_before = beforeUrl || (keepExistingBefore ? jnlExistingBeforeUrl : null);
+  record.screenshot_after  = afterUrl  || (keepExistingAfter  ? jnlExistingAfterUrl  : null);
 
   console.log('[shot] step7 saveJournalToDB payload:', {
-    screenshot_before: record.screenshot_before,
-    screenshot_after:  record.screenshot_after,
-    symbol:            record.symbol,
+    hasNewBefore, keepExistingBefore,
+    jnlExistingBeforeUrl,
+    beforeUrl,
+    final_screenshot_before: record.screenshot_before,
+    screenshot_after:        record.screenshot_after,
+    symbol:                  record.symbol,
   });
   const saved = await saveJournalToDB(record);
   console.log('[shot] step7b saveJournalToDB result:', {
