@@ -2350,17 +2350,62 @@ function goBack() {
 window.addEventListener('popstate', (e) => {
   if (!isMobileLayout()) return;
 
-  // If a journal-detail overlay is open, close it FIRST and consume the
-  // back action — don't fall through to tab navigation. The overlay
-  // pushed its own history state on open; the user's back gesture is
-  // popping THAT state, not asking for a tab change.
-  const jd = document.getElementById('journal-detail-overlay');
-  if (jd) {
-    jd.remove();
-    // Re-push our current tab state so subsequent back presses still
-    // navigate tabs correctly.
+  // Re-push state immediately if the gesture should be consumed by
+  // closing UI rather than navigating.
+  const consumeBackAndStay = () => {
     const curTab = navStack[navStack.length - 1] || 'watchlist';
     window.history.pushState({ twTab: curTab }, '', '');
+  };
+
+  // PRIORITY 1: dynamic overlays. Same list as Telegram BackButton handler
+  // so behaviour matches whether the user has Telegram 6.1+ (uses
+  // BackButton) or 6.0 / browser dev (uses popstate). Without this,
+  // closing the menu via system back used to drop the WebApp entirely.
+  const overlayIds = [
+    'journal-detail-overlay',
+    'image-fullscreen-overlay',
+    'close-choice-modal',
+    'trail-stop-modal',
+    'journal-asset-picker',
+    'export-modal-overlay',
+    'payment-modal-overlay',
+    'feedback-overlay',
+  ];
+  for (const id of overlayIds) {
+    const el = document.getElementById(id);
+    if (el) { el.remove(); consumeBackAndStay(); return; }
+  }
+
+  // PRIORITY 2: open menu sub-pages (profile/analytics/subscription/etc).
+  // These are <div class="menu-page open"> overlays inside the menu panel.
+  const openPages = document.querySelectorAll('.menu-page.open');
+  if (openPages.length) {
+    const top = openPages[openPages.length - 1];
+    const pageId = top.id;
+    top.classList.remove('open');
+    setTimeout(() => {
+      top.style.display = 'none';
+      // Pages embedded in the menu panel — reopen the panel on back so
+      // the user lands back at the menu, not at root.
+      if (pageId === 'menu-page-profile' ||
+          pageId === 'menu-page-analytics' ||
+          pageId === 'menu-page-subscription') {
+        if (typeof openMenuPanel === 'function') openMenuPanel();
+      }
+    }, 280);
+    consumeBackAndStay();
+    return;
+  }
+
+  // PRIORITY 3: menu panel itself. Without this, system back on an open
+  // menu falls through to tab nav or app-close instead of closing the menu.
+  const menuPanel = document.getElementById('menu-panel');
+  const menuOpen = menuPanel &&
+    menuPanel.style.display === 'flex' &&
+    menuPanel.style.transform !== 'translateX(100%)';
+  if (menuOpen) {
+    if (typeof closeMenuPanel === 'function') closeMenuPanel();
+    consumeBackAndStay();
     return;
   }
 
@@ -6244,6 +6289,10 @@ async function renderJournal() {
   // Load from DB if empty
   if (!journalEntries.length) {
     journalEntries = await loadJournalFromDB();
+    console.log('[boot] journal lazy-loaded:', {
+      isArray: Array.isArray(journalEntries),
+      count:   Array.isArray(journalEntries) ? journalEntries.length : 0,
+    });
   }
 
   // Apply time filter
@@ -8683,10 +8732,26 @@ registerServiceWorker();
 // ── Telegram Mini App SDK setup ───────────────────
 // Disable vertical swipe-down to close/minimize — prevents accidental dismissal
 // while the user is scrolling through lists or the chart page.
-(function setupTelegramWebApp() {
+//
+// CRITICAL: this runs at script-eval time, but after a Telegram cache clear
+// telegram-web-app.js may not have parsed yet. Without polling, twa is
+// undefined, BackButton is never wired, and the system back gesture
+// closes the app instead of closing menus/overlays.
+async function _waitTwa(maxMs = 3000) {
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    if (window.Telegram?.WebApp) return window.Telegram.WebApp;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return null;
+}
+(async function setupTelegramWebApp() {
   try {
-    const twa = window.Telegram?.WebApp;
-    if (!twa) return;
+    const twa = await _waitTwa();
+    if (!twa) {
+      console.warn('[telegram] WebApp SDK never loaded — running in browser mode');
+      return;
+    }
     // Prevent the app from being minimised by downward swipe
     if (typeof twa.disableVerticalSwipes === 'function') {
       twa.disableVerticalSwipes();
@@ -10206,8 +10271,10 @@ async function init() {
   }
   updateTgBtn();
 
+  console.log('[boot] start data load — currentUserId:', (typeof currentUserId !== 'undefined' ? currentUserId : '(undefined)'));
   console.log('[shot] step8 about to call loadAlertsFromDB...');
   const dbAlerts = await loadAlertsFromDB();
+  console.log('[boot] alerts loaded:', { isNull: dbAlerts === null, count: Array.isArray(dbAlerts) ? dbAlerts.length : 0 });
   console.log('[shot] step8b loadAlertsFromDB returned:', {
     isNull:      dbAlerts === null,
     count:       Array.isArray(dbAlerts) ? dbAlerts.length : 0,
@@ -10227,6 +10294,12 @@ async function init() {
   Object.keys(ASSETS).forEach(cat => { ASSETS[cat] = []; });
 
   const dbWatchlist = await loadWatchlist();
+  console.log('[boot] watchlist loaded:', {
+    isNull: dbWatchlist === null,
+    count:  Array.isArray(dbWatchlist) ? dbWatchlist.length : 0,
+    sample: Array.isArray(dbWatchlist) ? dbWatchlist.slice(0, 3) : null,
+    currentUserId,
+  });
   if (dbWatchlist && dbWatchlist.length > 0) {
     dbWatchlist.forEach(row => {
       const cat = row.category;
