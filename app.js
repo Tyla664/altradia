@@ -1884,13 +1884,15 @@ function updateWatchlistSelection() {
 // type 'forex'   → two stacked flag images (base + quote currency)
 // type 'commodity'→ static SVG inline (no good free CDN)
 function renderWatchlist() {
-  // Home-view cap: when on the home overview, only show the first N assets
-  // across all categories. Full list is reachable via "View all →". The
-  // cap doesn't apply when _homeViewMode is 'watchlist-full' (toggle
-  // expanded the section).
-  const isHome = (typeof _homeViewMode !== 'undefined' && _homeViewMode === 'home');
-  const renderCap = isHome ? HOME_WATCHLIST_CAP : Infinity;
-  let renderedCount = 0;
+  // If we're on the home overview, the compact home renderer owns the
+  // visible watchlist — render it and bail out of this full-list path
+  // entirely. The market-group containers (in wl-sub-assets) stay hidden
+  // by CSS while in home view, so we don't need to update them.
+  if (typeof _homeViewMode !== 'undefined' && _homeViewMode === 'home'
+      && typeof _renderHomeWatchlistCompact === 'function') {
+    _renderHomeWatchlistCompact();
+    return;
+  }
   let totalCount = 0;
   const catLabels = { crypto:'CRYPTO', forex:'FOREX', commodities:'COMMODITIES', indices:'INDICES', stocks:'STOCKS', synthetics:'SYNTHETICS' };
 
@@ -1906,8 +1908,6 @@ function renderWatchlist() {
         labelEl.style.display = assets.length ? '' : 'none';
       }
       assets.forEach(asset => {
-        totalCount++; // count even when capped so the toggle decision is correct
-        if (renderedCount >= renderCap) return; // skip rendering past cap
         const hasAlert  = alerts.some(a => a.assetId === asset.id && a.status === 'active');
         const isSelected = !isMobileLayout() && selectedAsset && selectedAsset.id === asset.id;
         const card = document.createElement('div');
@@ -1926,8 +1926,7 @@ function renderWatchlist() {
           selectAsset(asset);
         };
         container.appendChild(card);
-        renderedCount++;
-        // (totalCount was incremented above so capped-out assets still count)
+        totalCount++;
       });
     });
     // Show ungrouped flat container if exists — hide it
@@ -1995,19 +1994,13 @@ function renderWatchlist() {
   const empty = document.getElementById('wl-empty');
   if (empty) empty.style.display = totalCount === 0 ? '' : 'none';
 
-  // Show/hide "View all →" / "View less ↑" toggle on the home page.
-  // Visible only when there are more assets than the home cap. The label
-  // reflects the current view mode.
+  // In watchlist-full view we want the toggle visible as "View less ↑"
+  // so the user can collapse back. (When in home view we never reach here
+  // — the early return at top of this function covers that.)
   const toggle = document.getElementById('home-wl-toggle');
   if (toggle) {
-    if (totalCount > HOME_WATCHLIST_CAP) {
-      toggle.hidden = false;
-      toggle.textContent = (typeof _homeViewMode !== 'undefined' && _homeViewMode === 'watchlist-full')
-        ? 'View less ↑'
-        : 'View all →';
-    } else {
-      toggle.hidden = true;
-    }
+    toggle.hidden = false;
+    toggle.textContent = 'View less ↑';
   }
 }
 
@@ -9461,31 +9454,35 @@ function _initWatchlistSubTabs() {
         <div class="home-greeting-sub">Here's your market overview</div>
       </div>
 
-      <!-- Watchlist section -->
+      <!-- Watchlist section. One-row header: title (left) + actions (right). -->
       <section class="home-section home-card" data-section="watchlist">
-        <header class="home-section-header">
+        <div class="home-section-header">
           <h2 class="home-section-title">Watchlist</h2>
           <div class="home-section-actions">
             <button class="home-add-btn" onclick="openAddModal()" title="Add asset" aria-label="Add asset">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <line x1="8" y1="3" x2="8" y2="13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                <line x1="3" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <line x1="7" y1="2.5" x2="7" y2="11.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="2.5" y1="7" x2="11.5" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </button>
             <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>View all →</a>
           </div>
-        </header>
+        </div>
+        <!-- Compact-row container, used in home view. -->
+        <div id="home-watchlist-rows"></div>
+        <!-- Full-list container (the original watchlist), only visible in
+             watchlist-full view. Carries the existing market-group blocks. -->
         <div id="wl-sub-assets"></div>
       </section>
 
       <!-- Currency Strength section -->
       <section class="home-section home-card" data-section="strength">
-        <header class="home-section-header">
+        <div class="home-section-header">
           <h2 class="home-section-title">Currency Strength</h2>
           <div class="home-section-actions">
             <a class="home-view-all" onclick="openStrengthFull()">View all →</a>
           </div>
-        </header>
+        </div>
         <div id="home-strength-compact"></div>
         <div id="wl-sub-strength" class="wl-sub-strength" style="display:none">
           <div class="home-fullview-back" onclick="closeStrengthFull()">
@@ -9498,11 +9495,11 @@ function _initWatchlistSubTabs() {
         </div>
       </section>
 
-      <!-- Economic Briefing section (placeholder until briefing is wired in-app) -->
+      <!-- Economic Briefing section (placeholder) -->
       <section class="home-section home-card" data-section="briefing">
-        <header class="home-section-header">
+        <div class="home-section-header">
           <h2 class="home-section-title">Economic Briefing</h2>
-        </header>
+        </div>
         <div class="home-briefing-empty">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="opacity:0.4;margin-bottom:8px">
             <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.5"/>
@@ -9556,15 +9553,25 @@ function _applyHomeViewMode(mode) {
   _homeViewMode = mode;
   const shell = document.getElementById('home-shell');
   if (shell) shell.dataset.view = mode;
-  _renderHomeStrengthCompact();
+  // Render the section content appropriate for the new mode.
+  if (mode === 'home') {
+    _renderHomeWatchlistCompact();
+    _renderHomeStrengthCompact();
+  } else if (mode === 'watchlist-full') {
+    // Trigger a full re-render into wl-sub-assets via the existing function.
+    if (typeof renderWatchlist === 'function') renderWatchlist();
+  } else if (mode === 'strength-full') {
+    if (typeof renderStrengthTab === 'function') renderStrengthTab();
+  }
   // Tell the Telegram BackButton handler to re-evaluate visibility.
-  // (The handler exposes itself on window if it was wired during boot.)
   try { if (typeof window._updateBackBtn === 'function') window._updateBackBtn(); } catch(_) {}
 }
 
-// Render top-3 strongest + top-3 weakest currencies as compact rows.
-// Uses the existing calcCurrencyStrength() output. If scores aren't ready
-// yet (price data still loading), shows a loading state.
+// Render top-3 STRONGEST currencies, scoped to currencies present on the
+// user's watchlist. No weakest section — keeps the home overview focused
+// on actionable info (which of the watchlist's currencies has momentum).
+// If watchlist has no FX pairs (e.g. crypto-only user), the section
+// shows a friendly empty state.
 function _renderHomeStrengthCompact() {
   const el = document.getElementById('home-strength-compact');
   if (!el) return;
@@ -9577,7 +9584,21 @@ function _renderHomeStrengthCompact() {
       </div>`;
     return;
   }
-  // Try to use cached strength scores; if missing, kick a fetch and show loading.
+
+  // Restrict to currencies that appear on the user's watchlist (any FX
+  // pair contributes its base + quote). If the user has no FX pairs at
+  // all, show an honest empty state — don't surface global data.
+  const wlCurrs = (typeof getWatchlistCurrencies === 'function')
+    ? getWatchlistCurrencies()
+    : new Set();
+  if (!wlCurrs || wlCurrs.size === 0) {
+    el.innerHTML = `
+      <div class="home-strength-empty">
+        Add a forex pair to your watchlist to see currency strength here.
+      </div>`;
+    return;
+  }
+
   let result = (typeof calcCurrencyStrength === 'function') ? calcCurrencyStrength() : null;
   if (!result || !result.scores) {
     el.innerHTML = `<div class="home-strength-loading">Loading currency data…</div>`;
@@ -9586,36 +9607,119 @@ function _renderHomeStrengthCompact() {
     }
     return;
   }
-  // Sort currencies by score descending; pick top N strongest and top N weakest.
-  const entries = Object.entries(result.scores).sort((a, b) => b[1] - a[1]);
-  const top    = entries.slice(0, HOME_STRENGTH_CAP);
-  const bottom = entries.slice(-HOME_STRENGTH_CAP).reverse(); // weakest at top of weak list
-  const row = (c, score, isStrong) => `
+
+  // Filter scores to watchlist currencies only, then sort and take top 3.
+  const filtered = Object.entries(result.scores)
+    .filter(([c]) => wlCurrs.has(c))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, HOME_STRENGTH_CAP);
+
+  if (filtered.length === 0) {
+    el.innerHTML = `
+      <div class="home-strength-empty">
+        Waiting for currency data on your watchlist pairs…
+      </div>`;
+    return;
+  }
+
+  const row = (c, score) => `
     <div class="home-strength-row">
       <span class="home-strength-cur">${c}</span>
       <div class="home-strength-bar-wrap">
-        <div class="home-strength-bar ${isStrong ? 'strong' : 'weak'}" style="width:${Math.max(8, score)}%"></div>
+        <div class="home-strength-bar strong" style="width:${Math.max(8, score)}%"></div>
       </div>
       <span class="home-strength-score">${Math.round(score)}</span>
     </div>`;
-  el.innerHTML = `
-    <div class="home-strength-group">
-      <div class="home-strength-group-label">Strongest</div>
-      ${top.map(([c, s]) => row(c, s, true)).join('')}
-    </div>
-    <div class="home-strength-group">
-      <div class="home-strength-group-label">Weakest</div>
-      ${bottom.map(([c, s]) => row(c, s, false)).join('')}
-    </div>`;
+  el.innerHTML = filtered.map(([c, s]) => row(c, s)).join('');
 }
 
-// Toggle watchlist between capped and full views (in-place expand).
+// Render the home overview's compact watchlist (up to HOME_WATCHLIST_CAP rows).
+// Always flat (no category groups), always compact (icon + symbol + price + %).
+// Independent of the user's watchlistGrouped preference, which only affects
+// the full "View all" expanded view.
+function _renderHomeWatchlistCompact() {
+  const el = document.getElementById('home-watchlist-rows');
+  if (!el) return;
+
+  // Flatten watchlist across categories, preserve user-add order.
+  const allAssets = Object.entries(ASSETS).flatMap(([cat, assets]) =>
+    assets.map(asset => ({ asset, cat }))
+  );
+
+  if (allAssets.length === 0) {
+    el.innerHTML = `
+      <div class="home-wl-empty">
+        <div class="home-wl-empty-text">Your watchlist is empty</div>
+        <div class="home-wl-empty-sub">Tap + above to add assets</div>
+      </div>`;
+    // Hide the toggle when empty
+    const tg = document.getElementById('home-wl-toggle');
+    if (tg) tg.hidden = true;
+    return;
+  }
+
+  const visible = allAssets.slice(0, HOME_WATCHLIST_CAP);
+  const overflow = allAssets.length > HOME_WATCHLIST_CAP;
+
+  el.innerHTML = visible.map(({ asset, cat }) => {
+    const pd = (typeof priceData !== 'undefined') ? priceData[asset.id] : null;
+    const price = pd?.price;
+    const change = parseFloat(pd?.change || 0);
+    const priceText = (price != null && isFinite(price))
+      ? formatPrice(price, asset.id)
+      : '—';
+    const changeText = (price != null && pd?.change != null && pd.change !== '0.0000')
+      ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`
+      : '';
+    const changeClass = change > 0 ? 'pos' : change < 0 ? 'neg' : '';
+    return `
+      <div class="home-wl-row" data-asset-id="${asset.id}" onclick="_homeRowTap('${asset.id}')">
+        <div class="home-wl-row-left">
+          <div class="home-wl-icon home-wl-icon-${cat}">${asset.symbol.charAt(0)}</div>
+          <div class="home-wl-text">
+            <div class="home-wl-symbol">${asset.symbol}</div>
+            <div class="home-wl-name">${asset.name || ''}</div>
+          </div>
+        </div>
+        <div class="home-wl-row-right">
+          <div class="home-wl-price">${priceText}</div>
+          <div class="home-wl-change ${changeClass}">${changeText}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Toggle visibility / label based on overflow + view mode
+  const tg = document.getElementById('home-wl-toggle');
+  if (tg) {
+    if (overflow) {
+      tg.hidden = false;
+      tg.textContent = 'View all →';
+    } else {
+      tg.hidden = true;
+    }
+  }
+}
+
+// Tap handler for compact rows — same effect as tapping a card on the
+// full watchlist (selects the asset and navigates to chart).
+function _homeRowTap(assetId) {
+  const asset = (typeof ALL_ASSETS !== 'undefined')
+    ? ALL_ASSETS.find(a => a.id === assetId)
+    : null;
+  if (!asset) return;
+  navigateToChartOnSelect = true;
+  selectAsset(asset);
+}
+
+// Toggle between home overview (capped compact rows) and full watchlist
+// (expanded, uses the existing market-group renderer in wl-sub-assets).
 function toggleHomeWatchlist() {
   _applyHomeViewMode(_homeViewMode === 'watchlist-full' ? 'home' : 'watchlist-full');
   const link = document.getElementById('home-wl-toggle');
-  if (link) link.textContent = (_homeViewMode === 'watchlist-full') ? 'View less ↑' : 'View all →';
-  // Re-render so the cap is applied/removed visually.
-  if (typeof renderWatchlist === 'function') renderWatchlist();
+  if (link) {
+    link.hidden = false;
+    link.textContent = (_homeViewMode === 'watchlist-full') ? 'View less ↑' : 'View all →';
+  }
 }
 
 // Switch into/out of full strength meter view (uses existing renderStrengthTab).
