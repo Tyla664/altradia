@@ -723,7 +723,7 @@ async function fetchOandaSnapshot(assets) {
             lwSeries.removePriceLine(lwLivePriceLine);
             lwLivePriceLine = lwSeries.createPriceLine({
               price,
-              color:            'rgba(0,212,255,0.85)',
+              color:            'rgba(var(--accent-rgb),0.85)',
               lineWidth:        1,
               lineStyle:        0,
               axisLabelVisible: true,
@@ -1255,8 +1255,8 @@ function _renderStrengthContent(el, result, tier) {
   CS_TF_ORDER.forEach(t => {
     const cfg     = CS_TIMEFRAMES[t];
     const active  = t === tf;
-    const aBg     = active ? 'rgba(0,212,255,0.10)' : 'transparent';
-    const aBorder = active ? 'rgba(0,212,255,0.25)' : 'transparent';
+    const aBg     = active ? 'rgba(var(--accent-rgb),0.10)' : 'transparent';
+    const aBorder = active ? 'rgba(var(--accent-rgb),0.25)' : 'transparent';
     const aColor  = active ? 'var(--accent)' : 'var(--muted)';
     const aWeight = active ? '700' : '600';
     tfBtns += `<button onclick="setStrengthTimeframe('${t}')" data-tf="${t}" style="flex:1;padding:6px 8px;border-radius:14px;border:1px solid ${aBorder};background:${aBg};color:${aColor};font-family:var(--mono);font-size:0.62rem;font-weight:${aWeight};letter-spacing:0.08em;cursor:pointer;text-transform:uppercase;-webkit-tap-highlight-color:transparent">${cfg.label}</button>`;
@@ -1634,7 +1634,7 @@ async function fetchFinnhubStockPrices(assets) {
           lwSeries.removePriceLine(lwLivePriceLine);
           lwLivePriceLine = lwSeries.createPriceLine({
             price,
-            color:            'rgba(0,212,255,0.85)',
+            color:            'rgba(var(--accent-rgb),0.85)',
             lineWidth:        1,
             lineStyle:        0,
             axisLabelVisible: true,
@@ -2456,17 +2456,17 @@ function ensureLWChart() {
   const w = (tvCont && tvCont.offsetWidth  > 10 ? tvCont.offsetWidth  : 400);
   const h = (tvCont && tvCont.offsetHeight > 10 ? tvCont.offsetHeight : 460);
 
-  const _isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const _isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const _chartTheme = _isDark ? {
-    bg:       '#080c12',
-    text:     '#8899aa',
-    grid:     'rgba(26,45,69,0.4)',
-    border:   'rgba(26,45,69,0.6)',
+    bg:       '#0B0F14',
+    text:     '#94A3B8',
+    grid:     'rgba(31,42,54,0.6)',
+    border:   'rgba(31,42,54,0.8)',
   } : {
-    bg:       '#ffffff',
-    text:     '#334155',
-    grid:     'rgba(200,215,230,0.6)',
-    border:   'rgba(180,200,220,0.7)',
+    bg:       '#FFFFFF',
+    text:     '#475569',
+    grid:     'rgba(229,234,240,0.85)',
+    border:   'rgba(203,213,225,0.9)',
   };
 
   lwChart = LightweightCharts.createChart(container, {
@@ -2588,7 +2588,7 @@ async function loadLWChart(asset, force = false) {
       if (initPrice) {
         lwLivePriceLine = lwSeries.createPriceLine({
           price:            initPrice,
-          color:            'rgba(0,212,255,0.85)',
+          color:            'rgba(var(--accent-rgb),0.85)',
           lineWidth:        1,
           lineStyle:        0, // solid
           axisLabelVisible: true,
@@ -3135,7 +3135,7 @@ function showConfirm(title, bodyHtml, onConfirm, opts = {}) {
         ">CANCEL</button>
         <button id="confirm-ok" style="
           flex:1;padding:12px;border-radius:8px;
-          background:rgba(255,61,90,0.15);border:1px solid rgba(255,61,90,0.4);
+          background:rgba(var(--red-rgb),0.15);border:1px solid rgba(var(--red-rgb),0.4);
           color:var(--red);font-family:var(--mono);font-size:0.7rem;
           letter-spacing:0.08em;cursor:pointer;font-weight:700;
         ">${opts.confirmLabel || 'DELETE'}</button>
@@ -4356,14 +4356,14 @@ function autoCalcTP1FromRR() {
       if (actualRR < setupMinRR - 0.01) {
         warn.textContent        = `⚠️ TP1 gives ${actualRR.toFixed(1)}:1 — below your ${setupMinRR}:1 minimum R:R`;
         warn.style.color        = 'var(--red)';
-        warn.style.background   = 'rgba(255,61,90,0.08)';
-        warn.style.border       = '1px solid rgba(255,61,90,0.25)';
+        warn.style.background   = 'rgba(var(--red-rgb),0.08)';
+        warn.style.border       = '1px solid rgba(var(--red-rgb),0.25)';
         warn.style.display      = 'block';
       } else {
         warn.textContent        = `✓ TP1 meets your ${setupMinRR}:1 minimum R:R (actual: ${actualRR.toFixed(1)}:1)`;
         warn.style.color        = 'var(--green)';
-        warn.style.background   = 'rgba(0,230,118,0.07)';
-        warn.style.border       = '1px solid rgba(0,230,118,0.25)';
+        warn.style.background   = 'rgba(var(--green-rgb),0.07)';
+        warn.style.border       = '1px solid rgba(var(--green-rgb),0.25)';
         warn.style.display      = 'block';
       }
     } else if (warn) {
@@ -4895,12 +4895,12 @@ function showCloseTradeChoice(id) {
       <div class="modal-section-label">CLOSE TRADE — ${alert.symbol}</div>
       <div class="flex-col-sm">
         <button onclick="document.getElementById('close-choice-modal').remove(); logTradeFromAlert('${id}')"
-          style="width:100%;padding:14px;background:rgba(0,230,118,0.12);border:1px solid rgba(0,230,118,0.4);color:var(--green);font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.08em;border-radius:10px;cursor:pointer">
+          style="width:100%;padding:14px;background:rgba(var(--green-rgb),0.12);border:1px solid rgba(var(--green-rgb),0.4);color:var(--green);font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.08em;border-radius:10px;cursor:pointer">
           LOG TRADE
           <div class="text-xs-muted-sub">Save this trade to your journal</div>
         </button>
         <button onclick="document.getElementById('close-choice-modal').remove(); dismissSetupToHistory('${id}')"
-          style="width:100%;padding:14px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.25);color:var(--accent);font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.08em;border-radius:10px;cursor:pointer">
+          style="width:100%;padding:14px;background:rgba(var(--accent-rgb),0.08);border:1px solid rgba(var(--accent-rgb),0.25);color:var(--accent);font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.08em;border-radius:10px;cursor:pointer">
           DISMISS
           <div class="text-xs-muted-sub">Move to history without logging</div>
         </button>
@@ -5028,8 +5028,8 @@ function editSetupAlert(id) {
   const btn = document.getElementById('set-alert-btn');
   if (btn) {
     btn.textContent = 'UPDATE SETUP';
-    btn.style.background  = 'rgba(0,212,255,0.15)';
-    btn.style.borderColor = 'rgba(0,212,255,0.5)';
+    btn.style.background  = 'rgba(var(--accent-rgb),0.15)';
+    btn.style.borderColor = 'rgba(var(--accent-rgb),0.5)';
   }
 
   showToast('Edit Setup', `Editing ${alert.symbol} setup — adjust values and tap UPDATE SETUP.`, 'alert');
@@ -5133,12 +5133,12 @@ function showTrailStopDialog(id) {
     const pctGrp   = document.getElementById('trail-pct-group');
     const priceGrp = document.getElementById('trail-price-group');
     if (mode === 'pct') {
-      pctBtn.style.cssText   = 'flex:1;padding:8px;background:rgba(0,212,255,0.15);border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:0.68rem;font-weight:700;border-radius:7px;cursor:pointer';
+      pctBtn.style.cssText   = 'flex:1;padding:8px;background:rgba(var(--accent-rgb),0.15);border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:0.68rem;font-weight:700;border-radius:7px;cursor:pointer';
       priceBtn.style.cssText = 'flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:0.68rem;font-weight:700;border-radius:7px;cursor:pointer';
       pctGrp.style.display   = '';
       priceGrp.style.display = 'none';
     } else {
-      priceBtn.style.cssText = 'flex:1;padding:8px;background:rgba(0,212,255,0.15);border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:0.68rem;font-weight:700;border-radius:7px;cursor:pointer';
+      priceBtn.style.cssText = 'flex:1;padding:8px;background:rgba(var(--accent-rgb),0.15);border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:0.68rem;font-weight:700;border-radius:7px;cursor:pointer';
       pctBtn.style.cssText   = 'flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:0.68rem;font-weight:700;border-radius:7px;cursor:pointer';
       pctGrp.style.display   = 'none';
       priceGrp.style.display = '';
@@ -5237,7 +5237,7 @@ function setManualCloseEmotion(emotion, btn) {
     b.style.color = 'var(--muted)';
     b.style.borderColor = 'var(--border)';
   });
-  btn.style.background = 'rgba(0,212,255,0.12)';
+  btn.style.background = 'rgba(var(--accent-rgb),0.12)';
   btn.style.color = 'var(--accent)';
   btn.style.borderColor = 'var(--accent)';
 }
@@ -6969,7 +6969,7 @@ function openJournalDetail(entryId) {
     <div style="position:sticky;top:0;background:var(--bg);z-index:2;display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid var(--border)">
       <span style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;color:var(--muted)">TRADE DETAIL</span>
       <div style="display:flex;gap:10px;align-items:center">
-        <button onclick="editJournalEntry('${entry.id}')" style="background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);color:var(--accent);font-family:var(--mono);font-size:0.6rem;padding:5px 12px;border-radius:5px;cursor:pointer;letter-spacing:0.06em">EDIT</button>
+        <button onclick="editJournalEntry('${entry.id}')" style="background:rgba(var(--accent-rgb),0.1);border:1px solid rgba(var(--accent-rgb),0.3);color:var(--accent);font-family:var(--mono);font-size:0.6rem;padding:5px 12px;border-radius:5px;cursor:pointer;letter-spacing:0.06em">EDIT</button>
         <button onclick="document.getElementById('journal-detail-overlay').remove()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:4px 8px">&#x2715;</button>
       </div>
     </div>
@@ -6990,7 +6990,7 @@ function openJournalDetail(entryId) {
       ${noteRows ? `<div class="jdetail-notes" style="margin-top:16px">${noteRows}</div>` : ''}
       ${shotsHtml ? `<div style="margin-top:20px">${shotsHtml}</div>` : ''}
       <div style="margin-top:20px;display:flex;gap:10px">
-        <button onclick="deleteJournalEntry('${entry.id}')" style="flex:1;padding:11px;background:rgba(255,61,90,0.1);border:1px solid rgba(255,61,90,0.3);color:var(--red);font-family:var(--mono);font-size:0.65rem;border-radius:7px;cursor:pointer;letter-spacing:0.06em">DELETE ENTRY</button>
+        <button onclick="deleteJournalEntry('${entry.id}')" style="flex:1;padding:11px;background:rgba(var(--red-rgb),0.1);border:1px solid rgba(var(--red-rgb),0.3);color:var(--red);font-family:var(--mono);font-size:0.65rem;border-radius:7px;cursor:pointer;letter-spacing:0.06em">DELETE ENTRY</button>
       </div>
     </div>`;
 
@@ -8116,7 +8116,7 @@ function renderAnalyticsMenuBody(tier) {
       <div class="analytics-behavior-list">
         <div class="analytics-behavior-row"><div class="analytics-behavior-icon" style="background:rgba(255,107,53,0.12)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v6M7 9v1" stroke="#ff6b35" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="12" r="1" fill="#ff6b35"/></svg></div><span class="analytics-behavior-label">Premature exits</span><span class="analytics-behavior-count ${prematureExits>2?'bad':prematureExits>0?'warn':'ok'}">${prematureExits}</span></div>
         <div class="analytics-behavior-row"><div class="analytics-behavior-icon" style="background:rgba(255,214,0,0.12)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="7" x2="12" y2="7" stroke="#b8970a" stroke-width="1.5" stroke-linecap="round"/><polyline points="9,4 12,7 9,10" stroke="#b8970a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="analytics-behavior-label">Stop loss moved</span><span class="analytics-behavior-count ${slMoved>2?'bad':slMoved>0?'warn':'ok'}">${slMoved}</span></div>
-        <div class="analytics-behavior-row"><div class="analytics-behavior-icon" style="background:rgba(255,61,90,0.12)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="9" width="2.5" height="4" rx="0.5" fill="#ff3d5a" opacity="0.8"/><rect x="5" y="6" width="2.5" height="7" rx="0.5" fill="#ff3d5a" opacity="0.6"/><rect x="9" y="3" width="2.5" height="10" rx="0.5" fill="#ff3d5a" opacity="0.8"/></svg></div><span class="analytics-behavior-label">Overtrading days</span><span class="analytics-behavior-count ${overtrading>2?'bad':overtrading>0?'warn':'ok'}">${overtrading}</span></div>
+        <div class="analytics-behavior-row"><div class="analytics-behavior-icon" style="background:rgba(var(--red-rgb),0.12)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="9" width="2.5" height="4" rx="0.5" fill="#ff3d5a" opacity="0.8"/><rect x="5" y="6" width="2.5" height="7" rx="0.5" fill="#ff3d5a" opacity="0.6"/><rect x="9" y="3" width="2.5" height="10" rx="0.5" fill="#ff3d5a" opacity="0.8"/></svg></div><span class="analytics-behavior-label">Overtrading days</span><span class="analytics-behavior-count ${overtrading>2?'bad':overtrading>0?'warn':'ok'}">${overtrading}</span></div>
       </div>
     </div>
 
@@ -8271,9 +8271,9 @@ function _renderEliteSection(entries, winRate, consistency, statsPayload) {
       <div class="analytics-elite-label"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.7"/><rect x="7" y="1" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.4"/><rect x="1" y="7" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.4"/><rect x="7" y="7" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.7"/></svg> Activity Heatmap — 4 Weeks</div>
       <div class="analytics-heatmap">${heatCells}</div>
       <div style="display:flex;gap:10px;margin-top:8px;font-family:var(--mono);font-size:0.55rem;color:var(--muted)">
-        <span class="flex-center-sm"><span style="width:8px;height:8px;border-radius:2px;background:rgba(0,230,118,0.6);display:inline-block"></span>Full TP</span>
-        <span class="flex-center-sm"><span style="width:8px;height:8px;border-radius:2px;background:rgba(0,230,118,0.15);display:inline-block"></span>Partial</span>
-        <span class="flex-center-sm"><span style="width:8px;height:8px;border-radius:2px;background:rgba(255,61,90,0.25);display:inline-block"></span>SL</span>
+        <span class="flex-center-sm"><span style="width:8px;height:8px;border-radius:2px;background:rgba(var(--green-rgb),0.6);display:inline-block"></span>Full TP</span>
+        <span class="flex-center-sm"><span style="width:8px;height:8px;border-radius:2px;background:rgba(var(--green-rgb),0.15);display:inline-block"></span>Partial</span>
+        <span class="flex-center-sm"><span style="width:8px;height:8px;border-radius:2px;background:rgba(var(--red-rgb),0.25);display:inline-block"></span>SL</span>
         <span class="flex-center-sm"><span style="width:8px;height:8px;border-radius:2px;background:var(--surface2);display:inline-block"></span>None</span>
       </div>
     </div>
@@ -8592,13 +8592,30 @@ function toggleTheme() {
   root.setAttribute('data-theme', isLight ? 'light' : 'dark');
   localStorage.setItem('tw_theme', isLight ? 'light' : 'dark');
   updateMenuToggles(); // sync menu panel
+  // Tell Telegram WebApp to re-read header/background colors so the
+  // native chrome around our app updates without a reload.
+  try {
+    const tg = window.Telegram?.WebApp;
+    if (tg?.setHeaderColor)    tg.setHeaderColor('bg_color');
+    if (tg?.setBackgroundColor) tg.setBackgroundColor(isLight ? '#F7F9FC' : '#0B0F14');
+  } catch (_) { /* old Telegram clients don't support these — silent */ }
   // Reload chart so it picks up new theme colors
   if (lwCurrentAsset) loadLWChart(lwCurrentAsset, true); // reload with new theme
 }
 
 function initTheme() {
   const saved = localStorage.getItem('tw_theme');
-  document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
+  // Default to LIGHT — only switch to dark if user has explicitly chosen it.
+  const isDark = saved === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  // Sync Telegram WebApp's native chrome (header bar, status bar) to match
+  // the active theme on first paint. Wrapped in try because old Telegram
+  // clients (< 6.1) don't support these methods.
+  try {
+    const tg = window.Telegram?.WebApp;
+    if (tg?.setHeaderColor)     tg.setHeaderColor('bg_color');
+    if (tg?.setBackgroundColor) tg.setBackgroundColor(isDark ? '#0B0F14' : '#F7F9FC');
+  } catch (_) { /* silent */ }
   // Menu panel toggles updated once menu opens (updateMenuToggles called in openMenuPanel)
 }
 
@@ -9094,7 +9111,7 @@ function renderLibrary() {
         const card = document.createElement('div');
         card.className = 'lib-card in-watch';
         card.style.opacity = '1'; card.style.cursor = 'pointer';
-        card.style.borderColor = 'rgba(255,61,90,0.4)';
+        card.style.borderColor = 'rgba(var(--red-rgb),0.4)';
         card.innerHTML = `<div><div class="lib-sym">${asset.symbol}</div><div class="lib-name">${asset.name}</div></div><div class="lib-action" class="txt-red"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>`;
         card.onclick = (e) => { e.stopPropagation(); removeAssetFromWatchlist(asset.id, cat, { stopPropagation:()=>{} }); renderLibrary(); };
         grid.appendChild(card);
@@ -9492,11 +9509,11 @@ function _syncSubscriptionCard() {
                                      : 'Plans & billing';
   if (subCard) {
     subCard.style.borderColor = isElite ? 'rgba(255,214,0,0.35)'
-                              : isPro   ? 'rgba(0,212,255,0.35)' : '';
+                              : isPro   ? 'rgba(var(--accent-rgb),0.35)' : '';
     subCard.style.background  = isElite
       ? 'linear-gradient(135deg,rgba(255,214,0,0.07),rgba(255,214,0,0.02))'
       : isPro
-        ? 'linear-gradient(135deg,rgba(0,212,255,0.07),rgba(0,212,255,0.02))'
+        ? 'linear-gradient(135deg,rgba(var(--accent-rgb),0.07),rgba(var(--accent-rgb),0.02))'
         : '';
   }
 }
@@ -9966,7 +9983,7 @@ function setFbRating(n) {
     const btn = document.getElementById(`fb-star-${i}`);
     if (btn) {
       btn.style.borderColor = i <= n ? 'var(--accent)' : 'var(--border)';
-      btn.style.background  = i <= n ? 'rgba(0,212,255,0.08)' : 'var(--bg)';
+      btn.style.background  = i <= n ? 'rgba(var(--accent-rgb),0.08)' : 'var(--bg)';
     }
   }
 }
@@ -10034,7 +10051,7 @@ function openDeleteAccount() {
         <li>Your account and subscription data</li>
       </ul>
     </div>
-    <div style="font-family:var(--mono);font-size:0.62rem;color:var(--red);margin-top:12px;padding:10px;background:rgba(255,61,90,0.06);border:1px solid rgba(255,61,90,0.2);border-radius:8px">
+    <div style="font-family:var(--mono);font-size:0.62rem;color:var(--red);margin-top:12px;padding:10px;background:rgba(var(--red-rgb),0.06);border:1px solid rgba(var(--red-rgb),0.2);border-radius:8px">
       ⚠ This action cannot be undone.
     </div>`,
     async () => {
@@ -10653,8 +10670,8 @@ function editAlert(id) {
   const setBtn = document.getElementById('set-alert-btn');
   if (setBtn) {
     setBtn.textContent = 'UPDATE ALERT';
-    setBtn.style.background = 'rgba(0,212,255,0.15)';
-    setBtn.style.borderColor = 'rgba(0,212,255,0.5)';
+    setBtn.style.background = 'rgba(var(--accent-rgb),0.15)';
+    setBtn.style.borderColor = 'rgba(var(--accent-rgb),0.5)';
   }
 
   // Show a toast so user knows they're in edit mode
