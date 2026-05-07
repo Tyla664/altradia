@@ -7398,6 +7398,17 @@ function openMenuPanel() {
     planEl.innerHTML = `<span class="menu-plan-badge${tierCls}">${tierLabel}</span>`;
   }
 
+  // Analytics card subtitle: paid tiers see "Performance insights",
+  // free tier sees "Upgrade to unlock". Tier comes from getUserTier()
+  // which is currently hardcoded to 'elite' (Paddle deferred).
+  const analyticsSub = document.getElementById('menu-analytics-sub');
+  if (analyticsSub) {
+    const tier = getUserTier();
+    analyticsSub.textContent = (tier === 'free')
+      ? 'Upgrade to unlock'
+      : 'Performance insights';
+  }
+
   panel.style.display   = 'flex';
   overlay.style.display = 'block';
   requestAnimationFrame(() => {
