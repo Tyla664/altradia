@@ -4906,3 +4906,68 @@ header {
 #home-shell[data-view="watchlist-full"] #wl-sub-assets        { display: block !important; }
 #home-shell[data-view="watchlist-full"] #home-watchlist-rows  { display: none; }
 #home-shell[data-view="strength-full"] #home-watchlist-rows   { display: none; }
+
+
+/* ── Swipe-to-delete rows (TradingView-style) ─────────────────────────
+   .swipe-row is a positioned container holding the visible content
+   layer (.swipe-content) on top, with a .swipe-delete button behind it
+   on the right edge. Touch drag on .swipe-content reveals the delete. */
+.swipe-row {
+  position: relative;
+  overflow: hidden;
+}
+.swipe-content {
+  position: relative;
+  background: var(--surface);
+  z-index: 2;
+  /* When in a home-card the surface is the same colour as the card; in
+     the full watchlist it's the asset-card's own background. */
+  transition: transform 0.18s ease;
+  will-change: transform;
+}
+.home-wl-row.swipe-content { background: var(--surface); }
+.swipe-delete {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 76px;
+  background: var(--red);
+  color: white;
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+  padding: 0;
+  /* Slightly inset from edges of the row for breathing room */
+  margin: 4px 0;
+  border-radius: 8px;
+}
+.swipe-delete:active { background: #DC2626; }
+
+/* Inside a home-card, the swipe-row spans card padding edges */
+.home-card .swipe-row {
+  margin: 0 -14px;     /* extend full card width */
+  padding: 0 14px;     /* but inner content keeps card padding */
+}
+/* …actually the swipe overflow needs the wrapper to NOT add inner padding
+   because the content needs to sit flush. Override the row gap inside. */
+.home-card .swipe-row { margin: 0; padding: 0; }
+.home-card .home-wl-row.swipe-content { padding: 10px 4px; }
+
+/* When asset-card is wrapped in swipe-row, drop its own outer margin */
+.swipe-row > .asset-card { margin: 0; }
+
+/* ── Close button (× in section header, used on Strength full view) ── */
+.home-close-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.04);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+[data-theme="dark"] .home-close-btn { background: rgba(255,255,255,0.04); }
+.home-close-btn:hover  { background: rgba(var(--red-rgb),0.08); color: var(--red); border-color: rgba(var(--red-rgb),0.3); }
+.home-close-btn:active { transform: scale(0.92); }
