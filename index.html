@@ -1100,7 +1100,11 @@
         </div>
         <div>
           <div class="menu-broker-card-title">Analytics</div>
-          <div class="menu-broker-card-sub">Performance insights · Pro &amp; Elite feature</div>
+          <!-- Subtitle is updated dynamically by openMenuPanel based on tier:
+               paid tiers see "Performance insights", free tier sees
+               "Upgrade to unlock". Default text is paid-tier (since the
+               app currently hardcodes 'elite' until Paddle ships). -->
+          <div class="menu-broker-card-sub" id="menu-analytics-sub">Performance insights</div>
         </div>
       </div>
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
