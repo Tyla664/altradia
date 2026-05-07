@@ -2420,10 +2420,31 @@ window.addEventListener('popstate', (e) => {
     'export-modal-overlay',
     'payment-modal-overlay',
     'feedback-overlay',
+    'journal-filters-overlay',
   ];
+  // Static overlays defined in index.html must be HIDDEN, not removed —
+  // removing them would break subsequent opens. Dynamic overlays
+  // (injected per-use) get removed as before.
+  const STATIC_OVERLAYS = new Set([
+    'journal-filters-overlay',
+  ]);
   for (const id of overlayIds) {
     const el = document.getElementById(id);
-    if (el) { el.remove(); consumeBackAndStay(); return; }
+    if (!el) continue;
+    // Only consider it "open" if it's actually visible.
+    const visible = el.style.display && el.style.display !== 'none';
+    if (!visible && STATIC_OVERLAYS.has(id)) continue;
+    if (STATIC_OVERLAYS.has(id)) {
+      el.style.display = 'none';
+      // Re-render journal in case filters changed and were closed via back.
+      if (id === 'journal-filters-overlay' && typeof renderJournal === 'function') {
+        renderJournal();
+      }
+    } else {
+      el.remove();
+    }
+    consumeBackAndStay();
+    return;
   }
 
   // PRIORITY 2: open menu sub-pages (profile/analytics/subscription/etc).
@@ -6349,6 +6370,107 @@ function _classifyOutcome(e) {
   return 'loss';
 }
 
+// ── Journal filters (Item 7) ──────────────────────────────────────────
+// State: a record of currently-active filter values per category.
+// Logic in renderJournal: an entry passes if (within each populated
+// category, its value matches ANY active value). Empty categories
+// don't filter (so an empty filter set passes all entries).
+let _journalFilters = { direction: [], status: [], outcome: [] };
+
+function openJournalFiltersModal() {
+  const overlay = document.getElementById('journal-filters-overlay');
+  if (!overlay) return;
+  // Sync chip states from current filter values BEFORE showing the modal
+  // so existing selections appear active.
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    const cat = chip.dataset.filter;
+    const val = chip.dataset.value;
+    chip.classList.toggle('active', (_journalFilters[cat] || []).includes(val));
+  });
+  overlay.style.display = 'flex';
+  // Push history state so Android back gesture closes the modal
+  // instead of navigating away.
+  try { window.history.pushState({ jrnFilters: 1 }, '', ''); } catch (_) {}
+}
+
+function closeJournalFiltersModal(ev) {
+  // If invoked from a backdrop click, ev.target is the overlay itself.
+  // If invoked from the Apply button or programmatically, no ev.
+  if (ev && ev.target && ev.target.id !== 'journal-filters-overlay') return;
+  const overlay = document.getElementById('journal-filters-overlay');
+  if (overlay) overlay.style.display = 'none';
+  // Re-render the journal with the new filter state.
+  if (typeof renderJournal === 'function') renderJournal();
+  _refreshJournalFiltersBadge();
+}
+
+function _toggleJournalFilter(btn) {
+  const cat = btn.dataset.filter;
+  const val = btn.dataset.value;
+  if (!_journalFilters[cat]) _journalFilters[cat] = [];
+  const idx = _journalFilters[cat].indexOf(val);
+  if (idx >= 0) {
+    _journalFilters[cat].splice(idx, 1);
+    btn.classList.remove('active');
+  } else {
+    _journalFilters[cat].push(val);
+    btn.classList.add('active');
+  }
+}
+
+function clearJournalFilters() {
+  _journalFilters = { direction: [], status: [], outcome: [] };
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  _refreshJournalFiltersBadge();
+  if (typeof renderJournal === 'function') renderJournal();
+}
+
+// Update the badge on the filters button to reflect total active filters.
+function _refreshJournalFiltersBadge() {
+  const badge = document.getElementById('journal-filters-badge');
+  if (!badge) return;
+  const total = (_journalFilters.direction?.length || 0)
+              + (_journalFilters.status?.length    || 0)
+              + (_journalFilters.outcome?.length   || 0);
+  if (total > 0) {
+    badge.textContent = String(total);
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// Apply the user's filter selections to a list of journal entries.
+// Returns the filtered subset. OR within each populated category;
+// AND across categories.
+function _applyJournalFilters(entries) {
+  const f = _journalFilters || {};
+  const dirs    = f.direction || [];
+  const stats   = f.status    || [];
+  const outs    = f.outcome   || [];
+  if (!dirs.length && !stats.length && !outs.length) return entries;
+  return entries.filter(e => {
+    if (dirs.length) {
+      // Direction is stored as 'long' or 'short' on the entry.
+      const dir = (e.direction || '').toLowerCase();
+      if (!dirs.includes(dir)) return false;
+    }
+    if (stats.length) {
+      const st = e.trade_status || 'taken';
+      if (!stats.includes(st)) return false;
+    }
+    if (outs.length) {
+      // Use _classifyOutcome so a manual_exit at profit counts as 'win',
+      // matching how the user perceives the trade.
+      const out = (typeof _classifyOutcome === 'function')
+        ? _classifyOutcome(e)
+        : (e.outcome || '');
+      if (!outs.includes(out)) return false;
+    }
+    return true;
+  });
+}
+
 // ── Render journal page ────────────────────────────────────────────────────
 async function renderJournal() {
   const listEl  = document.getElementById('journal-list');
@@ -6369,10 +6491,17 @@ async function renderJournal() {
   // Apply time filter
   const filter = document.getElementById('journal-filter')?.value || 'all';
   const cutoff = filter === 'all' ? 0 : Date.now() - parseInt(filter) * 86400000;
-  const filtered = journalEntries.filter(e => {
+  let filtered = journalEntries.filter(e => {
     const ts = new Date(e.trade_date || e.created_at).getTime();
     return ts >= cutoff;
   });
+  // Apply user-chosen filters (direction / status / outcome). When no
+  // filters are active this is a no-op pass-through.
+  if (typeof _applyJournalFilters === 'function') {
+    filtered = _applyJournalFilters(filtered);
+  }
+  // Keep the badge in sync with current state on every render.
+  if (typeof _refreshJournalFiltersBadge === 'function') _refreshJournalFiltersBadge();
 
   // ── Stats strip ──────────────────────────────────────────────────────────
   // Only TAKEN trades feed the numeric KPIs (trades/wins/losses/win-rate).
@@ -7512,6 +7641,25 @@ function adjustSlStreak(delta) {
   updateMenuToggles();
 }
 
+// ── Target R:R discipline goal ────────────────────────────────────────
+// Persists the user's minimum desired reward-to-risk ratio. Used by the
+// Analytics page to color the Avg Planned R:R card (green when actual
+// meets or exceeds target). Range: 1.0 to 5.0 in 0.5 increments.
+function adjustTargetRR(delta) {
+  const cur = parseFloat(localStorage.getItem('altradia_target_rr') || '2');
+  const next = Math.max(1, Math.min(5, +(cur + delta).toFixed(1)));
+  localStorage.setItem('altradia_target_rr', String(next));
+  const disp = document.getElementById('target-rr-display');
+  if (disp) disp.textContent = next.toFixed(1);
+}
+
+// Initialise the displayed value from localStorage when settings opens.
+function _refreshTargetRRDisplay() {
+  const v = parseFloat(localStorage.getItem('altradia_target_rr') || '2');
+  const disp = document.getElementById('target-rr-display');
+  if (disp) disp.textContent = v.toFixed(1);
+}
+
 function checkSlStreak(outcome) {
   // Called whenever a trade setup alert transitions to a final state
   if (!slStreakWarningEnabled) return;
@@ -8104,10 +8252,31 @@ function renderAnalyticsMenuBody(tier) {
   const winRate     = total > 0 ? Math.round((wins / total) * 100) : 0;
   const consistency = total > 0 ? Math.min(98, Math.round(60 + (wins / total) * 38)) : 0;
 
-  const rrEntries = entries.filter(e => e.entry_price && e.tp1_price && e.sl_price);
-  const avgRR = rrEntries.length > 0
-    ? (rrEntries.reduce((s,e) => s + Math.abs(parseFloat(e.tp1_price)-parseFloat(e.entry_price))/Math.abs(parseFloat(e.entry_price)-parseFloat(e.sl_price)), 0)/rrEntries.length).toFixed(1)
-    : '—';
+  // Avg Planned R:R — the ratio of (TP1 distance) ÷ (SL distance) per
+  // entry. Defensive: skip entries where SL distance is zero (would
+  // divide by zero → Infinity), where any leg is non-numeric, or where
+  // the resulting ratio isn't a finite positive number. This prevents
+  // a single malformed entry from poisoning the whole average to
+  // Infinity (which the old code did when entry === sl).
+  const rrRatios = entries.map(e => {
+    const entryP = parseFloat(e.entry_price);
+    const tp1P   = parseFloat(e.tp1_price);
+    const slP    = parseFloat(e.sl_price);
+    if (![entryP, tp1P, slP].every(v => isFinite(v))) return null;
+    const reward = Math.abs(tp1P - entryP);
+    const risk   = Math.abs(entryP - slP);
+    if (risk <= 0 || reward <= 0) return null; // SL===entry or TP===entry: invalid
+    const r = reward / risk;
+    return isFinite(r) ? r : null;
+  }).filter(r => r !== null);
+  const avgRRNum = rrRatios.length > 0
+    ? rrRatios.reduce((s, r) => s + r, 0) / rrRatios.length
+    : null;
+  // Cap the displayed value at 99.9 — beyond that, a real trader either
+  // mistyped or has data issues, and showing "143.7" looks broken anyway.
+  const avgRR = (avgRRNum == null) ? '—'
+              : avgRRNum >= 99.9 ? '99.9+'
+              : avgRRNum.toFixed(1);
 
   const daysSet  = new Set(entries.map(e => (e.trade_date||e.created_at||'').slice(0,10)));
   const sessions = daysSet.size;
@@ -8195,7 +8364,7 @@ function renderAnalyticsMenuBody(tier) {
 
   const statsPayload = {
     total, wins, losses, winRate, consistency,
-    avgRR, avgPnl, avgSlSize, tradesPerDay, maxDrawdown, avgDuration,
+    avgRR, avgRRNum, avgPnl, avgSlSize, tradesPerDay, maxDrawdown, avgDuration,
     prematureExits, slMoved, overtrading,
     weekTrades: weekEntries.length, weekWins, sessions,
     topSetup: topSetup ? { type: topSetup[0], count: topSetup[1] } : null,
@@ -8221,7 +8390,23 @@ function renderAnalyticsMenuBody(tier) {
       <div class="analytics-section-title">Performance Dashboard</div>
       <div class="analytics-stat-grid">
         <div class="analytics-stat-card"><div class="analytics-stat-label">Win Rate</div><div class="analytics-stat-value ${winRate>=50?'positive':winRate>0?'negative':''}">${total>0?winRate+'%':'—'}</div><div class="analytics-stat-sub">${wins}W · ${losses}L</div></div>
-        <div class="analytics-stat-card"><div class="analytics-stat-label">Avg Planned R:R</div><div class="analytics-stat-value accent">${avgRR}</div><div class="analytics-stat-sub">entry vs TP1</div></div>
+        <div class="analytics-stat-card">
+          <div class="analytics-stat-label">Avg Planned R:R</div>
+          <div class="analytics-stat-value ${(()=>{
+            const target = parseFloat(localStorage.getItem('altradia_target_rr')||'2');
+            if (avgRRNum == null) return 'accent';
+            if (avgRRNum >= target) return 'positive';
+            if (avgRRNum >= target * 0.8) return 'accent';
+            return 'negative';
+          })()}">${avgRR}</div>
+          <div class="analytics-stat-sub">${(()=>{
+            const target = parseFloat(localStorage.getItem('altradia_target_rr')||'2');
+            if (avgRRNum == null) return 'entry vs TP1';
+            const diff = avgRRNum - target;
+            if (diff >= 0) return `target ${target.toFixed(1)} · +${diff.toFixed(1)} above`;
+            return `target ${target.toFixed(1)} · ${diff.toFixed(1)} below`;
+          })()}</div>
+        </div>
         <div class="analytics-stat-card"><div class="analytics-stat-label">Consistency Score</div><div class="analytics-stat-value ${consistency>=70?'positive':''}">${total>0?consistency+'%':'—'}</div><div class="analytics-stat-sub">plan adherence</div></div>
         <div class="analytics-stat-card"><div class="analytics-stat-label">Avg P&amp;L</div><div class="analytics-stat-value ${avgPnl==='—'?'':(parseFloat(avgPnl)>=0?'positive':'negative')}">${avgPnl!=='—'?(parseFloat(avgPnl)>=0?'+':'')+avgPnl+'%':'—'}</div><div class="analytics-stat-sub">per closed trade</div></div>
       </div>
@@ -8698,6 +8883,10 @@ function openMenuPage(name) {
     page.classList.add('open');
     // Always populate dynamic pages when opened
     if (name === 'subscription') _renderSubscriptionPage();
+    // Settings: sync displayed values that are persisted in localStorage
+    if (name === 'settings' && typeof _refreshTargetRRDisplay === 'function') {
+      _refreshTargetRRDisplay();
+    }
   }));
 }
 
@@ -8860,10 +9049,23 @@ async function _waitTwa(maxMs = 3000) {
           'export-modal-overlay',
           'payment-modal-overlay',
           'feedback-overlay',
+          'journal-filters-overlay',
         ];
+        const STATIC_OVERLAYS_BB = new Set(['journal-filters-overlay']);
         for (const id of overlayIds) {
           const el = document.getElementById(id);
-          if (el) { el.remove(); return; }
+          if (!el) continue;
+          const visible = el.style.display && el.style.display !== 'none';
+          if (!visible && STATIC_OVERLAYS_BB.has(id)) continue;
+          if (STATIC_OVERLAYS_BB.has(id)) {
+            el.style.display = 'none';
+            if (id === 'journal-filters-overlay' && typeof renderJournal === 'function') {
+              renderJournal();
+            }
+          } else {
+            el.remove();
+          }
+          return;
         }
 
         const openPages = document.querySelectorAll('.menu-page.open');
