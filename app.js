@@ -1910,8 +1910,21 @@ function renderWatchlist() {
       assets.forEach(asset => {
         const hasAlert  = alerts.some(a => a.assetId === asset.id && a.status === 'active');
         const isSelected = !isMobileLayout() && selectedAsset && selectedAsset.id === asset.id;
+        // Wrap the asset-card in a swipe-row so the user can swipe left to
+        // reveal a delete button. The corner-positioned X is kept for
+        // desktop hover but is no longer the only way to remove an asset.
+        const wrap = document.createElement('div');
+        wrap.className = 'swipe-row';
+        wrap.dataset.assetId = asset.id;
+        wrap.innerHTML = `
+          <button class="swipe-delete" onclick="_swipeDelete('${asset.id}', event)" aria-label="Remove">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <line x1="4" y1="4" x2="14" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="14" y1="4" x2="4" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>`;
         const card = document.createElement('div');
-        card.className = `asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
+        card.className = `swipe-content asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
         card.dataset.assetId = asset.id;
         card.innerHTML = `
           <button class="asset-remove" title="Remove from watchlist" onclick="removeAssetFromWatchlist('${asset.id}','${cat}',event)"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
@@ -1922,10 +1935,14 @@ function renderWatchlist() {
           ${hasAlert ? '<div class="asset-right"><div class="alert-dot" title="Alert active"></div></div>' : ''}`;
         card.onclick = (e) => {
           if (e.target.classList.contains('asset-remove') || e.target.closest('.asset-remove')) return;
+          // If row is currently revealed, snap it back instead of navigating.
+          if (_swipeActive === card) { _swipeReset(card); return; }
+          if (_swipeActive) { _swipeReset(_swipeActive); return; }
           navigateToChartOnSelect = true;
           selectAsset(asset);
         };
-        container.appendChild(card);
+        wrap.appendChild(card);
+        container.appendChild(wrap);
         totalCount++;
       });
     });
@@ -1934,6 +1951,10 @@ function renderWatchlist() {
     if (flat) flat.style.display = 'none';
     // Show the normal grouped sections
     document.querySelectorAll('#panel-my-watchlist .market-group').forEach(g => { g.style.display = ''; });
+    // Wire swipe handlers for any newly-rendered rows
+    if (typeof _wireSwipeHandlers === 'function') {
+      document.querySelectorAll('#wl-sub-assets').forEach(el => _wireSwipeHandlers(el));
+    }
   } else {
     // ── Flat view: hide all category groups, show one flat list ──
     document.querySelectorAll('#panel-my-watchlist .market-group').forEach(g => { g.style.display = 'none'; });
@@ -2003,6 +2024,7 @@ function renderWatchlist() {
     toggle.textContent = 'View less ↑';
   }
 }
+
 
 // ═══════════════════════════════════════════════
 // GLOBAL ASSET SEARCH
@@ -9444,6 +9466,8 @@ function _initWatchlistSubTabs() {
   // before we wipe and rebuild. We'll move them into the new wl-sub-assets
   // container so renderWatchlist() keeps targeting the same element IDs.
   const existingChildren = [...watchlistPanel.children];
+  console.log('[home-init] capturing children, count:', existingChildren.length,
+              'IDs:', existingChildren.map(c => c.id || ('class:' + c.className)));
 
   // Build the home shell skeleton.
   watchlistPanel.innerHTML = `
@@ -9465,7 +9489,7 @@ function _initWatchlistSubTabs() {
                 <line x1="2.5" y1="7" x2="11.5" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </button>
-            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>View all →</a>
+            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>View all ↓</a>
           </div>
         </div>
         <!-- Compact-row container, used in home view. -->
@@ -9475,22 +9499,24 @@ function _initWatchlistSubTabs() {
         <div id="wl-sub-assets"></div>
       </section>
 
-      <!-- Currency Strength section -->
+      <!-- Currency Strength section. The View-all link in the header is
+           shown only on the home overview; in the full meter view, a × close
+           button (top-right of the section actions) replaces it. -->
       <section class="home-section home-card" data-section="strength">
         <div class="home-section-header">
           <h2 class="home-section-title">Currency Strength</h2>
           <div class="home-section-actions">
-            <a class="home-view-all" onclick="openStrengthFull()">View all →</a>
+            <a class="home-view-all" id="home-strength-toggle" onclick="openStrengthFull()">View all →</a>
+            <button class="home-close-btn" id="home-strength-close" onclick="closeStrengthFull()" aria-label="Close" hidden>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
           </div>
         </div>
         <div id="home-strength-compact"></div>
         <div id="wl-sub-strength" class="wl-sub-strength" style="display:none">
-          <div class="home-fullview-back" onclick="closeStrengthFull()">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <polyline points="9,2 4,7 9,12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-            </svg>
-            Back to Home
-          </div>
           <div id="wl-strength-body"></div>
         </div>
       </section>
@@ -9518,7 +9544,10 @@ function _initWatchlistSubTabs() {
   // existing renderWatchlist() targets (#crypto-list, #forex-list, etc.,
   // #wl-empty, #wl-count) continue to resolve unchanged.
   const assetsContainer = document.getElementById('wl-sub-assets');
+  console.log('[home-init] migrating to wl-sub-assets, target exists:', !!assetsContainer);
   existingChildren.forEach(c => assetsContainer.appendChild(c));
+  console.log('[home-init] post-migrate, wl-sub-assets children:', assetsContainer.children.length,
+              'IDs found:', ['crypto-list','forex-list','indices-list','commodities-list','stocks-list','synthetics-list','wl-empty','wl-count'].filter(id => document.getElementById(id)));
 
   // Update greeting using the user's first name (already populated by
   // the auth flow into telegramUserName).
@@ -9563,8 +9592,132 @@ function _applyHomeViewMode(mode) {
   } else if (mode === 'strength-full') {
     if (typeof renderStrengthTab === 'function') renderStrengthTab();
   }
+  // Strength section header: View-all link visible only on home overview;
+  // × close button visible only when we're already in the full meter view.
+  const sToggle = document.getElementById('home-strength-toggle');
+  const sClose  = document.getElementById('home-strength-close');
+  if (sToggle) sToggle.hidden = (mode === 'strength-full');
+  if (sClose)  sClose.hidden  = (mode !== 'strength-full');
   // Tell the Telegram BackButton handler to re-evaluate visibility.
   try { if (typeof window._updateBackBtn === 'function') window._updateBackBtn(); } catch(_) {}
+}
+
+// ── Swipe-to-delete helpers (TradingView-style row gesture) ──────────
+// Each row is wrapped in .swipe-row containing a .swipe-content layer
+// (the visible row, draggable horizontally) and a .swipe-delete button
+// behind it on the right. Dragging the content left past the threshold
+// snaps to reveal the delete button; tapping the row content snaps back.
+const _SWIPE_THRESHOLD = 50;   // px drag past which we snap to reveal
+const _SWIPE_REVEAL    = 76;   // px width of the reveal (button width + padding)
+let _swipeActive = null;       // currently-revealed row element, if any
+
+function _wireSwipeHandlers(scopeEl) {
+  if (!scopeEl) return;
+  const rows = scopeEl.querySelectorAll('.swipe-row');
+  rows.forEach(row => {
+    const content = row.querySelector('.swipe-content');
+    if (!content || content.dataset.swipeWired === '1') return;
+    content.dataset.swipeWired = '1';
+    let startX = 0, startY = 0, baseDx = 0, dragging = false, intent = null;
+
+    content.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      startX = t.clientX; startY = t.clientY;
+      // If another row is currently revealed and this isn't it, close it.
+      if (_swipeActive && _swipeActive !== content) _swipeReset(_swipeActive);
+      // Use current transform as baseline (so a half-revealed row continues
+      // smoothly rather than jumping).
+      const m = (content.style.transform || '').match(/translateX\((-?[0-9.]+)px\)/);
+      baseDx = m ? parseFloat(m[1]) : 0;
+      dragging = true; intent = null;
+      content.style.transition = 'none';
+    }, { passive: true });
+
+    content.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      const t  = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      // First few pixels: decide if this is a horizontal swipe or vertical scroll.
+      if (intent === null) {
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+          intent = (Math.abs(dx) > Math.abs(dy)) ? 'h' : 'v';
+        }
+      }
+      if (intent !== 'h') return;       // let vertical scroll through
+      let next = baseDx + dx;
+      next = Math.min(0, Math.max(-_SWIPE_REVEAL, next)); // clamp to [-REVEAL, 0]
+      content.style.transform = `translateX(${next}px)`;
+    }, { passive: true });
+
+    content.addEventListener('touchend', () => {
+      if (!dragging) return;
+      dragging = false;
+      content.style.transition = 'transform 0.18s ease';
+      const m = (content.style.transform || '').match(/translateX\((-?[0-9.]+)px\)/);
+      const cur = m ? parseFloat(m[1]) : 0;
+      if (cur < -_SWIPE_THRESHOLD) {
+        content.style.transform = `translateX(${-_SWIPE_REVEAL}px)`;
+        _swipeActive = content;
+      } else {
+        _swipeReset(content);
+      }
+    });
+  });
+}
+
+function _swipeReset(content) {
+  if (!content) return;
+  content.style.transition = 'transform 0.18s ease';
+  content.style.transform  = 'translateX(0)';
+  if (_swipeActive === content) _swipeActive = null;
+}
+
+// Tap handler on the content layer. If this row is currently revealed,
+// snap it back. Otherwise, navigate to the chart for that asset.
+function _swipeRowTap(content, assetId) {
+  if (_swipeActive === content) {
+    _swipeReset(content);
+    return;
+  }
+  // Belt-and-braces: if any other row is revealed, close it.
+  if (_swipeActive) { _swipeReset(_swipeActive); return; }
+  _homeRowTap(assetId);
+}
+
+// Confirm + remove from watchlist. Reuses the same DB sync path that
+// the chart-page "toggle watchlist" button uses.
+function _swipeDelete(assetId, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const asset = (typeof ALL_ASSETS !== 'undefined')
+    ? ALL_ASSETS.find(a => a.id === assetId)
+    : null;
+  const symbol = asset?.symbol || assetId;
+  if (typeof showConfirm === 'function') {
+    showConfirm(
+      'Remove from watchlist?',
+      `${symbol} will be removed from your watchlist.`,
+      () => _doRemoveFromWatchlist(assetId, symbol),
+      { confirmText: 'Remove', danger: true }
+    );
+  } else {
+    _doRemoveFromWatchlist(assetId, symbol);
+  }
+}
+
+function _doRemoveFromWatchlist(assetId, symbol) {
+  Object.keys(ASSETS).forEach(cat => {
+    ASSETS[cat] = (ASSETS[cat] || []).filter(a => a.id !== assetId);
+  });
+  if (typeof removeFromWatchlist === 'function') removeFromWatchlist(assetId);
+  if (typeof showToast === 'function') {
+    showToast('Removed', `${symbol} removed from your watchlist.`, 'error');
+  }
+  if (typeof renderWatchlist === 'function') renderWatchlist();
+  if (_homeViewMode === 'home' && typeof _renderHomeWatchlistCompact === 'function') {
+    _renderHomeWatchlistCompact();
+  }
+  _swipeActive = null;
 }
 
 // Render top-3 STRONGEST currencies, scoped to currencies present on the
@@ -9672,21 +9825,35 @@ function _renderHomeWatchlistCompact() {
       ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`
       : '';
     const changeClass = change > 0 ? 'pos' : change < 0 ? 'neg' : '';
+    // Each row is a swipe container. The .swipe-content layer slides left
+    // on horizontal drag; the .swipe-delete button sits behind it on the
+    // right and becomes visible when content is dragged left far enough.
     return `
-      <div class="home-wl-row" data-asset-id="${asset.id}" onclick="_homeRowTap('${asset.id}')">
-        <div class="home-wl-row-left">
-          <div class="home-wl-icon home-wl-icon-${cat}">${asset.symbol.charAt(0)}</div>
-          <div class="home-wl-text">
-            <div class="home-wl-symbol">${asset.symbol}</div>
-            <div class="home-wl-name">${asset.name || ''}</div>
+      <div class="swipe-row" data-asset-id="${asset.id}">
+        <button class="swipe-delete" onclick="_swipeDelete('${asset.id}', event)" aria-label="Remove">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <line x1="4" y1="4" x2="14" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="14" y1="4" x2="4" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="swipe-content home-wl-row" onclick="_swipeRowTap(this, '${asset.id}')">
+          <div class="home-wl-row-left">
+            <div class="home-wl-icon home-wl-icon-${cat}">${asset.symbol.charAt(0)}</div>
+            <div class="home-wl-text">
+              <div class="home-wl-symbol">${asset.symbol}</div>
+              <div class="home-wl-name">${asset.name || ''}</div>
+            </div>
           </div>
-        </div>
-        <div class="home-wl-row-right">
-          <div class="home-wl-price">${priceText}</div>
-          <div class="home-wl-change ${changeClass}">${changeText}</div>
+          <div class="home-wl-row-right">
+            <div class="home-wl-price">${priceText}</div>
+            <div class="home-wl-change ${changeClass}">${changeText}</div>
+          </div>
         </div>
       </div>`;
   }).join('');
+
+  // Wire touch handlers for the newly rendered rows.
+  _wireSwipeHandlers(el);
 
   // Toggle visibility / label based on overflow + view mode
   const tg = document.getElementById('home-wl-toggle');
@@ -9714,11 +9881,27 @@ function _homeRowTap(assetId) {
 // Toggle between home overview (capped compact rows) and full watchlist
 // (expanded, uses the existing market-group renderer in wl-sub-assets).
 function toggleHomeWatchlist() {
+  console.log('[home] toggleHomeWatchlist called, current mode:', _homeViewMode);
   _applyHomeViewMode(_homeViewMode === 'watchlist-full' ? 'home' : 'watchlist-full');
+  console.log('[home] new mode:', _homeViewMode);
+  // Audit DOM state so we can see if the full-list container actually has content
+  const subAssets = document.getElementById('wl-sub-assets');
+  const compactRows = document.getElementById('home-watchlist-rows');
+  console.log('[home] DOM audit:', {
+    subAssets_exists: !!subAssets,
+    subAssets_children: subAssets ? subAssets.children.length : 0,
+    subAssets_innerHTML_len: subAssets ? subAssets.innerHTML.length : 0,
+    compactRows_exists: !!compactRows,
+    compactRows_children: compactRows ? compactRows.children.length : 0,
+    crypto_list_exists: !!document.getElementById('crypto-list'),
+    forex_list_exists: !!document.getElementById('forex-list'),
+  });
   const link = document.getElementById('home-wl-toggle');
   if (link) {
     link.hidden = false;
-    link.textContent = (_homeViewMode === 'watchlist-full') ? 'View less ↑' : 'View all →';
+    // Arrow direction: ↓ when collapsed (action: expand down),
+    //                  ↑ when expanded (action: collapse up).
+    link.textContent = (_homeViewMode === 'watchlist-full') ? 'View less ↑' : 'View all ↓';
   }
 }
 
