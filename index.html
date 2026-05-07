@@ -694,7 +694,19 @@
         <option value="30">30 DAYS</option>
         <option value="90">3 MONTHS</option>
       </select>
-      
+
+      <!-- Filters button — opens bottom-sheet modal with direction /
+           status / outcome filters. Badge appears when any filter is
+           active so the user knows results are narrowed. -->
+      <button id="journal-filters-btn" onclick="openJournalFiltersModal()" title="Filters" style="position:relative;background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:5px 7px;border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <line x1="2" y1="3.5" x2="12" y2="3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <line x1="4" y1="7" x2="10" y2="7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <line x1="5.5" y1="10.5" x2="8.5" y2="10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <span id="journal-filters-badge" style="position:absolute;top:-3px;right:-3px;background:var(--accent);color:#fff;font-family:var(--mono);font-size:0.55rem;font-weight:700;min-width:14px;height:14px;border-radius:7px;padding:0 3px;display:none;align-items:center;justify-content:center">0</span>
+      </button>
+
       <button onclick="openJournalEntryForm()" style="background:var(--accent);color:#000;font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.08em;padding:4px 10px;border:none;border-radius:6px;cursor:pointer">+ LOG TRADE</button>
     </div>
   </div>
@@ -1851,6 +1863,29 @@
           <button onclick="adjustSlStreak(1)" style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
         </div>
       </div>
+      <div class="settings-row-divider"></div>
+      <!-- Target R:R — personal discipline target. The Analytics page
+           compares the user's actual Avg Planned R:R to this value
+           (green when meeting/exceeding, amber when within 80%, red
+           when below). Stored in localStorage as 'altradia_target_rr'. -->
+      <div class="settings-row" id="target-rr-row" style="cursor:default">
+        <span class="settings-row-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <circle cx="9" cy="9" r="3.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <circle cx="9" cy="9" r="1" fill="currentColor"/>
+          </svg>
+        </span>
+        <div class="settings-row-text">
+          <span class="settings-row-label">Target R:R</span>
+          <span class="settings-row-sub">Your minimum reward-to-risk discipline goal</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <button onclick="adjustTargetRR(-0.5)" style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">−</button>
+          <span id="target-rr-display" style="font-family:var(--mono);font-size:0.9rem;font-weight:700;color:var(--text);min-width:34px;text-align:center">2.0</span>
+          <button onclick="adjustTargetRR(0.5)" style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
+        </div>
+      </div>
     </div>
 
     <!-- Watchlist -->
@@ -2010,5 +2045,51 @@
   </div>
 </div>
 
+
+
+<!-- ── Journal Filters Modal ─────────────────────────────────────────── -->
+<!-- Bottom-sheet style. Three filter categories (Direction / Status /
+     Outcome) with toggleable chips. OR within a category, AND across
+     categories. Filter state lives in the JS variable `_journalFilters`
+     and is applied in renderJournal(). -->
+<div id="journal-filters-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9500;align-items:flex-end;justify-content:center" onclick="closeJournalFiltersModal(event)">
+  <div class="journal-filters-sheet" onclick="event.stopPropagation()" style="background:var(--surface);width:100%;max-width:520px;border-radius:18px 18px 0 0;border:1px solid var(--border);border-bottom:none;padding:18px 18px 24px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <h3 style="font-family:var(--display);font-size:1.0625rem;font-weight:700;color:var(--text);margin:0">Filters</h3>
+      <button onclick="clearJournalFilters()" id="journal-filters-clear-btn" style="background:transparent;border:none;color:var(--accent);font-size:0.8125rem;font-weight:500;cursor:pointer;padding:4px 2px">Clear all</button>
+    </div>
+
+    <!-- Direction -->
+    <div class="filter-group">
+      <div class="filter-group-label">DIRECTION</div>
+      <div class="filter-chips">
+        <button class="filter-chip" data-filter="direction" data-value="long" onclick="_toggleJournalFilter(this)">Long</button>
+        <button class="filter-chip" data-filter="direction" data-value="short" onclick="_toggleJournalFilter(this)">Short</button>
+      </div>
+    </div>
+
+    <!-- Trade Status -->
+    <div class="filter-group">
+      <div class="filter-group-label">TRADE STATUS</div>
+      <div class="filter-chips">
+        <button class="filter-chip" data-filter="status" data-value="taken" onclick="_toggleJournalFilter(this)">Taken</button>
+        <button class="filter-chip" data-filter="status" data-value="missed" onclick="_toggleJournalFilter(this)">Missed</button>
+        <button class="filter-chip" data-filter="status" data-value="ignored" onclick="_toggleJournalFilter(this)">Ignored</button>
+      </div>
+    </div>
+
+    <!-- Outcome -->
+    <div class="filter-group">
+      <div class="filter-group-label">OUTCOME</div>
+      <div class="filter-chips">
+        <button class="filter-chip" data-filter="outcome" data-value="win" onclick="_toggleJournalFilter(this)">Win</button>
+        <button class="filter-chip" data-filter="outcome" data-value="loss" onclick="_toggleJournalFilter(this)">Loss</button>
+        <button class="filter-chip" data-filter="outcome" data-value="breakeven" onclick="_toggleJournalFilter(this)">Breakeven</button>
+      </div>
+    </div>
+
+    <button onclick="closeJournalFiltersModal()" style="width:100%;margin-top:14px;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-weight:600;font-size:0.9375rem;cursor:pointer">Apply</button>
+  </div>
+</div>
 </body>
 </html>
