@@ -4976,3 +4976,58 @@ header {
 [data-theme="dark"] .home-close-btn { background: rgba(255,255,255,0.04); }
 .home-close-btn:hover  { background: rgba(var(--red-rgb),0.08); color: var(--red); border-color: rgba(var(--red-rgb),0.3); }
 .home-close-btn:active { transform: scale(0.92); }
+
+
+/* ── Journal Filters Modal ───────────────────────────────────────────
+   Bottom-sheet filter UI. Each category is a vertical group with a
+   small label and a row of toggleable chips. Active chips have a
+   tinted background using the brand teal. */
+.filter-group {
+  margin-bottom: 18px;
+}
+.filter-group:last-of-type {
+  margin-bottom: 8px;
+}
+.filter-group-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+  padding-left: 2px;
+}
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.filter-chip {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 18px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  min-height: 36px;
+}
+.filter-chip:active { transform: scale(0.97); }
+.filter-chip.active {
+  background: rgba(var(--accent-rgb),0.12);
+  border-color: rgba(var(--accent-rgb),0.4);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Sheet animation — slide up from bottom */
+.journal-filters-sheet {
+  animation: jfilter-slide 0.22s ease-out;
+}
+@keyframes jfilter-slide {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
