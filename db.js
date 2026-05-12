@@ -54,19 +54,30 @@ function _getTelegramHints() {
 // returns null, and the UI renders empty (no watchlist, no alerts, no
 // journal). Polls every 50ms up to ~3s. Resolves when ready, or times
 // out and lets the caller fall through to dev-mode fallback (browser).
+// Some Telegram clients (notably 6.0) won't populate initData until the
+// WebApp explicitly calls tg.ready(). Calling it as soon as the SDK
+// object appears unblocks the data flow.
+let _twaReadyCalled = false;
+function _kickTwaReady() {
+  if (_twaReadyCalled) return;
+  try {
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
+    _twaReadyCalled = true;
+    try { tg.ready();  } catch (_) {}
+    try { tg.expand(); } catch (_) {}
+  } catch (_) {}
+}
+
 function _waitForTelegramReady(maxMs = 3000) {
   return new Promise((resolve) => {
     const start = Date.now();
     const check = () => {
       try {
         const tg = window.Telegram?.WebApp;
-        // Wait for tg.initData (the raw signed string) — that's what
-        // mint-jwt actually needs. initDataUnsafe.user can lag behind on
-        // older Telegram clients (6.0 etc.), but initData itself is
-        // present from the SDK's first tick. Previously we waited for
-        // initDataUnsafe.user.id which never populated on some clients,
-        // causing the wait to time out and downstream boot logic to mis-
-        // detect the user as "not in Telegram".
+        // The moment the SDK object exists, call ready() — some clients
+        // only populate initData AFTER ready() is called.
+        if (tg) _kickTwaReady();
         if (tg && typeof tg.initData === 'string' && tg.initData.length > 0) {
           console.log('[auth] Telegram.WebApp ready after', Date.now() - start, 'ms');
           return resolve(true);
@@ -79,6 +90,9 @@ function _waitForTelegramReady(maxMs = 3000) {
       } catch (_) { /* keep polling */ }
       if (Date.now() - start >= maxMs) {
         console.warn('[auth] Telegram.WebApp not ready after', maxMs, 'ms — proceeding anyway');
+        // Even on timeout, kick ready() before resolving so subsequent
+        // calls to mint-jwt at least might find initData populated.
+        _kickTwaReady();
         return resolve(false);
       }
       setTimeout(check, 50);
@@ -235,11 +249,17 @@ const db = {
   },
 
   async upsert(table, data, onConflict) {
-    const res = await _authedFetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    // PostgREST conflict resolution goes via the ?on_conflict= query
+    // parameter, NOT a header. Previous header-based attempt was ignored,
+    // making upsert act like a plain insert (which then hit unique
+    // constraint errors on existing rows).
+    const url = onConflict
+      ? `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`
+      : `${SUPABASE_URL}/rest/v1/${table}`;
+    const res = await _authedFetch(url, {
       method:  'POST',
       headers: {
         'Prefer': 'resolution=merge-duplicates,return=representation',
-        ...(onConflict ? { 'on-conflict': onConflict } : {}),
       },
       body: JSON.stringify(data),
     });
@@ -562,4 +582,3 @@ async function clearAlertHistoryFromDB() {
     console.warn('DB: clearAlertHistory failed', e);
   }
 }
-
