@@ -4468,15 +4468,17 @@ async function checkSingleAlert(alert, currentPrice, now, nowDate) {
     } catch (_) {}
 
     if (!inZone) {
-      // Price exited the zone. Clear the in-memory "fired-once" latch so that
-      // a future re-entry can fire again (repeat zones) or so the UI reflects
-      // the exit state correctly (one-shot zones — status guard still blocks re-fire).
+      // Price exited the zone. Reset the IN-MEMORY "in-zone" UI latch
+      // so the badge changes back to ACTIVE / EXITED. But do NOT clear
+      // last_triggered_at — that timestamp IS the repeat-interval
+      // cooldown for repeating zones. Wiping it on every exit caused
+      // alerts to re-fire on every re-entry instead of waiting the
+      // full interval (5-minute zone alert spammed every 30s when
+      // price hovered near the boundary).
       if (alert.zoneTriggeredOnce) {
         alert.zoneTriggeredOnce = false;
-        // Only clear last_triggered_at for repeat zones. For one-shot zones,
-        // triggered_at is the definitive timestamp; last_triggered_at is
-        // only used for cooldown de-duplication with the edge function.
-        if (repeatMs > 0) updateAlert(alert.id, { last_triggered_at: null });
+        // No DB write here. The repeat interval is already enforced by
+        // the `now - lastFired < repeatMs` check below on re-entry.
       }
       return;
     }
