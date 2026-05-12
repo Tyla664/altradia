@@ -1,3 +1,105 @@
+// ── ON-SCREEN DEBUG OVERLAY (Telegram phone debugging) ──────────────────
+// Mirrors console.log/warn/error lines that start with one of our
+// diagnostic prefixes to a floating overlay so they're visible inside
+// the Telegram WebApp without remote debugging. Auto-dismisses after
+// 60 seconds. Tap the overlay to copy text to clipboard, double-tap to
+// dismiss immediately. Set window._ALTRADIA_DEBUG_OFF = true before
+// boot to disable.
+(function _initDebugOverlay() {
+  try {
+    if (window._ALTRADIA_DEBUG_OFF) return;
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]'];
+    const buffer = [];
+    let overlay = null, contents = null;
+
+    function ensureOverlay() {
+      if (overlay) return overlay;
+      overlay = document.createElement('div');
+      overlay.id = '_altradia_debug_overlay';
+      overlay.style.cssText = [
+        'position:fixed', 'top:8px', 'left:8px', 'right:8px',
+        'max-height:60vh', 'overflow:auto',
+        'background:rgba(0,0,0,0.92)', 'color:#9eff9e',
+        'font-family:monospace', 'font-size:10px', 'line-height:1.35',
+        'padding:8px 10px', 'border-radius:8px',
+        'z-index:2147483647',                 // above everything
+        'border:1px solid #444',
+        'white-space:pre-wrap', 'word-break:break-all',
+        '-webkit-user-select:text', 'user-select:text',
+      ].join(';');
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;color:#ffd966;font-weight:bold;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid #555;';
+      header.innerHTML = '<span>altradia debug · tap = copy · 2-tap = close</span><span id="_dbg_close" style="cursor:pointer;padding:0 6px;color:#fff;font-size:13px">×</span>';
+      overlay.appendChild(header);
+      contents = document.createElement('div');
+      overlay.appendChild(contents);
+      // Defer body append until DOM ready
+      const append = () => document.body && document.body.appendChild(overlay);
+      if (document.body) append(); else document.addEventListener('DOMContentLoaded', append, { once: true });
+
+      let lastTap = 0;
+      overlay.addEventListener('click', (e) => {
+        if (e.target.id === '_dbg_close') { overlay.remove(); overlay = null; return; }
+        const now = Date.now();
+        if (now - lastTap < 400) { overlay.remove(); overlay = null; return; }
+        lastTap = now;
+        try {
+          const text = buffer.join('\n');
+          if (navigator.clipboard) navigator.clipboard.writeText(text);
+        } catch(_) {}
+      });
+
+      // Auto-dismiss after 60 seconds so it doesn't linger forever.
+      setTimeout(() => { if (overlay) { overlay.remove(); overlay = null; } }, 60000);
+      return overlay;
+    }
+
+    function shouldCapture(args) {
+      if (!args.length) return false;
+      const first = String(args[0] || '');
+      return PREFIXES.some(p => first.indexOf(p) === 0);
+    }
+
+    function formatArgs(args) {
+      return args.map(a => {
+        if (a == null) return String(a);
+        if (typeof a === 'string') return a;
+        try { return JSON.stringify(a); } catch(_) { return String(a); }
+      }).join(' ');
+    }
+
+    function captureLine(prefix, args) {
+      const line = `[${new Date().toISOString().slice(11,19)}] ${prefix} ${formatArgs(args)}`;
+      buffer.push(line);
+      ensureOverlay();
+      if (contents) {
+        const row = document.createElement('div');
+        row.textContent = line;
+        contents.appendChild(row);
+        // Cap visible rows so we don't OOM on extreme log volume
+        while (contents.children.length > 200) contents.removeChild(contents.firstChild);
+        // Auto-scroll
+        overlay.scrollTop = overlay.scrollHeight;
+      }
+    }
+
+    const _log = console.log.bind(console);
+    const _warn = console.warn.bind(console);
+    const _err = console.error.bind(console);
+    console.log  = function(...a) { _log(...a);  if (shouldCapture(a)) captureLine('LOG ',  a); };
+    console.warn = function(...a) { _warn(...a); if (shouldCapture(a)) captureLine('WARN', a); };
+    console.error= function(...a) { _err(...a);  captureLine('ERR ', a); };  // capture ALL errors
+
+    // Surface uncaught errors and unhandled promise rejections too
+    window.addEventListener('error', (e) => {
+      captureLine('UNCAUGHT', [e.message || String(e.error || e), '@', e.filename + ':' + e.lineno]);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      captureLine('PROMISE', [String(e.reason?.message || e.reason || '<unknown>')]);
+    });
+  } catch (e) { /* never let debug overlay break anything */ }
+})();
+
 // altradia — Config, Asset Catalogue, Global State
 // Loaded first — all other files depend on these globals
 
