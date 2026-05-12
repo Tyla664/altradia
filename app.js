@@ -7,7 +7,19 @@
 // boot to disable.
 (function _initDebugOverlay() {
   try {
-    if (window._ALTRADIA_DEBUG_OFF) return;
+    // Opt-in only. Three ways to enable:
+    //   1. localStorage.setItem('altradia_debug', '1')  — persistent
+    //   2. add #debug to the URL                        — one-shot
+    //   3. set window._ALTRADIA_DEBUG = true            — manual
+    // Without one of these the overlay never appears (no DOM cost, no
+    // hooks installed at all — only the console gets a faint wrap).
+    let enabled = false;
+    try {
+      enabled = localStorage.getItem('altradia_debug') === '1'
+             || (window.location.hash || '').indexOf('debug') !== -1
+             || window._ALTRADIA_DEBUG === true;
+    } catch (_) {}
+    if (!enabled) return;
     const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]'];
     const buffer = [];
     let overlay = null, contents = null;
@@ -90,13 +102,58 @@
     console.warn = function(...a) { _warn(...a); if (shouldCapture(a)) captureLine('WARN', a); };
     console.error= function(...a) { _err(...a);  captureLine('ERR ', a); };  // capture ALL errors
 
-    // Surface uncaught errors and unhandled promise rejections too
+    // Surface uncaught errors with as much detail as we can scrape.
+    // Cross-origin script errors normally appear as just "Script error."
+    // with empty fields — but we can still pull e.error.stack if present.
     window.addEventListener('error', (e) => {
-      captureLine('UNCAUGHT', [e.message || String(e.error || e), '@', e.filename + ':' + e.lineno]);
-    });
+      const parts = [];
+      if (e.message)                        parts.push(e.message);
+      if (e.filename)                       parts.push('@ ' + e.filename + ':' + (e.lineno || '?') + ':' + (e.colno || '?'));
+      if (e.error && e.error.message && e.error.message !== e.message) parts.push('msg=' + e.error.message);
+      if (e.error && e.error.stack)         parts.push('stack=' + String(e.error.stack).split('\n').slice(0, 5).join(' | '));
+      if (!parts.length)                    parts.push('<no detail — cross-origin masked>');
+      captureLine('UNCAUGHT', parts);
+    }, true);  // useCapture=true: fires before bubble-phase, catches earliest
     window.addEventListener('unhandledrejection', (e) => {
-      captureLine('PROMISE', [String(e.reason?.message || e.reason || '<unknown>')]);
+      const r = e.reason;
+      const parts = [];
+      if (r && typeof r === 'object') {
+        if (r.message) parts.push(r.message);
+        if (r.stack)   parts.push('stack=' + String(r.stack).split('\n').slice(0, 5).join(' | '));
+        if (!parts.length) try { parts.push(JSON.stringify(r)); } catch (_) { parts.push(String(r)); }
+      } else {
+        parts.push(String(r || '<unknown>'));
+      }
+      captureLine('PROMISE', parts);
     });
+
+    // Wrap setInterval/setTimeout callbacks so async errors carry their
+    // real stack into our capture. Without this, errors inside a poll
+    // loop just show as "Script error." with no useful info.
+    const _origSetInterval = window.setInterval;
+    const _origSetTimeout  = window.setTimeout;
+    window.setInterval = function(fn, ms, ...rest) {
+      if (typeof fn !== 'function') return _origSetInterval.call(window, fn, ms, ...rest);
+      return _origSetInterval.call(window, function() {
+        try { return fn.apply(this, arguments); }
+        catch (err) {
+          captureLine('INTERVAL_THROW', [err && err.message || String(err),
+            'stack=' + (err && err.stack ? String(err.stack).split('\n').slice(0, 5).join(' | ') : '<none>')]);
+          throw err;
+        }
+      }, ms, ...rest);
+    };
+    window.setTimeout = function(fn, ms, ...rest) {
+      if (typeof fn !== 'function') return _origSetTimeout.call(window, fn, ms, ...rest);
+      return _origSetTimeout.call(window, function() {
+        try { return fn.apply(this, arguments); }
+        catch (err) {
+          captureLine('TIMEOUT_THROW', [err && err.message || String(err),
+            'stack=' + (err && err.stack ? String(err.stack).split('\n').slice(0, 5).join(' | ') : '<none>')]);
+          throw err;
+        }
+      }, ms, ...rest);
+    };
   } catch (e) { /* never let debug overlay break anything */ }
 })();
 
@@ -11085,9 +11142,7 @@ async function init() {
   await refreshUserTier();
 
   if (isTelegramApp) {
-    console.log('[boot] entering isTelegramApp branch');
     soundEnabled = prefs?.sound_enabled ?? true;
-    console.log('[boot] firing savePreferencesDB');
     savePreferencesDB({
       telegram_chat_id: telegramChatId,
       telegram_enabled: true,
@@ -11095,38 +11150,32 @@ async function init() {
       timezone:         Intl.DateTimeFormat().resolvedOptions().timeZone,
       utc_offset_mins:  -new Date().getTimezoneOffset(),
     });
-    console.log('[boot] savePreferencesDB fired (fire-and-forget)');
 
-    // ── New user onboarding: show linking screen, auto send test ──
+    // ── Onboarding gate ──
+    // Treat the user as already onboarded if EITHER the localStorage flag
+    // is set OR mint-jwt already returned a real user_id (proof of prior
+    // onboarding — Telegram cache clear may wipe the flag without
+    // changing the linked-account fact).
     const hasOnboarded = !!localStorage.getItem('tw_onboarded')
                       || !!(typeof currentUserId !== 'undefined' && currentUserId);
-    console.log('[boot] hasOnboarded:', hasOnboarded, 'storage flag:', localStorage.getItem('tw_onboarded'), 'currentUserId:', currentUserId);
     if (!hasOnboarded) {
-      console.log('[boot] showing consent disclaimer');
       const consented = await showConsentDisclaimer();
-      console.log('[boot] consent result:', consented);
-      if (!consented) { console.warn('[boot] consent declined — returning'); return; }
+      if (!consented) return;
       revealApp();
-      console.log('[boot] showing onboarding screen');
       const onboardOk = await showOnboardingScreen();
-      console.log('[boot] onboarding result:', onboardOk);
-      if (!onboardOk) { console.warn('[boot] onboarding failed — returning'); return; }
+      if (!onboardOk) return;
       localStorage.setItem('tw_onboarded', '1');
     } else if (!localStorage.getItem('tw_onboarded')) {
+      // Authenticated but missing flag — set it so we don't re-evaluate.
       localStorage.setItem('tw_onboarded', '1');
-      console.log('[boot] set tw_onboarded flag (was missing)');
     }
-    console.log('[boot] exiting isTelegramApp branch');
   } else {
-    console.log('[boot] entering NOT-telegram branch — will return');
     revealApp();
     soundEnabled = prefs?.sound_enabled ?? true;
     showTgConnectPrompt();
     return;
   }
-  console.log('[boot] calling updateTgBtn');
   updateTgBtn();
-  console.log('[boot] updateTgBtn done');
 
   console.log('[boot] start data load — currentUserId:', (typeof currentUserId !== 'undefined' ? currentUserId : '(undefined)'));
   console.log('[shot] step8 about to call loadAlertsFromDB...');
