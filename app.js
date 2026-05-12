@@ -4250,7 +4250,12 @@ async function _fireSetupTransitionAtomic(alert, j, nextStatus, currentPrice) {
                    ? !!tgNotifPrefs.queued
                    : true;
   if (telegramEnabled && telegramChatId && tgGate) {
-    sendTelegram(tgSetupLevelMessage(alert.symbol, nextStatus, currentPrice, alert.assetId, j));
+    // Gate through the duplicate-fire ledger so we don't send the same
+    // setup-level transition twice (e.g. entry_hit → entry_hit) in the
+    // window where the DB update is in flight.
+    if (!_recordTgFire(alert.id, 'setup:' + nextStatus)) {
+      sendTelegram(tgSetupLevelMessage(alert.symbol, nextStatus, currentPrice, alert.assetId, j));
+    }
   }
 }
 
@@ -4415,7 +4420,7 @@ function checkSetupLevels(alert, currentPrice) {
 
 // ── Check a single non-setup alert against a given price ─────────────────────
 // Used by the Deriv tick handler to check zone/above/below/tap alerts in real-time
-function checkSingleAlert(alert, currentPrice, now, nowDate) {
+async function checkSingleAlert(alert, currentPrice, now, nowDate) {
   if (alert.status !== 'active') return;
   if (!isMarketOpenForAsset(alert.assetId, nowDate)) return;
 
@@ -4489,19 +4494,27 @@ function checkSingleAlert(alert, currentPrice, now, nowDate) {
   alert.triggeredPrice     = currentPrice;
   triggeredToday++;
 
-  // Persist the fire. Include last_triggered_at so the edge function's atomic
-  // lock (which checks last_triggered_at against a 30s cutoff) can see that
-  // this fire has already been claimed, preventing a duplicate Telegram send.
+  // Persist the fire. Include last_triggered_at so the edge function's
+  // atomic lock (which checks last_triggered_at against a 30s cutoff)
+  // can see that this fire has already been claimed, preventing a
+  // duplicate Telegram send. We AWAIT the update before sending
+  // Telegram below — that way the CAS lock is durable in the DB before
+  // we send our copy. Otherwise the cron can race-read 'active' status
+  // and fire its own duplicate Telegram.
   if (!isZone || (alert.repeatInterval || 0) === 0) {
     const nowIso = new Date().toISOString();
     alert.lastTriggeredAt = Date.now();
-    updateAlert(alert.id, {
-      status: 'triggered',
-      triggered_at: nowIso,
-      triggered_price: currentPrice,
-      triggered_direction: alert.condition,
-      last_triggered_at: nowIso,
-    });
+    try {
+      await updateAlert(alert.id, {
+        status: 'triggered',
+        triggered_at: nowIso,
+        triggered_price: currentPrice,
+        triggered_direction: alert.condition,
+        last_triggered_at: nowIso,
+      });
+    } catch (e) {
+      console.warn('[fire] updateAlert PATCH failed, continuing:', e?.message || e);
+    }
   }
 
   const tfLabel = alert.timeframe ? ` [${alert.timeframe}]` : '';
@@ -4518,10 +4531,19 @@ function checkSingleAlert(alert, currentPrice, now, nowDate) {
   playAlertSound(alert.sound || selectedAlertSound);
   const isRepeating = isZone && (alert.repeatInterval || 0) > 0;
   if (telegramEnabled && (!isRepeating || tgNotifPrefs.other)) {
-    sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition,
-      alert.targetPrice, currentPrice, alert.assetId,
-      alert.note, alert.timeframe, alert.zoneLow, alert.zoneHigh,
-      alert.repeatInterval, alert.tapTolerance));
+    // Gate through the duplicate-fire ledger. If we've already fired
+    // this alert's trigger within the dedup window, skip the second
+    // send and log loudly. Repeating zones use a unique reason that
+    // includes the timestamp window so legitimate repeats still fire.
+    const reason = isRepeating
+      ? `trigger:repeat:${Math.floor(Date.now() / Math.max((alert.repeatInterval || 1) * 60_000, 1))}`
+      : 'trigger';
+    if (!_recordTgFire(alert.id, reason)) {
+      sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition,
+        alert.targetPrice, currentPrice, alert.assetId,
+        alert.note, alert.timeframe, alert.zoneLow, alert.zoneHigh,
+        alert.repeatInterval, alert.tapTolerance));
+    }
   }
   renderAlerts();
 }
@@ -9442,6 +9464,34 @@ function setTgStatus(msg, type) {
 }
 
 // Core send function — posts to Cloudflare Worker proxy
+// ── Telegram alert fire ledger (Item 11 diagnostics) ─────────────────
+// Tracks recent (alert_id, reason) pairs to detect duplicate sends.
+// If our code or a server cron tries to send the same (alert, reason)
+// twice within 60 seconds, the second one gets logged loudly so we
+// can see it in the debug overlay and root-cause the duplication.
+// Note: this only catches CLIENT-SIDE duplicates. Server-side duplicates
+// arrive as inbound Telegram messages and aren't visible here.
+const _tgFireLedger = new Map();   // key: alertId|reason  →  timestamp
+const _TG_DEDUP_WINDOW_MS = 60_000;
+
+function _recordTgFire(alertId, reason) {
+  if (!alertId) return false;
+  const key = String(alertId) + '|' + (reason || 'unknown');
+  const now = Date.now();
+  // Sweep old entries on every record (keeps map small).
+  for (const [k, t] of _tgFireLedger) {
+    if (now - t > _TG_DEDUP_WINDOW_MS) _tgFireLedger.delete(k);
+  }
+  const prior = _tgFireLedger.get(key);
+  if (prior !== undefined) {
+    console.warn('[tg-dedup] DUPLICATE FIRE prevented:', { alertId, reason, gap_ms: now - prior });
+    return true;   // duplicate detected — caller should NOT send
+  }
+  _tgFireLedger.set(key, now);
+  console.log('[tg-fire]', { alertId, reason, t: now });
+  return false;
+}
+
 async function sendTelegram(message) {
   if (!telegramChatId) return false;
   try {
