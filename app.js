@@ -10882,6 +10882,7 @@ async function _performDeleteAccount() {
 
 
 async function init() {
+  console.log('[boot] init() entered');
   // Apply saved theme before anything renders
   initTheme();
 
@@ -10982,7 +10983,9 @@ async function init() {
   await refreshUserTier();
 
   if (isTelegramApp) {
+    console.log('[boot] entering isTelegramApp branch');
     soundEnabled = prefs?.sound_enabled ?? true;
+    console.log('[boot] firing savePreferencesDB');
     savePreferencesDB({
       telegram_chat_id: telegramChatId,
       telegram_enabled: true,
@@ -10990,37 +10993,38 @@ async function init() {
       timezone:         Intl.DateTimeFormat().resolvedOptions().timeZone,
       utc_offset_mins:  -new Date().getTimezoneOffset(),
     });
+    console.log('[boot] savePreferencesDB fired (fire-and-forget)');
 
     // ── New user onboarding: show linking screen, auto send test ──
-    // Treat the user as already onboarded if:
-    //   (a) localStorage flag is set (regular path), OR
-    //   (b) mint-jwt already returned a real user_id (proof they were
-    //       onboarded in a previous session — Telegram cache clear may
-    //       wipe the flag without changing the linked-account fact).
-    // Without (b), every Telegram cache clear sent existing users back
-    // through consent + test-message, which blocked the data load.
     const hasOnboarded = !!localStorage.getItem('tw_onboarded')
                       || !!(typeof currentUserId !== 'undefined' && currentUserId);
+    console.log('[boot] hasOnboarded:', hasOnboarded, 'storage flag:', localStorage.getItem('tw_onboarded'), 'currentUserId:', currentUserId);
     if (!hasOnboarded) {
-      // Show consent disclaimer first — user must agree before proceeding
+      console.log('[boot] showing consent disclaimer');
       const consented = await showConsentDisclaimer();
-      if (!consented) return; // user declined — halt
+      console.log('[boot] consent result:', consented);
+      if (!consented) { console.warn('[boot] consent declined — returning'); return; }
       revealApp();
+      console.log('[boot] showing onboarding screen');
       const onboardOk = await showOnboardingScreen();
-      if (!onboardOk) return;
+      console.log('[boot] onboarding result:', onboardOk);
+      if (!onboardOk) { console.warn('[boot] onboarding failed — returning'); return; }
       localStorage.setItem('tw_onboarded', '1');
     } else if (!localStorage.getItem('tw_onboarded')) {
-      // Flag was missing but user is authenticated. Set it so we don't
-      // re-evaluate this check on the next reload.
       localStorage.setItem('tw_onboarded', '1');
+      console.log('[boot] set tw_onboarded flag (was missing)');
     }
+    console.log('[boot] exiting isTelegramApp branch');
   } else {
+    console.log('[boot] entering NOT-telegram branch — will return');
     revealApp();
     soundEnabled = prefs?.sound_enabled ?? true;
     showTgConnectPrompt();
     return;
   }
+  console.log('[boot] calling updateTgBtn');
   updateTgBtn();
+  console.log('[boot] updateTgBtn done');
 
   console.log('[boot] start data load — currentUserId:', (typeof currentUserId !== 'undefined' ? currentUserId : '(undefined)'));
   console.log('[shot] step8 about to call loadAlertsFromDB...');
@@ -11851,4 +11855,6 @@ function showTgConnectPrompt() {
   }, { passive: true });
 })();
 
-init();
+init().catch(e => {
+  console.error('[boot] init() threw uncaught:', e);
+});
