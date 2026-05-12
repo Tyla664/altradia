@@ -11074,15 +11074,19 @@ async function init() {
   }
 
   populateDropdown();
+
+  // ── Reveal the app shell + build the home shell BEFORE rendering ──
+  // revealApp() runs _initWatchlistSubTabs() which constructs the home
+  // shell DOM (#home-watchlist-rows, #home-strength-compact, etc.).
+  // Render functions depend on these elements existing — without this
+  // ordering, renderWatchlist's home-view path returns silently because
+  // the target container doesn't exist yet, and the home page renders
+  // its empty state instead of the real data.
+  try { revealApp(); } catch (_) {}
+
+  // Now that the home shell exists, render user data into it.
   renderWatchlist();
   renderAlerts();
-
-  // ── Reveal the app shell NOW ──────────────────────────────────────
-  // User-specific data (alerts + watchlist) is loaded and rendered.
-  // Prices will fill in asynchronously below — we don't make the user
-  // stare at a spinner while a flaky third-party price provider
-  // resolves. Calling revealApp() twice is harmless.
-  try { revealApp(); } catch (_) {}
 
   // Restore last timeframe
   const _lastTF = localStorage.getItem('altradia_last_tf');
