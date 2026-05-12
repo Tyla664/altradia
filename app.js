@@ -10992,7 +10992,15 @@ async function init() {
     });
 
     // ── New user onboarding: show linking screen, auto send test ──
-    const hasOnboarded = localStorage.getItem('tw_onboarded');
+    // Treat the user as already onboarded if:
+    //   (a) localStorage flag is set (regular path), OR
+    //   (b) mint-jwt already returned a real user_id (proof they were
+    //       onboarded in a previous session — Telegram cache clear may
+    //       wipe the flag without changing the linked-account fact).
+    // Without (b), every Telegram cache clear sent existing users back
+    // through consent + test-message, which blocked the data load.
+    const hasOnboarded = !!localStorage.getItem('tw_onboarded')
+                      || !!(typeof currentUserId !== 'undefined' && currentUserId);
     if (!hasOnboarded) {
       // Show consent disclaimer first — user must agree before proceeding
       const consented = await showConsentDisclaimer();
@@ -11000,6 +11008,10 @@ async function init() {
       revealApp();
       const onboardOk = await showOnboardingScreen();
       if (!onboardOk) return;
+      localStorage.setItem('tw_onboarded', '1');
+    } else if (!localStorage.getItem('tw_onboarded')) {
+      // Flag was missing but user is authenticated. Set it so we don't
+      // re-evaluate this check on the next reload.
       localStorage.setItem('tw_onboarded', '1');
     }
   } else {
