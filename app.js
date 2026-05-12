@@ -11077,6 +11077,13 @@ async function init() {
   renderWatchlist();
   renderAlerts();
 
+  // ── Reveal the app shell NOW ──────────────────────────────────────
+  // User-specific data (alerts + watchlist) is loaded and rendered.
+  // Prices will fill in asynchronously below — we don't make the user
+  // stare at a spinner while a flaky third-party price provider
+  // resolves. Calling revealApp() twice is harmless.
+  try { revealApp(); } catch (_) {}
+
   // Restore last timeframe
   const _lastTF = localStorage.getItem('altradia_last_tf');
   if (_lastTF) {
@@ -11117,8 +11124,18 @@ async function init() {
     el.addEventListener('blur',  () => { setTimeout(() => { userTypingInForm = false; }, 300); });
   });
 
-  // Initial REST fetch
-  await fetchAllPrices();
+  // Initial REST fetch — with a hard timeout. Without this, if any
+  // provider (CoinGecko proxy, OANDA, Finnhub) hangs without
+  // resolving, init() blocks forever and the user is stuck.
+  try {
+    await Promise.race([
+      fetchAllPrices(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('price-fetch timeout')), 10000)),
+    ]);
+  } catch (e) {
+    console.warn('[boot] initial price fetch timed out or failed:', e?.message || e);
+    // Don't abort init — prices will arrive on the next polling tick.
+  }
   setStatusPill(true);
 
   refreshSelectedAssetPanel();
