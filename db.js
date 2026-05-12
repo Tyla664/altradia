@@ -542,6 +542,12 @@ async function saveAlert(alert) {
       note:            alert.note || '',
       zone_low:        alert.zoneLow        || null,
       zone_high:       alert.zoneHigh       || null,
+      // Persist which side price was on when the zone alert was created.
+      // Server-side cron uses this for directional gating. Previously
+      // omitted, so cron always saw null → no direction gate.
+      zone_created_above: (typeof alert.zoneCreatedAbove === 'boolean')
+        ? alert.zoneCreatedAbove
+        : null,
       timeframe:       alert.timeframe      || null,
       repeat_interval: alert.repeatInterval || 0,
       tap_tolerance:   alert.tapTolerance   || null,
