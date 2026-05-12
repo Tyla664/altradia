@@ -28,13 +28,38 @@ let _authPromise        = null;       // dedupes concurrent ensureAuth() calls
 // Detect Telegram user ID for the dev fallback path. The real auth still
 // goes through mint-jwt — this just feeds the local console with a value
 // for debugging; it does not influence what user_id the server picks.
+// Read initData from the URL hash. Telegram WebApps are launched
+// with #tgWebAppData=... which is present BEFORE the SDK script has
+// finished parsing. This gives us a reliable signal of "we are in
+// Telegram" that doesn't depend on telegram-web-app.js timing.
+function _readInitDataFromHash() {
+  try {
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    if (!hash) return '';
+    const params = new URLSearchParams(hash);
+    return params.get('tgWebAppData') || '';
+  } catch (_) { return ''; }
+}
+
+// True if there's ANY indication we're inside Telegram, regardless of
+// SDK readiness. Used to decide whether we should keep waiting for
+// initData rather than falling back to dev/browser mode.
+function _inTelegramContext() {
+  try {
+    // Hash check — most reliable.
+    if (_readInitDataFromHash()) return true;
+    // SDK object exists.
+    if (window.Telegram?.WebApp) return true;
+    // Inside an iframe (Telegram embeds WebApps in iframes on most platforms).
+    if (window.self !== window.top) return true;
+  } catch (_) { /* cross-origin frame access can throw — treat as Telegram */ return true; }
+  return false;
+}
+
 function _getTelegramHints() {
   try {
     const tg = window.Telegram?.WebApp;
-    // Return hints if EITHER the parsed user is available OR the raw
-    // initData string is present. The server validates initData
-    // server-side and extracts the user from there — we don't need
-    // the parsed copy on the client to make a successful auth call.
+    // Preferred: the SDK is ready and has initData.
     if (tg && (tg.initDataUnsafe?.user?.id || (typeof tg.initData === 'string' && tg.initData.length > 0))) {
       try { tg.ready();  } catch (_) {}
       try { tg.expand(); } catch (_) {}
@@ -42,6 +67,14 @@ function _getTelegramHints() {
         initData:   tg.initData || '',
         telegramId: tg.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : '',
       };
+    }
+    // Fallback: SDK isn't ready but the launch URL has the initData in
+    // the hash. This is the path that saves us on slow Telegram WebViews
+    // (notably 6.0) where the SDK script hasn't parsed yet. The hash
+    // is set by Telegram before our page even loads.
+    const hashInitData = _readInitDataFromHash();
+    if (hashInitData) {
+      return { initData: hashInitData, telegramId: '' };
     }
   } catch (e) { /* not in Telegram */ }
   return { initData: '', telegramId: '' };
@@ -72,26 +105,39 @@ function _kickTwaReady() {
 function _waitForTelegramReady(maxMs = 3000) {
   return new Promise((resolve) => {
     const start = Date.now();
+    // Check ONCE up-front whether we have a reliable Telegram signal
+    // (URL hash). If we do, there's no point bailing to "browser" —
+    // we ARE in Telegram, the SDK is just slow.
+    const inTelegram = _inTelegramContext();
+    const hashHasData = !!_readInitDataFromHash();
+
     const check = () => {
       try {
         const tg = window.Telegram?.WebApp;
-        // The moment the SDK object exists, call ready() — some clients
-        // only populate initData AFTER ready() is called.
         if (tg) _kickTwaReady();
+        // Resolve TRUE as soon as we have initData from EITHER the SDK
+        // (preferred) OR the URL hash (fallback for slow SDK).
         if (tg && typeof tg.initData === 'string' && tg.initData.length > 0) {
           console.log('[auth] Telegram.WebApp ready after', Date.now() - start, 'ms');
           return resolve(true);
         }
-        // No Telegram SDK at all → assume browser, let dev fallback kick in.
-        if (!tg && Date.now() - start > 200) {
-          console.log('[auth] no Telegram.WebApp after 200ms — assuming browser');
+        if (hashHasData) {
+          // Hash already has initData — we have what mint-jwt needs.
+          // No need to wait further.
+          console.log('[auth] initData found in URL hash after', Date.now() - start, 'ms');
+          return resolve(true);
+        }
+        // ONLY bail to browser mode if we have NO Telegram signals at
+        // all. Previously we bailed on "!tg after 200ms" which mis-
+        // identified slow Telegram WebViews (6.0 etc.) as browsers,
+        // causing a wrong-user JWT via the dev fallback.
+        if (!inTelegram && !tg && Date.now() - start > 200) {
+          console.log('[auth] no Telegram signals after 200ms — assuming browser');
           return resolve(false);
         }
       } catch (_) { /* keep polling */ }
       if (Date.now() - start >= maxMs) {
         console.warn('[auth] Telegram.WebApp not ready after', maxMs, 'ms — proceeding anyway');
-        // Even on timeout, kick ready() before resolving so subsequent
-        // calls to mint-jwt at least might find initData populated.
         _kickTwaReady();
         return resolve(false);
       }
@@ -105,11 +151,29 @@ function _waitForTelegramReady(maxMs = 3000) {
 // regular browser ONLY if the Edge Function is configured with
 // ALTRADIA_DEV_MODE=1 in its secrets.
 async function _mintJwt() {
+  // Self-heal: if a previous session got stuck on the dev fallback path
+  // (e.g. slow Telegram SDK load mis-classified as "browser"), the dev
+  // telegram_id can linger in localStorage and keep auth'ing as the
+  // wrong user. If we detect ANY Telegram context now, wipe it so this
+  // session uses real init_data only.
+  try {
+    if (_inTelegramContext() && localStorage.getItem('altradia_dev_telegram_id')) {
+      console.warn('[auth] clearing stale dev_telegram_id — we are in Telegram');
+      localStorage.removeItem('altradia_dev_telegram_id');
+    }
+  } catch (_) {}
+
   const hints = _getTelegramHints();
 
   let body;
   if (hints.initData) {
     body = { init_data: hints.initData };
+  } else if (_inTelegramContext()) {
+    // We KNOW we're in Telegram (hash or iframe signal) but initData
+    // is unavailable. Refuse to mint with the dev fallback — it would
+    // auth as the wrong user. Throw so the caller can surface this
+    // clearly rather than silently picking the wrong account.
+    throw new Error('Telegram context detected but initData unavailable — cannot auth');
   } else {
     // Browser dev fallback: needs the Edge Function in dev mode AND a
     // persistent fake telegram id stored locally so repeated reloads keep
@@ -148,6 +212,12 @@ async function _mintJwt() {
   currentTelegramId = data.telegram_id;
   console.log('[auth] minted JWT for user', currentUserId, 'expires in',
     Math.round((data.expires_at - Date.now() / 1000) / 60) + 'm');
+  // If we just authenticated via real init_data (not the dev fallback),
+  // wipe any stored dev_telegram_id so a slow SDK load on a later
+  // session can't accidentally fall back to that stale dev user.
+  if (body && body.init_data) {
+    try { localStorage.removeItem('altradia_dev_telegram_id'); } catch (_) {}
+  }
   return _altradiaJwt;
 }
 
