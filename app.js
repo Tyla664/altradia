@@ -157,6 +157,48 @@
   } catch (e) { /* never let debug overlay break anything */ }
 })();
 
+// ── Five-tap debug toggle (mobile-friendly) ───────────────────────────
+// Tap the altradia logo 5 times within 2 seconds to toggle the on-screen
+// debug overlay. Persists via localStorage so it survives reloads. Lets
+// the user enable diagnostics on a phone without needing devtools.
+(function _wireDebugTapToggle() {
+  function wire() {
+    const logo = document.querySelector('.logo');
+    if (!logo) { setTimeout(wire, 200); return; }
+    if (logo.dataset.dbgWired === '1') return;
+    logo.dataset.dbgWired = '1';
+    let taps = 0, lastTap = 0;
+    logo.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - lastTap > 2000) taps = 0;
+      taps++;
+      lastTap = now;
+      if (taps >= 5) {
+        taps = 0;
+        try {
+          const isOn = localStorage.getItem('altradia_debug') === '1';
+          if (isOn) {
+            localStorage.removeItem('altradia_debug');
+            // Hide any existing overlay immediately.
+            const ov = document.getElementById('_altradia_debug_overlay');
+            if (ov) ov.remove();
+            // Toast (best-effort)
+            try { if (typeof showToast === 'function') showToast('Debug', 'Debug overlay OFF', 'success'); } catch (_) {}
+          } else {
+            localStorage.setItem('altradia_debug', '1');
+            try { if (typeof showToast === 'function') showToast('Debug', 'Debug overlay ON · reload to see logs', 'success'); } catch (_) {}
+          }
+        } catch (_) {}
+      }
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire, { once: true });
+  } else {
+    wire();
+  }
+})();
+
 // altradia — Config, Asset Catalogue, Global State
 // Loaded first — all other files depend on these globals
 
