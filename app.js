@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]'];
     const buffer = [];
     let overlay = null, contents = null;
 
@@ -3548,6 +3548,25 @@ const SVG_PAUSE   = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"
 const SVG_EDIT    = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" class="icon-inline"><path d="M1 7.5L2.5 9 8 3.5 6.5 2 1 7.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><line x1="5.5" y1="2.5" x2="7.5" y2="4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
 function renderAlerts() {
+  // Diagnostic: log alert engine state so we can see what's in memory
+  // every time the UI re-renders. Helps us catch "alert disappeared"
+  // reports — the log will show whether the alert is in memory and,
+  // if it is, why it isn't visible (filter, tab, status, etc).
+  try {
+    const _byCond = {};
+    (alerts || []).forEach(a => {
+      const key = (a.condition || '?') + ':' + (a.status || '?');
+      _byCond[key] = (_byCond[key] || 0) + 1;
+    });
+    const _zones = (alerts || []).filter(a => a.condition === 'zone').map(a => ({
+      id: a.id, symbol: a.symbol, status: a.status,
+      lo: a.zoneLow, hi: a.zoneHigh, repeat: a.repeatInterval,
+      triggeredOnce: !!a.zoneTriggeredOnce,
+      lastTrigAt: a.lastTriggeredAt,
+      createdAbove: a.zoneCreatedAbove,
+    }));
+    console.log('[alerts] render — total:', (alerts || []).length, 'by:', _byCond, 'zones:', _zones);
+  } catch (_) {}
   const container = document.getElementById('alerts-list');
   if (!container) return;
 
@@ -4432,6 +4451,21 @@ async function checkSingleAlert(alert, currentPrice, now, nowDate) {
     const inZone = currentPrice >= alert.zoneLow && currentPrice <= alert.zoneHigh;
     const repeatMs  = (alert.repeatInterval || 0) * 60 * 1000;
     const lastFired = alert.lastTriggeredAt || 0;
+    // Diagnostic: log every zone evaluation so we can see whether the
+    // client tick is actually running and what it sees. Throttled to
+    // once per 5 seconds per alert to avoid log spam.
+    try {
+      const _lk = '_zoneEvalLog_' + alert.id;
+      const _lastLog = window[_lk] || 0;
+      if (now - _lastLog > 5000) {
+        window[_lk] = now;
+        console.log('[zone-eval]', alert.symbol, {
+          price: currentPrice, lo: alert.zoneLow, hi: alert.zoneHigh,
+          inZone, lastFiredMs: lastFired, repeatMs,
+          status: alert.status, trigOnce: !!alert.zoneTriggeredOnce,
+        });
+      }
+    } catch (_) {}
 
     if (!inZone) {
       // Price exited the zone. Clear the in-memory "fired-once" latch so that
@@ -11273,6 +11307,19 @@ async function init() {
   console.log('[shot] step8 about to call loadAlertsFromDB...');
   const dbAlerts = await loadAlertsFromDB();
   console.log('[boot] alerts loaded:', { isNull: dbAlerts === null, count: Array.isArray(dbAlerts) ? dbAlerts.length : 0 });
+  // Diagnostic: dump zone alerts specifically so we can see their state on boot.
+  try {
+    const _zones = (dbAlerts || []).filter(a => a.condition === 'zone');
+    if (_zones.length) {
+      console.log('[boot] zone alerts loaded:', _zones.map(a => ({
+        id: a.id, symbol: a.symbol, status: a.status,
+        lo: a.zoneLow, hi: a.zoneHigh, repeat: a.repeatInterval,
+        lastTrigAt: a.lastTriggeredAt, createdAbove: a.zoneCreatedAbove,
+      })));
+    } else {
+      console.log('[boot] no zone alerts loaded from DB');
+    }
+  } catch (_) {}
   console.log('[shot] step8b loadAlertsFromDB returned:', {
     isNull:      dbAlerts === null,
     count:       Array.isArray(dbAlerts) ? dbAlerts.length : 0,
