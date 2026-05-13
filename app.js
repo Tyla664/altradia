@@ -3394,7 +3394,7 @@ async function _createAlertInner() {
   if (isZone) {
     showToast('Zone Alert Created', `${assetInfo.symbol} zone ${formatPrice(zoneLow, assetId)}–${formatPrice(zoneHigh, assetId)}${tfLabel} is now active.`, 'success');
   } else if (isTap) {
-    showToast('Tap Alert Created', `${assetInfo.symbol} tap at ${formatPrice(targetPrice, assetId)} (±${tapTolerance}%)${tfLabel} is now active.`, 'success');
+    showToast('Tap Alert Created', `${assetInfo.symbol} tap at ${formatPrice(targetPrice, assetId)}${tfLabel} is now active.`, 'success');
   } else {
     showToast('Alert Created', `${assetInfo.symbol} ${condition} ${formatPrice(targetPrice, assetId)}${tfLabel} is now active.`, 'success');
   }
@@ -3664,7 +3664,10 @@ function renderAlerts() {
       if (crossedExpectedSide) {
         badgeClass = 'badge-triggered-above'; badgeLabel = `${ALERT_ICONS.triggered}TRIGGERED`;
       } else {
-        badgeClass = 'badge-zone-exited'; badgeLabel = `${ALERT_ICONS.zone}EXITED`;
+        // Price entered the zone and reversed back out the same side it
+        // came from — describe it as a reversal rather than an exit so
+        // the user understands the price action.
+        badgeClass = 'badge-zone-exited'; badgeLabel = `${ALERT_ICONS.zone}REVERSED`;
       }
     } else if (alert.status === 'paused') {
       badgeClass = 'badge-inactive'; badgeLabel = `${ALERT_ICONS.paused}PAUSED`;
@@ -3695,7 +3698,7 @@ function renderAlerts() {
               (cpa === false && currentLivePrice > alert.zoneHigh);
             return crossedExpected
               ? `<span class="alert-zone-triggered-line">Zone crossed — alert triggered ✓</span><br>`
-              : `<span class="alert-zone-exited-line">Price exited zone · watching for re-entry</span><br>`;
+              : `<span class="alert-zone-exited-line">Zone crossed — price reversed</span><br>`;
           })()
       : '';
 
@@ -3703,7 +3706,10 @@ function renderAlerts() {
     if (alert.condition === 'zone') {
       detailLine = `<strong>${ALERT_ICONS.zone}ZONE</strong> ${formatPrice(alert.zoneLow, alert.assetId)} – ${formatPrice(alert.zoneHigh, alert.assetId)}${alert.timeframe ? ` <span class="alert-detail-muted">· ${alert.timeframe}</span>` : ''}${alert.repeatInterval ? ` <span class="alert-detail-muted">· every ${alert.repeatInterval}m</span>` : ''}`;
     } else if (alert.condition === 'tap') {
-      detailLine = `<strong>${ALERT_ICONS.tap}TAP LEVEL</strong> ${formatPrice(alert.targetPrice, alert.assetId)} <span class="alert-detail-muted">· ±${alert.tapTolerance}% tolerance</span>${alert.timeframe ? ` <span class="alert-detail-muted">· ${alert.timeframe}</span>` : ''}`;
+      // TAP no longer uses a tolerance band — the alert fires on any
+      // candle wick or body touch of the level. We omit the tolerance
+      // text from the card detail.
+      detailLine = `<strong>${ALERT_ICONS.tap}TAP LEVEL</strong> ${formatPrice(alert.targetPrice, alert.assetId)}${alert.timeframe ? ` <span class="alert-detail-muted">· ${alert.timeframe}</span>` : ''}`;
     } else {
       detailLine = `<strong>${alert.condition === 'above' ? ALERT_ICONS.above + 'ABOVE' : ALERT_ICONS.below + 'BELOW'}</strong> ${formatPrice(alert.targetPrice, alert.assetId)}${alert.timeframe ? ` <span class="alert-detail-muted">· ${alert.timeframe}</span>` : ''}`;
     }
@@ -4158,10 +4164,18 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
     }
   }
 
-  // Persist proximity flags if any were set
+  // Proximity flags are NOT persisted to the DB from the client. They
+  // are an in-memory UX guard to avoid sending the same approaching-
+  // warning twice within one session. Persisting them would PATCH the
+  // entire note field — which races with state-transition writes and
+  // can clobber tradeStatus back to a previous value, causing duplicate
+  // TRADE RUNNING / SL / TP messages on the next tick. The server has
+  // its own proximity flags inside its own note copy; the two writers
+  // gate on shared DB state for transitions but proximity is fine to
+  // duplicate at worst (rare race, single duplicate message vs spam).
   if (noteDirty) {
     alert.note = JSON.stringify(j);
-    updateAlert(alert.id, { note: alert.note });
+    // DELIBERATELY no updateAlert() call — see comment above.
   }
 }
 
@@ -4504,22 +4518,45 @@ async function checkSingleAlert(alert, currentPrice, now, nowDate) {
     }
     fired = true;
   } else if (isTap) {
-    const tol = (alert.tapTolerance || 0.2) / 100;
-    const withinRange = Math.abs(currentPrice - alert.targetPrice) / alert.targetPrice <= tol;
-    if (!withinRange) { alert.tapTriggeredOnce = false; return; }
+    // TAP: trigger when the current tick crosses the target level, in
+    // either direction. Compare to the previous tick: if the target
+    // sits between previous and current, price crossed (or touched)
+    // the line — wicks count, body crosses count. No tolerance band.
+    // First tick has no previous price; if current is at the level
+    // exactly we still fire. Falls back to lastClose comparison
+    // because we don't track per-tick history here — using priceData's
+    // previous frame is good enough.
+    const prevPx = (priceData[alert.assetId]?._tapPrev != null)
+      ? priceData[alert.assetId]._tapPrev
+      : currentPrice;
+    const lo = Math.min(prevPx, currentPrice);
+    const hi = Math.max(prevPx, currentPrice);
+    const crossed = (alert.targetPrice >= lo && alert.targetPrice <= hi);
+    // Always record the latest price so the next tick has a baseline.
+    if (priceData[alert.assetId]) priceData[alert.assetId]._tapPrev = currentPrice;
+    if (!crossed) { alert.tapTriggeredOnce = false; return; }
     if (alert.tapTriggeredOnce) return;
     alert.tapTriggeredOnce = true;
     alert.status = 'triggered';
     fired = true;
   } else {
-    // Above/below on live tick: use currentPrice directly so the alert fires
-    // the moment price crosses the level. The 8s polling path still uses
-    // lastClose for candle-close confirmation to avoid false wicks, but tick
-    // checks should be instantaneous — that's the whole point of subscribing.
+    // Above/below uses the LAST COMPLETED CANDLE'S CLOSE as the trigger
+    // reference, not the live tick. This avoids false fires on wicks —
+    // price has to actually CLOSE a candle beyond the target, not just
+    // tap it. priceData[assetId].lastClose is updated when a candle of
+    // the chart's current timeframe finishes. Falls back to currentPrice
+    // for assets where chart data hasn't been loaded yet so the alert
+    // still functions; the server cron's per-minute candle-close check
+    // covers those reliably regardless.
+    const closeRef = (priceData[alert.assetId]?.lastClose != null && isFinite(priceData[alert.assetId].lastClose))
+      ? priceData[alert.assetId].lastClose
+      : currentPrice;
     fired =
-      (alert.condition === 'above' && currentPrice >= alert.targetPrice) ||
-      (alert.condition === 'below' && currentPrice <= alert.targetPrice);
+      (alert.condition === 'above' && closeRef >= alert.targetPrice) ||
+      (alert.condition === 'below' && closeRef <= alert.targetPrice);
     if (!fired) return;
+    // Record the close-confirmed trigger price (not the wick high/low).
+    currentPrice = closeRef;
     alert.status = 'triggered';
   }
 
@@ -4558,7 +4595,7 @@ async function checkSingleAlert(alert, currentPrice, now, nowDate) {
   if (isZone) {
     msg = `Entered zone ${formatPrice(alert.zoneLow, alert.assetId)}–${formatPrice(alert.zoneHigh, alert.assetId)}${tfLabel}`;
   } else if (isTap) {
-    msg = `Tapped ${formatPrice(alert.targetPrice, alert.assetId)} (±${alert.tapTolerance}%)${tfLabel}`;
+    msg = `Tapped ${formatPrice(alert.targetPrice, alert.assetId)}${tfLabel}`;
   } else {
     msg = `${alert.condition === 'above' ? 'Candle closed above' : 'Candle closed below'} ${formatPrice(alert.targetPrice, alert.assetId)}${tfLabel}`;
   }
