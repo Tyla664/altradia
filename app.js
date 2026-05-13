@@ -4095,7 +4095,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       j.proxWarnedEntry = true;
       noteDirty = true;
       const distPct = (distToLevel / entry * 100).toFixed(2);
-      if (tgActive && tgNotifPrefs.proximity) sendTelegram([
+      if (CLIENT_TG_FOR_TRIGGERS && tgActive && tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>ENTRY APPROACHING — ${alert.symbol}</b>`,
         ``,
         `Price is within ${distPct}% of your entry level.`,
@@ -4123,7 +4123,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       j.proxWarnedSL = true;
       noteDirty = true;
       const distPct = (distToLevel / sl * 100).toFixed(2);
-      if (tgActive && tgNotifPrefs.proximity) sendTelegram([
+      if (CLIENT_TG_FOR_TRIGGERS && tgActive && tgNotifPrefs.proximity) sendTelegram([
         `⚠️ <b>STOP LOSS APPROACHING — ${alert.symbol}</b>`,
         ``,
         `Price is within ${distPct}% of your stop loss.`,
@@ -4149,7 +4149,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       j.proxWarnedTP1 = true;
       noteDirty = true;
       const distPct = (distToLevel / tp1 * 100).toFixed(2);
-      if (tgActive && tgNotifPrefs.proximity) sendTelegram([
+      if (CLIENT_TG_FOR_TRIGGERS && tgActive && tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>TP1 APPROACHING — ${alert.symbol}</b>`,
         ``,
         `Price is within ${distPct}% of your first take profit.`,
@@ -4174,7 +4174,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       j.proxWarnedTP2 = true;
       noteDirty = true;
       const distPct = (distToLevel / tp2 * 100).toFixed(2);
-      if (tgActive && tgNotifPrefs.proximity) sendTelegram([
+      if (CLIENT_TG_FOR_TRIGGERS && tgActive && tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>TP2 APPROACHING — ${alert.symbol}</b>`,
         ``,
         `Price is within ${distPct}% of your second take profit.`,
@@ -4323,10 +4323,9 @@ async function _fireSetupTransitionAtomic(alert, j, nextStatus, currentPrice) {
   const tgGate = (nextStatus === 'entry_hit' || nextStatus === 'running')
                    ? !!tgNotifPrefs.queued
                    : true;
-  if (telegramEnabled && telegramChatId && tgGate) {
-    // Gate through the duplicate-fire ledger so we don't send the same
-    // setup-level transition twice (e.g. entry_hit → entry_hit) in the
-    // window where the DB update is in flight.
+  if (CLIENT_TG_FOR_TRIGGERS && telegramEnabled && telegramChatId && tgGate) {
+    // (Disabled by default — server cron sends setup-transition Telegrams.
+    // See CLIENT_TG_FOR_TRIGGERS comment above sendTelegram for rationale.)
     if (!_recordTgFire(alert.id, 'setup:' + nextStatus)) {
       sendTelegram(tgSetupLevelMessage(alert.symbol, nextStatus, currentPrice, alert.assetId, j));
     }
@@ -4659,11 +4658,9 @@ async function checkSingleAlert(alert, currentPrice, now, nowDate) {
   showToast(`ALERT TRIGGERED — ${alert.symbol}`, msg, 'alert');
   playAlertSound(alert.sound || selectedAlertSound);
   const isRepeating = isZone && (alert.repeatInterval || 0) > 0;
-  if (telegramEnabled && (!isRepeating || tgNotifPrefs.other)) {
-    // Gate through the duplicate-fire ledger. If we've already fired
-    // this alert's trigger within the dedup window, skip the second
-    // send and log loudly. Repeating zones use a unique reason that
-    // includes the timestamp window so legitimate repeats still fire.
+  if (CLIENT_TG_FOR_TRIGGERS && telegramEnabled && (!isRepeating || tgNotifPrefs.other)) {
+    // (Disabled by default — server cron sends trigger Telegrams.
+    // See CLIENT_TG_FOR_TRIGGERS comment above sendTelegram for rationale.)
     const reason = isRepeating
       ? `trigger:repeat:${Math.floor(Date.now() / Math.max((alert.repeatInterval || 1) * 60_000, 1))}`
       : 'trigger';
@@ -9620,6 +9617,17 @@ function _recordTgFire(alertId, reason) {
   console.log('[tg-fire]', { alertId, reason, t: now });
   return false;
 }
+
+// ── Telegram source-of-truth flag ─────────────────────────────────────
+// When false, the client does NOT send Telegram messages for alert
+// TRIGGERS or proximity warnings — those are sent exclusively by the
+// server-side Edge Function cron. This eliminates duplicate Telegram
+// messages caused by both client and server racing to send the same
+// transition. The client still sends Telegram for user actions
+// (create / edit / delete / test / connection / discipline streak),
+// since those are driven by user intent and never duplicated by the
+// server. Toasts and sounds still play locally for instant feedback.
+const CLIENT_TG_FOR_TRIGGERS = false;
 
 async function sendTelegram(message) {
   if (!telegramChatId) return false;
