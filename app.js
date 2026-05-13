@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]'];
     const buffer = [];
     let overlay = null, contents = null;
 
@@ -3981,7 +3981,13 @@ function renderHistory() {
             return `
             <div class="hist-entry">
               <div class="hist-entry-left">
-                <span class="hist-entry-dir hist-dir-${h.condition}">${h.condition === 'above' ? ALERT_ICONS.above + 'ABOVE' : h.condition === 'below' ? ALERT_ICONS.below + 'BELOW' : h.condition === 'zone' ? ALERT_ICONS.zone + 'ZONE' : ALERT_ICONS.tap + 'TAP'}</span>
+                <span class="hist-entry-dir hist-dir-${h.condition}">${
+                  h.condition === 'above' ? ALERT_ICONS.above + 'ABOVE'
+                : h.condition === 'below' ? ALERT_ICONS.below + 'BELOW'
+                : h.condition === 'zone'  ? ALERT_ICONS.zone  + 'ZONE'
+                : h.condition === 'setup' ? '📋 SETUP'
+                : ALERT_ICONS.tap + 'TAP'
+                }</span>
                 <span class="hist-entry-price">Target: ${formatPrice(h.targetPrice, h.assetId)}</span>
                 ${h.note ? `<span class="hist-entry-note">"${h.note}"</span>` : ''}
               </div>
@@ -4224,7 +4230,15 @@ async function _fireSetupTransitionAtomic(alert, j, nextStatus, currentPrice) {
   const url = `${SUPABASE_URL}/rest/v1/alerts?id=eq.${encodeURIComponent(alert.id)}` +
               `&note=like.${encodeURIComponent(expectedPattern)}`;
 
+  console.log('[setup-fire] starting CAS', {
+    alertId: alert.id, symbol: alert.symbol,
+    expectedPrev, next: nextStatus, price: currentPrice,
+    t: nowMs,
+  });
+
   let won = false;
+  let rowsCount = 0;
+  let httpStatus = 0;
   try {
     const res = await _authedFetch(url, {
       method:  'PATCH',
@@ -4237,13 +4251,22 @@ async function _fireSetupTransitionAtomic(alert, j, nextStatus, currentPrice) {
         last_triggered_at: nowIso,
       }),
     });
+    httpStatus = res.status;
     if (res.ok) {
       const rows = await res.json();
-      won = Array.isArray(rows) && rows.length > 0;
+      rowsCount = Array.isArray(rows) ? rows.length : 0;
+      won = rowsCount > 0;
     }
   } catch (e) {
-    console.warn('[setup-lock] PATCH failed', alert.symbol, nextStatus, e?.message || e);
+    console.warn('[setup-fire] PATCH failed', alert.symbol, nextStatus, e?.message || e);
   }
+
+  console.log('[setup-fire] CAS result', {
+    alertId: alert.id, symbol: alert.symbol,
+    expectedPrev, next: nextStatus,
+    httpStatus, rowsCount, won,
+    elapsed_ms: Date.now() - nowMs,
+  });
 
   alert.lastTriggeredAt = nowMs;
   renderAlerts();
@@ -11535,27 +11558,79 @@ document.addEventListener('visibilitychange', () => {
     checkAlerts();
     // Re-render alerts so any server-triggered changes show immediately
     // (edge function may have triggered/updated alerts while app was closed)
-    if (awayMs > 5000) {
-      // Only reload alerts from DB when away for more than 5s to avoid flicker on brief focus loss
+    if (awayMs > 60000) {
+      // Only reload alerts from DB when away for more than 60s. Brief tab
+      // switches don't need a merge — in-memory state is fresher than any
+      // DB snapshot we'd race against. The 5-second threshold caused stale
+      // DB snapshots to clobber in-memory state mid-flight, producing
+      // duplicate alert Telegrams.
       loadAlertsFromDB().then(dbAlerts => {
         if (dbAlerts) {
-          // Merge: keep in-memory flags (zoneTriggeredOnce etc) where possible.
-          // CAUTION: Object.assign overwrites the in-memory setupScreenshotUrl
-          // even when the DB column is null. We log here to catch this case.
+          // ── State-aware merge ─────────────────────────────────────────────
+          // The naive Object.assign(existing, dba) overwrites in-memory state
+          // with whatever the DB has — including STALE state. This caused
+          // duplicate ENTRY TRIGGERED messages: client fires entry_hit, PATCHes
+          // DB, visibilitychange refresh runs BEFORE PATCH lands, merge writes
+          // back tradeStatus='watching' from the stale DB snapshot, next tick
+          // fires entry_hit AGAIN.
+          //
+          // Rule for setup alerts: only adopt DB tradeStatus if the DB has
+          // ADVANCED past in-memory. Never DOWNGRADE in-memory state from a
+          // (possibly stale) DB snapshot. Order: watching < entry_hit < running
+          // < tp1_hit < tp2_hit < full_tp/sl_hit/cancelled/manual_exit.
+          const SETUP_RANK = {
+            watching: 0, entry_hit: 1, running: 2, tp1_hit: 3, tp2_hit: 4,
+            full_tp: 5, sl_hit: 5, cancelled: 5, manual_exit: 5,
+          };
+          const tradeStatusOf = (raw) => {
+            try { return (JSON.parse(raw || '{}').tradeStatus) || 'watching'; }
+            catch { return 'watching'; }
+          };
           dbAlerts.forEach(dba => {
             const existing = alerts.find(a => a.id === dba.id);
-            if (existing) {
-              if (existing.condition === 'setup') {
-                console.log('[shot] step9 refresh-merge:', {
-                  id:                 existing.id,
-                  symbol:             existing.symbol,
-                  in_memory_url:      existing.setupScreenshotUrl,
-                  db_url:             dba.setupScreenshotUrl,
-                  in_memory_note_has: (existing.note||'').includes('setupScreenshot'),
-                  db_note_has:        (dba.note||'').includes('setupScreenshot'),
-                });
+            if (!existing) return;
+            if (existing.condition === 'setup') {
+              const memStatus = tradeStatusOf(existing.note);
+              const dbStatus  = tradeStatusOf(dba.note);
+              const memRank   = SETUP_RANK[memStatus] ?? 0;
+              const dbRank    = SETUP_RANK[dbStatus]  ?? 0;
+              console.log('[shot] step9 refresh-merge:', {
+                id: existing.id, symbol: existing.symbol,
+                mem_status: memStatus, db_status: dbStatus,
+                action: dbRank > memRank ? 'adopt-db' : (memRank > dbRank ? 'keep-mem' : 'equal'),
+              });
+              if (dbRank > memRank) {
+                // DB is ahead — server cron fired a transition while we were
+                // away. Adopt the DB note so the new state is reflected, but
+                // preserve the in-memory screenshot URL if DB column is null.
+                const memUrl = existing.setupScreenshotUrl;
+                Object.assign(existing, dba);
+                if (!existing.setupScreenshotUrl && memUrl) {
+                  existing.setupScreenshotUrl = memUrl;
+                }
+              } else {
+                // In-memory is at or ahead of DB. Don't touch the note.
+                // Pull only non-volatile fields (screenshot URL, etc.) from DB.
+                if (dba.setupScreenshotUrl && !existing.setupScreenshotUrl) {
+                  existing.setupScreenshotUrl = dba.setupScreenshotUrl;
+                }
               }
-              Object.assign(existing, dba);
+            } else {
+              // Non-setup alerts: still use status-aware merge, but simpler.
+              // Don't downgrade triggered → active just because DB hasn't
+              // caught up yet.
+              const memTriggered = existing.status === 'triggered';
+              const dbTriggered  = dba.status === 'triggered';
+              if (memTriggered && !dbTriggered) {
+                // Keep in-memory triggered state; just refresh non-status fields.
+                const memStatus = existing.status;
+                const memLastTrig = existing.lastTriggeredAt;
+                Object.assign(existing, dba);
+                existing.status = memStatus;
+                existing.lastTriggeredAt = memLastTrig;
+              } else {
+                Object.assign(existing, dba);
+              }
             }
           });
           // Add any new alerts from DB not in memory
@@ -12208,4 +12283,3 @@ function showTgConnectPrompt() {
 init().catch(e => {
   console.error('[boot] init() threw uncaught:', e);
 });
-
