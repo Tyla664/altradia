@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]'];
     const buffer = [];
     let overlay = null, contents = null;
 
@@ -4069,23 +4069,32 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
   // Only run proximity checks for relevant states
   if (!['watching','entry_hit','running','tp1_hit'].includes(prev)) return;
 
-  const PROX = 0.015; // 1.5% proximity threshold for setup levels
+  // Proximity warning threshold: fires when price has traveled past
+  // (1 - PROX_FRAC) of the entry→level distance. PROX_FRAC=0.30 means
+  // "within the final 30% of the trip". Scales with the trade's own
+  // geometry — tight setups don't spam on entry-hit, wide setups give
+  // breathing room.
+  const PROX_FRAC = 0.30;
   const entry = alert.targetPrice;
   const sl    = j.sl;
   const tp1   = j.tp1;
   const tp2   = j.tp2 || null;
+  const pac   = j.priceAtCreation ? parseFloat(j.priceAtCreation) : null;
   const isLong = j.direction === 'long';
   let noteDirty = false;
 
-  // Only warn about entry when watching and price hasn't already crossed entry
-  if (prev === 'watching' && entry) {
-    const dist = Math.abs(currentPrice - entry) / entry;
+  // Only warn about entry when watching and price hasn't already crossed entry.
+  // Threshold: within PROX_FRAC of (pac → entry) distance from entry.
+  if (prev === 'watching' && entry && pac !== null) {
+    const tripSize = Math.abs(entry - pac);
+    const distToLevel = Math.abs(currentPrice - entry);
     const approaching = isLong ? currentPrice < entry : currentPrice > entry;
     const alreadyCrossed = isLong ? currentPrice >= entry : currentPrice <= entry;
-    if (dist <= PROX && dist > 0.001 && approaching && !j.proxWarnedEntry && !alreadyCrossed) {
+    const inProxBand = tripSize > 0 && distToLevel <= tripSize * PROX_FRAC;
+    if (inProxBand && approaching && !j.proxWarnedEntry && !alreadyCrossed) {
       j.proxWarnedEntry = true;
       noteDirty = true;
-      const distPct = (dist * 100).toFixed(2);
+      const distPct = (distToLevel / entry * 100).toFixed(2);
       if (tgActive && tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>ENTRY APPROACHING — ${alert.symbol}</b>`,
         ``,
@@ -4102,15 +4111,18 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
     }
   }
 
-  // Warn about SL any time after entry has triggered
+  // Warn about SL any time after entry has triggered.
+  // Threshold: within PROX_FRAC of (entry → SL) distance from SL.
   const entryAlreadyHit = ['entry_hit','running','tp1_hit','tp2_hit'].includes(prev);
   if (entryAlreadyHit && sl) {
-    const dist = Math.abs(currentPrice - sl) / sl;
+    const tripSize = Math.abs(entry - sl);
+    const distToLevel = Math.abs(currentPrice - sl);
     const approaching = isLong ? currentPrice > sl : currentPrice < sl;
-    if (dist <= PROX && dist > 0.001 && approaching && !j.proxWarnedSL) {
+    const inProxBand = tripSize > 0 && distToLevel <= tripSize * PROX_FRAC;
+    if (inProxBand && approaching && !j.proxWarnedSL) {
       j.proxWarnedSL = true;
       noteDirty = true;
-      const distPct = (dist * 100).toFixed(2);
+      const distPct = (distToLevel / sl * 100).toFixed(2);
       if (tgActive && tgNotifPrefs.proximity) sendTelegram([
         `⚠️ <b>STOP LOSS APPROACHING — ${alert.symbol}</b>`,
         ``,
@@ -4126,14 +4138,17 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
     }
   }
 
-  // Warn about TP1 when running
+  // Warn about TP1 when running.
+  // Threshold: within PROX_FRAC of (entry → TP1) distance from TP1.
   if (['entry_hit','running'].includes(prev) && tp1) {
-    const dist = Math.abs(currentPrice - tp1) / tp1;
+    const tripSize = Math.abs(entry - tp1);
+    const distToLevel = Math.abs(currentPrice - tp1);
     const approaching = isLong ? currentPrice < tp1 : currentPrice > tp1;
-    if (dist <= PROX && dist > 0.001 && approaching && !j.proxWarnedTP1) {
+    const inProxBand = tripSize > 0 && distToLevel <= tripSize * PROX_FRAC;
+    if (inProxBand && approaching && !j.proxWarnedTP1) {
       j.proxWarnedTP1 = true;
       noteDirty = true;
-      const distPct = (dist * 100).toFixed(2);
+      const distPct = (distToLevel / tp1 * 100).toFixed(2);
       if (tgActive && tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>TP1 APPROACHING — ${alert.symbol}</b>`,
         ``,
@@ -4148,14 +4163,17 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
     }
   }
 
-  // Warn about TP2 when tp1 already hit and tp2Notify is on
+  // Warn about TP2 when tp1 already hit and tp2Notify is on.
+  // Threshold: within PROX_FRAC of (TP1 → TP2) distance from TP2.
   if (prev === 'tp1_hit' && tp2 && j.tp2Notify !== false) {
-    const dist = Math.abs(currentPrice - tp2) / tp2;
+    const tripSize = Math.abs(tp1 - tp2);
+    const distToLevel = Math.abs(currentPrice - tp2);
     const approaching = isLong ? currentPrice < tp2 : currentPrice > tp2;
-    if (dist <= PROX && dist > 0.001 && approaching && !j.proxWarnedTP2) {
+    const inProxBand = tripSize > 0 && distToLevel <= tripSize * PROX_FRAC;
+    if (inProxBand && approaching && !j.proxWarnedTP2) {
       j.proxWarnedTP2 = true;
       noteDirty = true;
-      const distPct = (dist * 100).toFixed(2);
+      const distPct = (distToLevel / tp2 * 100).toFixed(2);
       if (tgActive && tgNotifPrefs.proximity) sendTelegram([
         `👀 <b>TP2 APPROACHING — ${alert.symbol}</b>`,
         ``,
@@ -4321,6 +4339,21 @@ function checkSetupLevels(alert, currentPrice) {
   try { j = JSON.parse(alert.note || '{}'); } catch(e) { return; }
 
   const prev   = j.tradeStatus || 'watching';
+
+  // Diagnostic: detect setup state regression. If we've previously fired
+  // entry_hit or later for this alert (recorded via lastFired_* field)
+  // but the current note says 'watching', something downgraded the state.
+  if (prev === 'watching' && (j.lastFired_entry_hit || j.lastFired_running)) {
+    console.warn('[setup-regression]', {
+      alertId: alert.id, symbol: alert.symbol,
+      currentNoteStatus: prev,
+      lastFires: {
+        entry_hit: j.lastFired_entry_hit,
+        running:   j.lastFired_running,
+      },
+      gap_ms: Date.now() - (j.lastFired_entry_hit || j.lastFired_running || 0),
+    });
+  }
   const entry  = alert.targetPrice;
   const sl     = j.sl;
   const tp1    = j.tp1;
