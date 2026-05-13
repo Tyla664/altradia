@@ -12208,3 +12208,4 @@ function showTgConnectPrompt() {
 init().catch(e => {
   console.error('[boot] init() threw uncaught:', e);
 });
+
