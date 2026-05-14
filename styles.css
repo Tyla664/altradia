@@ -5122,3 +5122,273 @@ header {
   letter-spacing: 0.04em;
 }
 .quick-alert-modal-cancel:active { color: var(--text); }
+
+
+/* ── Economic Briefing — compact preview on home ────────────────────── */
+.briefing-preview-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.briefing-preview-date {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.briefing-preview-count {
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.briefing-count-relevant { color: var(--accent); font-weight: 600; }
+
+.briefing-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.briefing-preview-row:first-of-type { border-top: none; }
+.briefing-preview-impact {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 3px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.briefing-preview-meta { flex: 1; min-width: 0; }
+.briefing-preview-title {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.briefing-preview-sub {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+
+/* Impact tag colors — reused in both compact and full view */
+.impact-high {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+.impact-medium {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+}
+.impact-low {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--muted);
+}
+
+/* ── Full briefing view ─────────────────────────────────────────────── */
+.home-briefing-full-body {
+  padding-top: 6px;
+}
+.briefing-full-loading,
+.briefing-full-empty {
+  padding: 30px 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.briefing-full-empty-text {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.briefing-full-empty-sub {
+  font-size: 0.75rem;
+}
+
+.briefing-full-header {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.briefing-full-date {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.briefing-full-summary-line {
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* Telegram-delivery toggle */
+.briefing-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.briefing-toggle-meta { flex: 1; min-width: 0; }
+.briefing-toggle-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.briefing-toggle-sub {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.briefing-toggle-btn {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.16s ease;
+  background: var(--border);
+}
+.briefing-toggle-btn.on  { background: var(--accent); }
+.briefing-toggle-btn.off { background: var(--border); }
+.briefing-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.16s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.briefing-toggle-btn.on .briefing-toggle-knob { transform: translateX(18px); }
+.briefing-toggle-btn-mini {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* AI Outlook card (elite only) */
+.briefing-ai-card {
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(2, 90, 145, 0.06), rgba(17, 92, 40, 0.06));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.briefing-ai-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.briefing-ai-body {
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.briefing-section-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin: 18px 0 8px;
+}
+
+/* Individual event row in full view */
+.briefing-event {
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.briefing-event-relevant {
+  border-color: rgba(2, 90, 145, 0.45);
+  background: rgba(2, 90, 145, 0.04);
+}
+.briefing-event-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.7rem;
+}
+.briefing-event-impact {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+.briefing-event-currency {
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+.briefing-event-time {
+  margin-left: auto;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+}
+.briefing-event-title {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+}
+.briefing-event-data {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-family: var(--mono);
+}
+.briefing-event-data-lbl {
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.6rem;
+  margin-right: 4px;
+}
+
+/* When the home shell is in briefing-full mode: hide watchlist + strength
+   sections, show only the briefing section, and hide its compact preview
+   so we just have the full list. */
+#home-shell[data-view="briefing-full"] [data-section="watchlist"],
+#home-shell[data-view="briefing-full"] [data-section="strength"] {
+  display: none;
+}
+#home-shell[data-view="briefing-full"] #home-briefing-compact { display: none; }
