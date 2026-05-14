@@ -11103,6 +11103,24 @@ async function _renderBriefingFullRecap() {
       </div>`;
     return;
   }
+  // Recap data source is temporarily unavailable — friendly empty state.
+  // Triggered when the upstream calendar provider is down or quota-exhausted.
+  if (data.recap_unavailable) {
+    body.innerHTML = `
+      <div class="briefing-full-empty">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" style="opacity:0.4;margin:0 auto 10px;display:block">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/>
+          <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="12" cy="16" r="0.8" fill="currentColor"/>
+        </svg>
+        <div class="briefing-full-empty-text">Recap is temporarily unavailable</div>
+        <div class="briefing-full-empty-sub">
+          The economic event data source isn't reachable right now.
+          Check back later — recap returns when the feed is restored.
+        </div>
+      </div>`;
+    return;
+  }
 
   const watchlist = data.watchlist || [];
   const others    = data.others    || [];
@@ -11224,7 +11242,16 @@ async function _fetchRecap(force = false) {
       `${SUPABASE_URL}/functions/v1/economic-briefing-followup?action=get_recap`,
       { method: 'GET' }
     );
-    const data = await res.json();
+    let data;
+    try { data = await res.json(); }
+    catch(parseErr) {
+      const text = await res.text().catch(() => '<unreadable>');
+      console.warn('[recap] response not JSON', res.status, text.slice(0, 200));
+      _recapCache = { ok: false, error: `HTTP ${res.status} non-JSON: ${text.slice(0, 80)}` };
+      _recapCacheTime = Date.now();
+      return _recapCache;
+    }
+    console.log('[recap] fetch status', res.status, 'ok:', data?.ok, 'keys:', Object.keys(data || {}).join(','));
     if (!res.ok || !data.ok) {
       console.warn('[recap] fetch failed', res.status, data);
       _recapCache = { ok: false, error: data?.error || `HTTP ${res.status}` };
@@ -11234,8 +11261,8 @@ async function _fetchRecap(force = false) {
     _recapCacheTime = Date.now();
     return _recapCache;
   } catch(e) {
-    console.warn('[recap] fetch exception', e);
-    _recapCache = { ok: false, error: String(e) };
+    console.warn('[recap] fetch exception', e?.message || e, e?.stack || '');
+    _recapCache = { ok: false, error: String(e?.message || e) };
     _recapCacheTime = Date.now();
     return _recapCache;
   } finally {
