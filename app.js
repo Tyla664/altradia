@@ -10349,6 +10349,12 @@ function _initWatchlistSubTabs() {
         <div class="home-section-header">
           <h2 class="home-section-title">Economic Briefing</h2>
           <div class="home-section-actions">
+            <button class="home-refresh-btn" id="home-briefing-refresh" onclick="_refreshBriefing()" aria-label="Refresh briefing" title="Refresh">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                <path d="M11.5 4.5A4.5 4.5 0 1 0 12 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+                <path d="M11.5 2v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              </svg>
+            </button>
             <a class="home-view-all" id="home-briefing-toggle" onclick="openBriefingFull()" hidden>View all →</a>
             <button class="home-close-btn" id="home-briefing-close" onclick="closeBriefingFull()" aria-label="Close" hidden>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -10812,9 +10818,17 @@ async function _renderHomeBriefingCompact() {
   // Locked (free tier) or disabled (user pref) → friendly empty state.
   if (data.locked) {
     el.innerHTML = `
-      <div class="home-briefing-empty">
-        <div class="home-briefing-empty-text">Economic briefing is a Pro feature</div>
-        <div class="home-briefing-empty-sub">Upgrade to receive market-moving event alerts</div>
+      <div class="briefing-upgrade-card">
+        <div class="briefing-upgrade-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2L12.5 7l5.5.8-4 3.9.95 5.5L10 14.6l-4.95 2.6L6 11.7 2 7.8 7.5 7z" stroke="currentColor" stroke-width="1.4" fill="currentColor" fill-opacity="0.18" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="briefing-upgrade-meta">
+          <div class="briefing-upgrade-title">Briefings are a Pro feature</div>
+          <div class="briefing-upgrade-sub">Daily high-impact event alerts for your watchlist</div>
+        </div>
+        <button class="briefing-upgrade-cta" onclick="openSubscriptionPage()">Upgrade</button>
       </div>`;
     return;
   }
@@ -10849,16 +10863,28 @@ async function _renderHomeBriefingCompact() {
     return;
   }
 
-  // Pick up to 2 preview events: prioritize relevant (affecting watchlist).
-  const previewEvents = (relevant.length ? relevant : others).slice(0, 2);
-  const previewHtml = previewEvents.map(e => `
-    <div class="briefing-preview-row">
-      <div class="briefing-preview-impact ${_briefingImpactClass(e.impact)}">${_briefingImpactLabel(e.impact)}</div>
-      <div class="briefing-preview-meta">
-        <div class="briefing-preview-title">${_escapeHtml(e.title)}</div>
-        <div class="briefing-preview-sub">${_escapeHtml(e.currency)} · ${_escapeHtml(e.time_local || '')}</div>
-      </div>
-    </div>`).join('');
+  // Pick up to 2 preview events: prefer upcoming relevant events, then
+  // upcoming others, then fall back to past events if nothing's left
+  // ahead today. Past events are visually dimmed.
+  const nowMs = Date.now();
+  const isPast = (e) => {
+    if (!e?.date) return false;
+    try { return new Date(e.date).getTime() < nowMs; } catch { return false; }
+  };
+  const upcoming = (relevant.concat(others)).filter(e => !isPast(e));
+  const past     = (relevant.concat(others)).filter(e =>  isPast(e));
+  const previewEvents = (upcoming.length ? upcoming : past).slice(0, 2);
+  const previewHtml = previewEvents.map(e => {
+    const past_ = isPast(e);
+    return `
+      <div class="briefing-preview-row ${past_ ? 'briefing-event-past' : ''}">
+        <div class="briefing-preview-impact ${_briefingImpactClass(e.impact)}">${_briefingImpactLabel(e.impact)}</div>
+        <div class="briefing-preview-meta">
+          <div class="briefing-preview-title">${_escapeHtml(e.title)}</div>
+          <div class="briefing-preview-sub">${past_ ? '<span class="briefing-past-tag">✓ done</span> · ' : ''}${_escapeHtml(e.currency)} · ${_escapeHtml(e.time_local || '')}</div>
+        </div>
+      </div>`;
+  }).join('');
 
   el.innerHTML = `
     <div class="briefing-preview-header">
@@ -10873,16 +10899,60 @@ async function _renderHomeBriefingCompact() {
   `;
 }
 
-// ── Full-view briefing page (replaces the home sections when active) ─────
+// Which sub-tab to show inside the briefing full view. Persists for the
+// duration of the session so flipping in and out of the full view keeps
+// the last-viewed tab.
+let _briefingFullTab = 'briefing'; // 'briefing' | 'recap'
+let _recapCache = null;
+let _recapCacheTime = 0;
+let _recapFetching = false;
+const _RECAP_TTL = 5 * 60 * 1000; // 5 minutes — recap updates as the day unfolds
+
+// ── Full-view briefing page (router) ──────────────────────────────────────
+// Renders a segmented toggle at the top to switch between today's morning
+// briefing (forecasts) and the rolling event recap (actuals + status).
+// Both sub-views share the same parent container; only the body differs.
 async function _renderBriefingFull() {
   const el = document.getElementById('home-briefing-full');
   if (!el) return;
   el.style.display = '';
-  el.innerHTML = `<div class="briefing-full-loading">Loading…</div>`;
+
+  // Build the segmented control once; it stays mounted across tab swaps so
+  // the toggle itself doesn't flash. The body below is what actually swaps.
+  const segHtml = `
+    <div class="briefing-tabs">
+      <button class="briefing-tab ${_briefingFullTab === 'briefing' ? 'active' : ''}" onclick="_setBriefingTab('briefing')">Briefing</button>
+      <button class="briefing-tab ${_briefingFullTab === 'recap' ? 'active' : ''}" onclick="_setBriefingTab('recap')">Recap</button>
+    </div>
+    <div id="briefing-tab-body"></div>
+  `;
+  el.innerHTML = segHtml;
+
+  if (_briefingFullTab === 'recap') {
+    await _renderBriefingFullRecap();
+  } else {
+    await _renderBriefingFullForecast();
+  }
+}
+
+function _setBriefingTab(tab) {
+  if (tab !== 'briefing' && tab !== 'recap') return;
+  if (_briefingFullTab === tab) return;
+  _briefingFullTab = tab;
+  // Re-render only — the segment buttons re-paint with the new active
+  // state, and the body region swaps. No remount needed elsewhere.
+  _renderBriefingFull();
+}
+
+// ── Sub-renderer: morning briefing (forecasts) ───────────────────────────
+async function _renderBriefingFullForecast() {
+  const body = document.getElementById('briefing-tab-body');
+  if (!body) return;
+  body.innerHTML = `<div class="briefing-full-loading">Loading…</div>`;
 
   const data = await _fetchBriefing();
   if (!data || !data.ok) {
-    el.innerHTML = `
+    body.innerHTML = `
       <div class="briefing-full-empty">
         <div class="briefing-full-empty-text">Couldn't load briefing</div>
         <button class="briefing-toggle-btn-mini" onclick="_refreshBriefing()">Retry</button>
@@ -10890,15 +10960,23 @@ async function _renderBriefingFull() {
     return;
   }
   if (data.locked) {
-    el.innerHTML = `
-      <div class="briefing-full-empty">
-        <div class="briefing-full-empty-text">Economic briefing is a Pro feature</div>
-        <div class="briefing-full-empty-sub">Upgrade to receive market-moving event alerts</div>
+    body.innerHTML = `
+      <div class="briefing-upgrade-card briefing-upgrade-card-full">
+        <div class="briefing-upgrade-icon">
+          <svg width="28" height="28" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2L12.5 7l5.5.8-4 3.9.95 5.5L10 14.6l-4.95 2.6L6 11.7 2 7.8 7.5 7z" stroke="currentColor" stroke-width="1.4" fill="currentColor" fill-opacity="0.18" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="briefing-upgrade-meta">
+          <div class="briefing-upgrade-title">Economic briefing is a Pro feature</div>
+          <div class="briefing-upgrade-sub">Pro tier unlocks daily high-impact event alerts for the currencies in your watchlist. Elite adds medium-impact events and an AI market outlook.</div>
+        </div>
+        <button class="briefing-upgrade-cta" onclick="openSubscriptionPage()">View plans</button>
       </div>`;
     return;
   }
   if (data.disabled) {
-    el.innerHTML = `
+    body.innerHTML = `
       <div class="briefing-full-empty">
         <div class="briefing-full-empty-text">Economic briefing is turned off</div>
         <div class="briefing-full-empty-sub">Enable it in preferences to see events here</div>
@@ -10912,11 +10990,19 @@ async function _renderBriefingFull() {
   // Treat null/undefined as ENABLED to mirror server-side default.
   const tgOn     = (data.briefing_telegram_enabled !== false);
 
-  const renderEvent = (e, isRelevant) => `
-    <div class="briefing-event ${isRelevant ? 'briefing-event-relevant' : ''}">
+  const nowMs = Date.now();
+  const isPast = (e) => {
+    if (!e?.date) return false;
+    try { return new Date(e.date).getTime() < nowMs; } catch { return false; }
+  };
+  const renderEvent = (e, isRelevant) => {
+    const past = isPast(e);
+    return `
+    <div class="briefing-event ${isRelevant ? 'briefing-event-relevant' : ''} ${past ? 'briefing-event-past' : ''}">
       <div class="briefing-event-header">
         <div class="briefing-event-impact ${_briefingImpactClass(e.impact)}">${_briefingImpactLabel(e.impact)}</div>
         <div class="briefing-event-currency">${_escapeHtml(e.currency)}</div>
+        ${past ? '<div class="briefing-past-tag">✓ done</div>' : ''}
         <div class="briefing-event-time">${_escapeHtml(e.time_local || '')}</div>
       </div>
       <div class="briefing-event-title">${_escapeHtml(e.title)}</div>
@@ -10926,6 +11012,7 @@ async function _renderBriefingFull() {
           ${e.previous ? `<span><span class="briefing-event-data-lbl">Previous</span> ${_escapeHtml(e.previous)}</span>` : ''}
         </div>` : ''}
     </div>`;
+  };
 
   let html = `
     <div class="briefing-full-header">
@@ -10965,7 +11052,186 @@ async function _renderBriefingFull() {
     others.forEach(e => { html += renderEvent(e, false); });
   }
 
-  el.innerHTML = html;
+  body.innerHTML = html;
+}
+
+// ── Sub-renderer: end-of-day recap (actuals + surprise status) ───────────
+async function _renderBriefingFullRecap() {
+  const body = document.getElementById('briefing-tab-body');
+  if (!body) return;
+  body.innerHTML = `<div class="briefing-full-loading">Loading…</div>`;
+
+  const data = await _fetchRecap();
+  if (!data || !data.ok) {
+    body.innerHTML = `
+      <div class="briefing-full-empty">
+        <div class="briefing-full-empty-text">Couldn't load recap</div>
+        <button class="briefing-toggle-btn-mini" onclick="_refreshBriefing()">Retry</button>
+      </div>`;
+    return;
+  }
+  if (data.locked) {
+    body.innerHTML = `
+      <div class="briefing-upgrade-card briefing-upgrade-card-full">
+        <div class="briefing-upgrade-icon">
+          <svg width="28" height="28" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2L12.5 7l5.5.8-4 3.9.95 5.5L10 14.6l-4.95 2.6L6 11.7 2 7.8 7.5 7z" stroke="currentColor" stroke-width="1.4" fill="currentColor" fill-opacity="0.18" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="briefing-upgrade-meta">
+          <div class="briefing-upgrade-title">Recap is a Pro feature</div>
+          <div class="briefing-upgrade-sub">Pro tier shows you the day's actual prints vs forecasts with BEAT / MISSED / IN LINE classification. Elite adds AI market interpretation.</div>
+        </div>
+        <button class="briefing-upgrade-cta" onclick="openSubscriptionPage()">View plans</button>
+      </div>`;
+    return;
+  }
+  if (data.disabled) {
+    body.innerHTML = `
+      <div class="briefing-full-empty">
+        <div class="briefing-full-empty-text">Economic briefing is turned off</div>
+        <div class="briefing-full-empty-sub">Enable it in preferences to see the recap here</div>
+      </div>`;
+    return;
+  }
+
+  const watchlist = data.watchlist || [];
+  const others    = data.others    || [];
+  const pending   = data.pending   || [];
+  const ai        = data.ai_summary || null;
+  const total     = watchlist.length + others.length;
+
+  let html = `
+    <div class="briefing-full-header">
+      <div class="briefing-full-date">${_escapeHtml(data.date_label || 'Today')}</div>
+      <div class="briefing-full-summary-line">
+        ${watchlist.length
+            ? `${watchlist.length} watchlist event${watchlist.length === 1 ? '' : 's'} printed`
+            : 'No watchlist prints yet'}
+        ${pending.length ? ` · ${pending.length} pending` : ''}
+      </div>
+    </div>`;
+
+  if (ai) {
+    html += `
+      <div class="briefing-ai-card">
+        <div class="briefing-ai-header">💡 Market Interpretation</div>
+        <div class="briefing-ai-body">${_escapeHtml(ai)}</div>
+      </div>`;
+  }
+
+  if (watchlist.length) {
+    html += `<div class="briefing-section-label">⚠️ Your watchlist</div>`;
+    watchlist.forEach(e => { html += _renderRecapEvent(e, true); });
+  } else if (total === 0 && pending.length === 0) {
+    html += `
+      <div class="briefing-full-empty">
+        <div class="briefing-full-empty-text">No events have printed yet today</div>
+        <div class="briefing-full-empty-sub">Check back later — recap fills in as events publish</div>
+      </div>`;
+  } else if (watchlist.length === 0 && (others.length || pending.length)) {
+    html += `<div class="briefing-section-label-empty"><i>No watchlist currencies have printed yet today.</i></div>`;
+  }
+
+  if (others.length) {
+    html += `<div class="briefing-section-label">${watchlist.length === 0 ? 'Notable prints' : 'Other prints today'}</div>`;
+    const cap = watchlist.length === 0 ? 8 : 6;
+    others.slice(0, cap).forEach(e => { html += _renderRecapEvent(e, false); });
+  }
+
+  if (pending.length) {
+    html += `<div class="briefing-section-label">⏳ Awaiting prints</div>`;
+    pending.forEach(e => { html += _renderRecapPending(e); });
+  }
+
+  body.innerHTML = html;
+}
+
+// ── Recap event card (printed events with actuals + status) ──────────────
+function _renderRecapEvent(e, isRelevant) {
+  const statusInfo = _recapStatusInfo(e.status);
+  const surprise   = (e.delta_pct !== null && e.delta_pct !== undefined && e.status !== 'no_forecast')
+    ? ` <span class="recap-surprise">(${e.delta_pct >= 0 ? '+' : ''}${(+e.delta_pct).toFixed(1)}% vs forecast)</span>`
+    : '';
+  const inverseNote = (e.inverse && e.status !== 'met' && e.status !== 'no_forecast')
+    ? `<div class="recap-inverse">↑ higher reading = ${_escapeHtml(e.currency)}-negative</div>`
+    : '';
+  return `
+    <div class="briefing-event ${isRelevant ? 'briefing-event-relevant' : ''}">
+      <div class="briefing-event-header">
+        <div class="briefing-event-impact ${_briefingImpactClass(e.impact)}">${_briefingImpactLabel(e.impact)}</div>
+        <div class="briefing-event-currency">${_escapeHtml(e.currency)}</div>
+        <div class="recap-status ${statusInfo.cls}">${statusInfo.emoji} ${statusInfo.label}</div>
+        <div class="briefing-event-time">${_escapeHtml(e.time_local || '')}</div>
+      </div>
+      <div class="briefing-event-title">${_escapeHtml(e.title)}${surprise}</div>
+      <div class="recap-data-row">
+        <span class="recap-actual-block">
+          <span class="briefing-event-data-lbl">Actual</span>
+          <strong>${_escapeHtml(e.actual || '—')}</strong>
+        </span>
+        <span><span class="briefing-event-data-lbl">Forecast</span> ${_escapeHtml(e.forecast || '—')}</span>
+        <span><span class="briefing-event-data-lbl">Previous</span> ${_escapeHtml(e.previous || '—')}</span>
+      </div>
+      ${inverseNote}
+    </div>`;
+}
+
+// Pending events (scheduled but haven't printed) — simpler card.
+function _renderRecapPending(e) {
+  return `
+    <div class="briefing-event briefing-event-pending">
+      <div class="briefing-event-header">
+        <div class="briefing-event-impact ${_briefingImpactClass(e.impact)}">${_briefingImpactLabel(e.impact)}</div>
+        <div class="briefing-event-currency">${_escapeHtml(e.currency)}</div>
+        <div class="recap-status status-pending">⏳ PENDING</div>
+        <div class="briefing-event-time">${_escapeHtml(e.time_local || '')}</div>
+      </div>
+      <div class="briefing-event-title">${_escapeHtml(e.title)}</div>
+      ${(e.forecast || e.previous) ? `
+        <div class="briefing-event-data">
+          ${e.forecast ? `<span><span class="briefing-event-data-lbl">Forecast</span> ${_escapeHtml(e.forecast)}</span>` : ''}
+          ${e.previous ? `<span><span class="briefing-event-data-lbl">Previous</span> ${_escapeHtml(e.previous)}</span>` : ''}
+        </div>` : ''}
+    </div>`;
+}
+
+function _recapStatusInfo(status) {
+  if (status === 'beat')        return { emoji: '✅', label: 'BEAT',     cls: 'status-beat' };
+  if (status === 'missed')      return { emoji: '⚠️', label: 'MISSED',   cls: 'status-missed' };
+  if (status === 'met')         return { emoji: '➖', label: 'IN LINE',  cls: 'status-met' };
+  return { emoji: '❓', label: 'RELEASED', cls: 'status-released' };
+}
+
+// ── Recap fetch + cache ──────────────────────────────────────────────────
+async function _fetchRecap(force = false) {
+  if (_recapFetching) return _recapCache;
+  if (!force && _recapCache && (Date.now() - _recapCacheTime) < _RECAP_TTL) {
+    return _recapCache;
+  }
+  _recapFetching = true;
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/functions/v1/economic-briefing-followup?action=get_recap`,
+      { method: 'GET' }
+    );
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      console.warn('[recap] fetch failed', res.status, data);
+      _recapCache = { ok: false, error: data?.error || `HTTP ${res.status}` };
+    } else {
+      _recapCache = data;
+    }
+    _recapCacheTime = Date.now();
+    return _recapCache;
+  } catch(e) {
+    console.warn('[recap] fetch exception', e);
+    _recapCache = { ok: false, error: String(e) };
+    _recapCacheTime = Date.now();
+    return _recapCache;
+  } finally {
+    _recapFetching = false;
+  }
 }
 
 // Hide the briefing-full body when leaving the full view, so the home
@@ -10983,12 +11249,22 @@ function closeBriefingFull() {
   if (typeof _applyHomeViewMode === 'function') _applyHomeViewMode('home');
 }
 
-// Force a refetch + re-render.
+// Force a refetch + re-render. Adds a brief spin animation to the
+// refresh button so the user gets visual feedback for the tap.
 async function _refreshBriefing() {
+  const btn = document.getElementById('home-briefing-refresh');
+  if (btn) btn.classList.add('spinning');
+  // Invalidate BOTH caches — user expects "refresh" to apply to whatever
+  // they're currently viewing, including the recap tab.
   _briefingCache = null;
-  await _fetchBriefing(true);
-  _renderHomeBriefingCompact();
-  if (_homeViewMode === 'briefing-full') _renderBriefingFull();
+  _recapCache    = null;
+  try {
+    await _fetchBriefing(true);
+    _renderHomeBriefingCompact();
+    if (_homeViewMode === 'briefing-full') _renderBriefingFull();
+  } finally {
+    setTimeout(() => { if (btn) btn.classList.remove('spinning'); }, 400);
+  }
 }
 
 // ── Toggle Telegram delivery for the daily briefing ──────────────────────
