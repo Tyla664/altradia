@@ -5392,3 +5392,235 @@ header {
   display: none;
 }
 #home-shell[data-view="briefing-full"] #home-briefing-compact { display: none; }
+
+
+/* ── Briefing polish: refresh button, upgrade CTA, past-event ──────── */
+
+/* Refresh button (lives in section actions, left of View all link) */
+.home-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.home-refresh-btn:active {
+  background: rgba(2, 90, 145, 0.08);
+  color: var(--accent);
+}
+.home-refresh-btn.spinning svg {
+  animation: home-refresh-spin 0.8s linear infinite;
+}
+@keyframes home-refresh-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Upgrade CTA card — compact variant used in home preview slot */
+.briefing-upgrade-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(2, 90, 145, 0.07), rgba(17, 92, 40, 0.05));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.briefing-upgrade-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f59e0b;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+}
+.briefing-upgrade-meta { flex: 1; min-width: 0; }
+.briefing-upgrade-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.briefing-upgrade-sub {
+  font-size: 0.7rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.briefing-upgrade-cta {
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+.briefing-upgrade-cta:active { transform: scale(0.96); opacity: 0.9; }
+
+/* Full-view variant: more padding, stacked layout for the larger CTA text */
+.briefing-upgrade-card-full {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px 18px;
+  gap: 14px;
+}
+.briefing-upgrade-card-full .briefing-upgrade-icon {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+}
+.briefing-upgrade-card-full .briefing-upgrade-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.briefing-upgrade-card-full .briefing-upgrade-sub {
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.briefing-upgrade-card-full .briefing-upgrade-cta {
+  padding: 11px 22px;
+  font-size: 0.78rem;
+  align-self: stretch;
+}
+
+/* Past-event dimming + tag */
+.briefing-event-past {
+  opacity: 0.55;
+}
+.briefing-event-past .briefing-event-title {
+  text-decoration: line-through;
+  text-decoration-color: rgba(148, 163, 184, 0.5);
+  text-decoration-thickness: 1px;
+}
+.briefing-past-tag {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--muted);
+}
+/* In the compact preview row the tag is inline with the sub-line text,
+   so we shrink it further so it doesn't break the row height. */
+.briefing-preview-sub .briefing-past-tag {
+  font-size: 0.5rem;
+  padding: 1px 5px;
+}
+
+
+/* ── Briefing / Recap segmented toggle ─────────────────────────────── */
+.briefing-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.briefing-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.briefing-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(11, 15, 20, 0.06);
+}
+[data-theme="dark"] .briefing-tab.active {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Recap-specific event-card additions ───────────────────────────── */
+
+/* Status pill that lives in the event header */
+.recap-status {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 3px 7px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.status-beat     { background: rgba(34, 197, 94, 0.14); color: #22c55e; }
+.status-missed   { background: rgba(239, 68, 68, 0.14); color: #ef4444; }
+.status-met      { background: rgba(148, 163, 184, 0.18); color: var(--muted); }
+.status-released { background: rgba(245, 158, 11, 0.14); color: #f59e0b; }
+.status-pending  { background: rgba(148, 163, 184, 0.18); color: var(--muted); }
+
+/* Surprise pct (inline next to the title) */
+.recap-surprise {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--muted);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* The data row in a recap card uses the same .briefing-event-data look
+   but we emphasize Actual since it's the headline number. */
+.recap-data-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-family: var(--mono);
+}
+.recap-actual-block strong {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.recap-inverse {
+  margin-top: 6px;
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Pending events look like normal cards but slightly faded — they
+   haven't printed yet, so they're informational. */
+.briefing-event-pending {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.briefing-section-label-empty {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 14px 0;
+  text-align: center;
+  font-style: italic;
+}
