@@ -10342,21 +10342,24 @@ function _initWatchlistSubTabs() {
         </div>
       </section>
 
-      <!-- Economic Briefing section (placeholder) -->
+      <!-- Economic Briefing section. Compact preview lives in
+           #home-briefing-compact; the full list lives in #home-briefing-full
+           and is shown via the 'briefing-full' view mode. -->
       <section class="home-section home-card" data-section="briefing">
         <div class="home-section-header">
           <h2 class="home-section-title">Economic Briefing</h2>
+          <div class="home-section-actions">
+            <a class="home-view-all" id="home-briefing-toggle" onclick="openBriefingFull()" hidden>View all →</a>
+            <button class="home-close-btn" id="home-briefing-close" onclick="closeBriefingFull()" aria-label="Close" hidden>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="home-briefing-empty">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="opacity:0.4;margin-bottom:8px">
-            <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="8" y1="3" x2="8" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="16" y1="3" x2="16" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          <div class="home-briefing-empty-text">Today's briefing will appear here</div>
-          <div class="home-briefing-empty-sub">Receive it on Telegram in the meantime</div>
-        </div>
+        <div id="home-briefing-compact"></div>
+        <div id="home-briefing-full" class="home-briefing-full-body" style="display:none"></div>
       </section>
     </div>
   `;
@@ -10404,11 +10407,19 @@ function _applyHomeViewMode(mode) {
   if (mode === 'home') {
     _renderHomeWatchlistCompact();
     _renderHomeStrengthCompact();
+    // Render briefing compact; the call is async but we don't need to
+    // wait — it manages its own loading placeholder.
+    if (typeof _renderHomeBriefingCompact === 'function') _renderHomeBriefingCompact();
+    // Hide the full-list body in case we're returning to home from
+    // briefing-full mode.
+    if (typeof _hideBriefingFullBody === 'function') _hideBriefingFullBody();
   } else if (mode === 'watchlist-full') {
     // Trigger a full re-render into wl-sub-assets via the existing function.
     if (typeof renderWatchlist === 'function') renderWatchlist();
   } else if (mode === 'strength-full') {
     if (typeof renderStrengthTab === 'function') renderStrengthTab();
+  } else if (mode === 'briefing-full') {
+    if (typeof _renderBriefingFull === 'function') _renderBriefingFull();
   }
   // Strength section header: View-all link visible only on home overview;
   // × close button visible only when we're already in the full meter view.
@@ -10416,6 +10427,16 @@ function _applyHomeViewMode(mode) {
   const sClose  = document.getElementById('home-strength-close');
   if (sToggle) sToggle.hidden = (mode === 'strength-full');
   if (sClose)  sClose.hidden  = (mode !== 'strength-full');
+  // Briefing section header: same View-all / × pattern. View-all is also
+  // hidden if there's no briefing content available (the compact view will
+  // surface the empty state on its own).
+  const bToggle = document.getElementById('home-briefing-toggle');
+  const bClose  = document.getElementById('home-briefing-close');
+  if (bToggle) {
+    const hasContent = !!_briefingCache && _briefingCache.ok && !_briefingCache.locked && !_briefingCache.disabled;
+    bToggle.hidden = (mode === 'briefing-full') || !hasContent;
+  }
+  if (bClose)  bClose.hidden  = (mode !== 'briefing-full');
   // Tell the Telegram BackButton handler to re-evaluate visibility.
   try { if (typeof window._updateBackBtn === 'function') window._updateBackBtn(); } catch(_) {}
 }
@@ -10719,6 +10740,316 @@ function openStrengthFull() {
 function closeStrengthFull() {
   _applyHomeViewMode('home');
 }
+
+// ═══════════════════════════════════════════════
+// ECONOMIC BRIEFING — in-app fetch + render
+// Fetches today's briefing JSON from the economic-briefing edge function
+// and renders both a compact preview on the home page and a full sub-page
+// view with all events plus a Telegram-delivery toggle.
+// ═══════════════════════════════════════════════
+
+let _briefingCache = null;        // last response from the edge fn
+let _briefingFetching = false;    // in-flight gate (prevent double-fetch)
+let _briefingCacheTime = 0;       // ms when cache was filled
+const _BRIEFING_TTL = 10 * 60 * 1000; // 10 minutes — events update infrequently
+
+async function _fetchBriefing(force = false) {
+  if (_briefingFetching) return _briefingCache;
+  if (!force && _briefingCache && (Date.now() - _briefingCacheTime) < _BRIEFING_TTL) {
+    return _briefingCache;
+  }
+  _briefingFetching = true;
+  try {
+    // Use _authedFetch so the JWT is attached and 401 auto-retries.
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/functions/v1/economic-briefing?action=get_briefing`,
+      { method: 'GET' }
+    );
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      console.warn('[briefing] fetch failed', res.status, data);
+      _briefingCache = { ok: false, error: data?.error || `HTTP ${res.status}` };
+    } else {
+      _briefingCache = data;
+    }
+    _briefingCacheTime = Date.now();
+    return _briefingCache;
+  } catch(e) {
+    console.warn('[briefing] fetch exception', e);
+    _briefingCache = { ok: false, error: String(e) };
+    _briefingCacheTime = Date.now();
+    return _briefingCache;
+  } finally {
+    _briefingFetching = false;
+  }
+}
+
+// ── Compact preview on home page ──────────────────────────────────────────
+async function _renderHomeBriefingCompact() {
+  const el = document.getElementById('home-briefing-compact');
+  if (!el) return;
+
+  // Show a placeholder while we fetch the first time.
+  if (!_briefingCache) {
+    el.innerHTML = `
+      <div class="home-briefing-empty">
+        <div class="home-briefing-empty-text">Loading today's briefing…</div>
+      </div>`;
+  }
+
+  const data = await _fetchBriefing();
+  // Refresh View-all visibility now that we know if there's content.
+  if (typeof _applyHomeViewMode === 'function' && _homeViewMode === 'home') {
+    const bToggle = document.getElementById('home-briefing-toggle');
+    if (bToggle) {
+      const hasContent = !!data && data.ok && !data.locked && !data.disabled;
+      bToggle.hidden = !hasContent;
+    }
+  }
+
+  if (!data) { /* nothing — stay on placeholder */ return; }
+
+  // Locked (free tier) or disabled (user pref) → friendly empty state.
+  if (data.locked) {
+    el.innerHTML = `
+      <div class="home-briefing-empty">
+        <div class="home-briefing-empty-text">Economic briefing is a Pro feature</div>
+        <div class="home-briefing-empty-sub">Upgrade to receive market-moving event alerts</div>
+      </div>`;
+    return;
+  }
+  if (data.disabled) {
+    el.innerHTML = `
+      <div class="home-briefing-empty">
+        <div class="home-briefing-empty-text">Economic briefing is turned off</div>
+        <div class="home-briefing-empty-sub">Enable it in preferences to see today's events</div>
+      </div>`;
+    return;
+  }
+  if (!data.ok) {
+    el.innerHTML = `
+      <div class="home-briefing-empty">
+        <div class="home-briefing-empty-text">Couldn't load today's briefing</div>
+        <div class="home-briefing-empty-sub">Tap to retry</div>
+      </div>`;
+    el.querySelector('.home-briefing-empty').onclick = () => _refreshBriefing();
+    return;
+  }
+
+  const relevant = data.relevant || [];
+  const others   = data.others || [];
+  const total    = relevant.length + others.length;
+
+  if (total === 0) {
+    el.innerHTML = `
+      <div class="home-briefing-empty">
+        <div class="home-briefing-empty-text">${_escapeHtml(data.date_label || 'Today')}</div>
+        <div class="home-briefing-empty-sub">No high-impact events scheduled. Trade with normal caution.</div>
+      </div>`;
+    return;
+  }
+
+  // Pick up to 2 preview events: prioritize relevant (affecting watchlist).
+  const previewEvents = (relevant.length ? relevant : others).slice(0, 2);
+  const previewHtml = previewEvents.map(e => `
+    <div class="briefing-preview-row">
+      <div class="briefing-preview-impact ${_briefingImpactClass(e.impact)}">${_briefingImpactLabel(e.impact)}</div>
+      <div class="briefing-preview-meta">
+        <div class="briefing-preview-title">${_escapeHtml(e.title)}</div>
+        <div class="briefing-preview-sub">${_escapeHtml(e.currency)} · ${_escapeHtml(e.time_local || '')}</div>
+      </div>
+    </div>`).join('');
+
+  el.innerHTML = `
+    <div class="briefing-preview-header">
+      <div class="briefing-preview-date">${_escapeHtml(data.date_label || 'Today')}</div>
+      <div class="briefing-preview-count">
+        ${relevant.length ? `<span class="briefing-count-relevant">${relevant.length} affecting your watchlist</span>` : ''}
+        ${relevant.length && others.length ? ' · ' : ''}
+        ${others.length ? `<span class="briefing-count-others">${others.length} other${others.length === 1 ? '' : 's'}</span>` : ''}
+      </div>
+    </div>
+    ${previewHtml}
+  `;
+}
+
+// ── Full-view briefing page (replaces the home sections when active) ─────
+async function _renderBriefingFull() {
+  const el = document.getElementById('home-briefing-full');
+  if (!el) return;
+  el.style.display = '';
+  el.innerHTML = `<div class="briefing-full-loading">Loading…</div>`;
+
+  const data = await _fetchBriefing();
+  if (!data || !data.ok) {
+    el.innerHTML = `
+      <div class="briefing-full-empty">
+        <div class="briefing-full-empty-text">Couldn't load briefing</div>
+        <button class="briefing-toggle-btn-mini" onclick="_refreshBriefing()">Retry</button>
+      </div>`;
+    return;
+  }
+  if (data.locked) {
+    el.innerHTML = `
+      <div class="briefing-full-empty">
+        <div class="briefing-full-empty-text">Economic briefing is a Pro feature</div>
+        <div class="briefing-full-empty-sub">Upgrade to receive market-moving event alerts</div>
+      </div>`;
+    return;
+  }
+  if (data.disabled) {
+    el.innerHTML = `
+      <div class="briefing-full-empty">
+        <div class="briefing-full-empty-text">Economic briefing is turned off</div>
+        <div class="briefing-full-empty-sub">Enable it in preferences to see events here</div>
+      </div>`;
+    return;
+  }
+
+  const relevant = data.relevant || [];
+  const others   = data.others || [];
+  const ai       = data.ai_summary || null;
+  // Treat null/undefined as ENABLED to mirror server-side default.
+  const tgOn     = (data.briefing_telegram_enabled !== false);
+
+  const renderEvent = (e, isRelevant) => `
+    <div class="briefing-event ${isRelevant ? 'briefing-event-relevant' : ''}">
+      <div class="briefing-event-header">
+        <div class="briefing-event-impact ${_briefingImpactClass(e.impact)}">${_briefingImpactLabel(e.impact)}</div>
+        <div class="briefing-event-currency">${_escapeHtml(e.currency)}</div>
+        <div class="briefing-event-time">${_escapeHtml(e.time_local || '')}</div>
+      </div>
+      <div class="briefing-event-title">${_escapeHtml(e.title)}</div>
+      ${(e.forecast || e.previous) ? `
+        <div class="briefing-event-data">
+          ${e.forecast ? `<span><span class="briefing-event-data-lbl">Forecast</span> ${_escapeHtml(e.forecast)}</span>` : ''}
+          ${e.previous ? `<span><span class="briefing-event-data-lbl">Previous</span> ${_escapeHtml(e.previous)}</span>` : ''}
+        </div>` : ''}
+    </div>`;
+
+  let html = `
+    <div class="briefing-full-header">
+      <div class="briefing-full-date">${_escapeHtml(data.date_label || 'Today')}</div>
+      <div class="briefing-full-summary-line">
+        ${relevant.length ? `${relevant.length} event${relevant.length === 1 ? '' : 's'} affecting your watchlist` : 'No events match your watchlist today'}
+        ${(data.user_currencies || []).length ? ` · ${(data.user_currencies || []).join(', ')}` : ''}
+      </div>
+    </div>
+
+    <div class="briefing-toggle-card">
+      <div class="briefing-toggle-meta">
+        <div class="briefing-toggle-title">Send to Telegram</div>
+        <div class="briefing-toggle-sub">Receive daily briefing in your Telegram chat too</div>
+      </div>
+      <button class="briefing-toggle-btn ${tgOn ? 'on' : 'off'}" id="briefing-tg-toggle" onclick="_toggleBriefingTg()">
+        <span class="briefing-toggle-knob"></span>
+      </button>
+    </div>
+  `;
+
+  if (ai) {
+    html += `
+      <div class="briefing-ai-card">
+        <div class="briefing-ai-header">💡 AI Outlook</div>
+        <div class="briefing-ai-body">${_escapeHtml(ai)}</div>
+      </div>`;
+  }
+
+  if (relevant.length) {
+    html += `<div class="briefing-section-label">⚠️ Affecting your watchlist</div>`;
+    relevant.forEach(e => { html += renderEvent(e, true); });
+  }
+
+  if (others.length) {
+    html += `<div class="briefing-section-label">Other events today</div>`;
+    others.forEach(e => { html += renderEvent(e, false); });
+  }
+
+  el.innerHTML = html;
+}
+
+// Hide the briefing-full body when leaving the full view, so the home
+// overview doesn't have the (long) full list stuck below the compact one.
+function _hideBriefingFullBody() {
+  const el = document.getElementById('home-briefing-full');
+  if (el) el.style.display = 'none';
+}
+
+function openBriefingFull() {
+  if (typeof _applyHomeViewMode === 'function') _applyHomeViewMode('briefing-full');
+}
+function closeBriefingFull() {
+  _hideBriefingFullBody();
+  if (typeof _applyHomeViewMode === 'function') _applyHomeViewMode('home');
+}
+
+// Force a refetch + re-render.
+async function _refreshBriefing() {
+  _briefingCache = null;
+  await _fetchBriefing(true);
+  _renderHomeBriefingCompact();
+  if (_homeViewMode === 'briefing-full') _renderBriefingFull();
+}
+
+// ── Toggle Telegram delivery for the daily briefing ──────────────────────
+async function _toggleBriefingTg() {
+  const btn = document.getElementById('briefing-tg-toggle');
+  if (!btn) return;
+  const newOn = !btn.classList.contains('on');
+  // Optimistic UI: flip state immediately so the toggle feels responsive.
+  btn.classList.toggle('on',  newOn);
+  btn.classList.toggle('off', !newOn);
+  if (_briefingCache) _briefingCache.briefing_telegram_enabled = newOn;
+
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/rest/v1/preferences?user_id=eq.${currentUserId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ briefing_telegram_enabled: newOn }),
+      }
+    );
+    if (!res.ok) {
+      const txt = await res.text();
+      console.warn('[briefing] PATCH failed', res.status, txt);
+      showToast('Save failed', 'Could not update preference. Try again.', 'error');
+      // Rollback
+      btn.classList.toggle('on',  !newOn);
+      btn.classList.toggle('off', newOn);
+      if (_briefingCache) _briefingCache.briefing_telegram_enabled = !newOn;
+      return;
+    }
+    showToast('Saved', newOn
+      ? 'Daily briefing will be sent to Telegram.'
+      : 'Daily briefing will only appear in-app.', 'success');
+  } catch(e) {
+    console.warn('[briefing] toggle exception', e);
+    btn.classList.toggle('on',  !newOn);
+    btn.classList.toggle('off', newOn);
+    if (_briefingCache) _briefingCache.briefing_telegram_enabled = !newOn;
+    showToast('Save failed', String(e).slice(0, 80), 'error');
+  }
+}
+
+// ── Small helpers shared by the briefing UI ──────────────────────────────
+function _briefingImpactClass(impact) {
+  if (impact === 'High')   return 'impact-high';
+  if (impact === 'Medium') return 'impact-medium';
+  return 'impact-low';
+}
+function _briefingImpactLabel(impact) {
+  if (impact === 'High')   return 'HIGH';
+  if (impact === 'Medium') return 'MED';
+  return 'LOW';
+}
+function _escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+
 
 // ═══════════════════════════════════════════════
 // AUTO-GROW TEXTAREAS
