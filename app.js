@@ -2845,8 +2845,228 @@ function ensureLWChart() {
     ro.observe(tvCont || container);
   } catch(e) {}
 
+  // Wire long-press handler once the chart container exists.
+  _wireChartLongPress();
+
   return true;
 }
+
+
+// ── Quick-alert long-press on chart ────────────────────────────────────────
+// Press-and-hold the chart for ~500ms to open a popup that creates an
+// above/below/tap alert at the price under your finger. Mirrors the
+// TradingView mobile UX. Movement >8px during the hold cancels detection
+// (it's a pan/zoom gesture, not a long-press).
+//
+// Wired once per chart instance via the data-lp-wired attribute on the
+// chart container. Safe to call multiple times — re-wiring is idempotent.
+function _wireChartLongPress() {
+  const el = document.getElementById('lw-chart');
+  if (!el) return;
+  if (el.dataset.lpWired === '1') return;
+  el.dataset.lpWired = '1';
+
+  const HOLD_MS  = 500;   // long-press threshold
+  const MOVE_TOL = 8;     // px before we treat as a pan instead
+
+  let timer = null;
+  let startX = 0, startY = 0;
+  let activeY = 0;        // last Y at the moment of the long-press fire
+
+  const cancel = () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+  };
+
+  const startHold = (clientX, clientY) => {
+    cancel();
+    startX = clientX; startY = clientY; activeY = clientY;
+    timer = setTimeout(() => {
+      timer = null;
+      _fireQuickAlertPopup(activeY);
+    }, HOLD_MS);
+  };
+
+  const onMove = (clientX, clientY) => {
+    if (!timer) return;
+    if (Math.abs(clientX - startX) > MOVE_TOL || Math.abs(clientY - startY) > MOVE_TOL) {
+      cancel();
+    } else {
+      activeY = clientY; // update Y in case of micro-jitter inside tolerance
+    }
+  };
+
+  // Touch (mobile)
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { cancel(); return; }
+    const t = e.touches[0];
+    startHold(t.clientX, t.clientY);
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1) { cancel(); return; }
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY);
+  }, { passive: true });
+  el.addEventListener('touchend',   cancel, { passive: true });
+  el.addEventListener('touchcancel', cancel, { passive: true });
+
+  // Mouse (desktop) — useful in your Firefox dev browser
+  el.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return; // only left button
+    startHold(e.clientX, e.clientY);
+  });
+  el.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+  el.addEventListener('mouseup',   cancel);
+  el.addEventListener('mouseleave', cancel);
+}
+
+// ── Show the quick-alert popup for the given client-Y pixel ────────────────
+function _fireQuickAlertPopup(clientY) {
+  // Convert clientY → series-local Y (subtract chart container top) →
+  // price (via LightweightCharts API). If anything fails, bail silently.
+  if (!lwChart || !lwSeries) return;
+  if (!selectedAsset) { showToast('No Asset', 'Select an asset first.', 'error'); return; }
+
+  const container = document.getElementById('lw-chart');
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  const localY = clientY - rect.top;
+  let price;
+  try {
+    price = lwSeries.coordinateToPrice(localY);
+  } catch(e) {
+    console.warn('[quick-alert] coordinateToPrice failed', e);
+    return;
+  }
+  if (price == null || !isFinite(price)) return;
+
+  // Haptic feedback on supported devices.
+  try {
+    if (window.Telegram?.WebApp?.HapticFeedback?.impactOccurred) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+    } else if (navigator.vibrate) {
+      navigator.vibrate(15);
+    }
+  } catch(_) {}
+
+  _showQuickAlertModal(price);
+}
+
+// ── Quick-alert modal ─────────────────────────────────────────────────────
+// Lives at the bottom of <body> as #quick-alert-modal. Lazily injected
+// the first time we need it so we don't bloat initial DOM. Shows the
+// captured price + three big buttons: ABOVE, BELOW, TAP. Plus Cancel.
+function _showQuickAlertModal(price) {
+  let modal = document.getElementById('quick-alert-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'quick-alert-modal';
+    modal.className = 'quick-alert-modal-overlay';
+    modal.innerHTML = `
+      <div class="quick-alert-modal-card">
+        <div class="quick-alert-modal-title">Quick alert at</div>
+        <div class="quick-alert-modal-price" id="quick-alert-modal-price">—</div>
+        <div class="quick-alert-modal-symbol" id="quick-alert-modal-symbol">—</div>
+        <div class="quick-alert-modal-row">
+          <button class="quick-alert-modal-btn quick-alert-modal-btn-above" data-cond="above">
+            <span class="quick-alert-modal-btn-glyph">▲</span> ABOVE
+          </button>
+          <button class="quick-alert-modal-btn quick-alert-modal-btn-tap" data-cond="tap">
+            <span class="quick-alert-modal-btn-glyph">◎</span> TAP
+          </button>
+          <button class="quick-alert-modal-btn quick-alert-modal-btn-below" data-cond="below">
+            <span class="quick-alert-modal-btn-glyph">▼</span> BELOW
+          </button>
+        </div>
+        <button class="quick-alert-modal-cancel" id="quick-alert-modal-cancel">Cancel</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    // Wire close on backdrop click + cancel
+    modal.addEventListener('click', (e) => { if (e.target === modal) _closeQuickAlertModal(); });
+    modal.querySelector('#quick-alert-modal-cancel').addEventListener('click', _closeQuickAlertModal);
+    modal.querySelectorAll('.quick-alert-modal-btn').forEach(b => {
+      b.addEventListener('click', (e) => {
+        const cond = b.dataset.cond;
+        _createQuickAlertFromModal(cond);
+      });
+    });
+  }
+
+  const priceEl  = modal.querySelector('#quick-alert-modal-price');
+  const symEl    = modal.querySelector('#quick-alert-modal-symbol');
+  priceEl.textContent = formatPrice(price, selectedAsset.id);
+  symEl.textContent   = selectedAsset.symbol || selectedAsset.id;
+  modal.dataset.price = String(price);
+  modal.classList.add('show');
+}
+
+function _closeQuickAlertModal() {
+  const modal = document.getElementById('quick-alert-modal');
+  if (modal) modal.classList.remove('show');
+}
+
+// ── Wire chosen condition into the regular createAlert pipeline ───────────
+function _createQuickAlertFromModal(condition) {
+  const modal = document.getElementById('quick-alert-modal');
+  if (!modal) return;
+  const price = parseFloat(modal.dataset.price || '0');
+  if (!isFinite(price) || price <= 0) { _closeQuickAlertModal(); return; }
+  if (!selectedAsset) { _closeQuickAlertModal(); return; }
+
+  // Pre-fill the existing form fields then call the existing pipeline so
+  // we get all the same validation, persistence, and toast UX. We don't
+  // touch the form-visible state — we just stage values, fire, then
+  // reset.
+  const condSel  = document.getElementById('alert-condition');
+  const priceInp = document.getElementById('alert-price');
+  const noteInp  = document.getElementById('alert-note');
+  if (!condSel || !priceInp) return;
+
+  // Save current values to restore (so we don't disturb whatever the
+  // user was typing in the panel)
+  const prevCond  = condSel.value;
+  const prevPrice = priceInp.value;
+  const prevNote  = noteInp ? noteInp.value : '';
+  const prevEditingId = editingAlertId;
+
+  // Round to a sensible precision before stashing so the saved alert's
+  // targetPrice doesn't carry full-float noise (e.g. 62543.234567890123).
+  const id = selectedAsset.id || '';
+  let decimals;
+  if (id.includes('/') && id.includes('JPY')) decimals = 3;
+  else if (id.includes('/') && !id.startsWith('XAU') && !id.startsWith('XAG')) decimals = 5;
+  else if (price < 1)    decimals = 5;
+  else if (price < 100)  decimals = 4;
+  else                   decimals = 2;
+  const roundedPrice = parseFloat(price.toFixed(decimals));
+
+  condSel.value  = condition;
+  priceInp.value = String(roundedPrice);
+  if (noteInp) noteInp.value = '';   // quick alerts: no note
+  // Make sure we go through the CREATE path, not edit/save.
+  editingAlertId = null;
+
+  _closeQuickAlertModal();
+
+  // Some condition-dependent fields are toggled by an onchange handler.
+  // Fire the change event so the form's internal state aligns with the
+  // new condition. (Without this, the condition switch may not propagate
+  // to validations that look at the active section.)
+  try { condSel.dispatchEvent(new Event('change', { bubbles: true })); } catch(_) {}
+
+  // Call the existing creation pipeline. Restore the previous form
+  // values after — even on failure — so the user's panel isn't dirtied.
+  Promise.resolve(createAlert()).finally(() => {
+    try {
+      condSel.value  = prevCond;
+      priceInp.value = prevPrice;
+      if (noteInp) noteInp.value = prevNote;
+      editingAlertId = prevEditingId;
+      condSel.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch(_) {}
+  });
+}
+
 
 // ── Loading overlay ────────────────────────────────────────────────────────
 function setChartLoading(on) {
