@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]'];
     const buffer = [];
     let overlay = null, contents = null;
 
@@ -10771,7 +10771,16 @@ async function _fetchBriefing(force = false) {
       `${SUPABASE_URL}/functions/v1/economic-briefing?action=get_briefing`,
       { method: 'GET' }
     );
-    const data = await res.json();
+    let data;
+    try { data = await res.json(); }
+    catch(parseErr) {
+      const text = await res.text().catch(() => '<unreadable>');
+      console.warn('[briefing] response not JSON', res.status, text.slice(0, 200));
+      _briefingCache = { ok: false, error: `HTTP ${res.status} non-JSON: ${text.slice(0, 80)}` };
+      _briefingCacheTime = Date.now();
+      return _briefingCache;
+    }
+    console.log('[briefing] fetch status', res.status, 'ok:', data?.ok, 'keys:', Object.keys(data || {}).join(','));
     if (!res.ok || !data.ok) {
       console.warn('[briefing] fetch failed', res.status, data);
       _briefingCache = { ok: false, error: data?.error || `HTTP ${res.status}` };
@@ -10781,7 +10790,7 @@ async function _fetchBriefing(force = false) {
     _briefingCacheTime = Date.now();
     return _briefingCache;
   } catch(e) {
-    console.warn('[briefing] fetch exception', e);
+    console.warn('[briefing] fetch exception', e?.message || e, e?.stack || '');
     _briefingCache = { ok: false, error: String(e) };
     _briefingCacheTime = Date.now();
     return _briefingCache;
