@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]'];
     const buffer = [];
     let overlay = null, contents = null;
 
@@ -2867,89 +2867,222 @@ function _wireChartLongPress() {
   if (el.dataset.lpWired === '1') return;
   el.dataset.lpWired = '1';
 
-  const HOLD_MS  = 500;   // long-press threshold
-  const MOVE_TOL = 8;     // px before we treat as a pan instead
+  // Three states:
+  //   'idle'     — finger not down (or not relevant)
+  //   'holding'  — finger down, timer running, waiting for HOLD_MS
+  //   'drawing'  — past the hold threshold; user can now drag to make a zone
+  //
+  // While 'holding', any movement past MOVE_TOL cancels the gesture
+  // (chart panning takes priority — same as the old behavior).
+  // While 'drawing', movement is welcome; we track end-Y so release can
+  // build a zone from (startY, endY). Below ZONE_MIN_PX of drag we treat
+  // it as a single-price tap instead.
+  const HOLD_MS     = 500;
+  const MOVE_TOL    = 8;
+  const ZONE_MIN_PX = 8;
 
+  let state = 'idle';
   let timer = null;
   let startX = 0, startY = 0;
-  let activeY = 0;        // last Y at the moment of the long-press fire
+  let activeY = 0;
 
-  const cancel = () => {
+  const reset = () => {
     if (timer) { clearTimeout(timer); timer = null; }
+    state = 'idle';
+    _removeZoneDrawLines();
   };
 
   const startHold = (clientX, clientY) => {
-    cancel();
+    reset();
+    state = 'holding';
     startX = clientX; startY = clientY; activeY = clientY;
+    console.log('[longpress] startHold at', clientX, clientY);
     timer = setTimeout(() => {
       timer = null;
-      _fireQuickAlertPopup(activeY);
+      state = 'drawing';
+      console.log('[longpress] entering drawing state, activeY=', activeY,
+                  'lwSeries?', !!lwSeries, 'lwChart?', !!lwChart);
+      _enterZoneDrawMode(activeY);
+      try {
+        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('medium');
+      } catch (_) {}
     }, HOLD_MS);
   };
 
   const onMove = (clientX, clientY) => {
-    if (!timer) return;
-    if (Math.abs(clientX - startX) > MOVE_TOL || Math.abs(clientY - startY) > MOVE_TOL) {
-      cancel();
+    if (state === 'holding') {
+      // During the hold window we still want to allow chart-panning to win
+      // if the user wasn't trying to long-press. Past MOVE_TOL we bail.
+      if (Math.abs(clientX - startX) > MOVE_TOL || Math.abs(clientY - startY) > MOVE_TOL) {
+        reset();
+      } else {
+        activeY = clientY;
+      }
+    } else if (state === 'drawing') {
+      activeY = clientY;
+      _updateZoneDrawSecondLine(activeY);
+    }
+  };
+
+  const onRelease = () => {
+    console.log('[longpress] release state=', state, 'startY=', startY, 'activeY=', activeY);
+    if (state === 'drawing') {
+      const dragPx = Math.abs(activeY - startY);
+      const sY = startY, eY = activeY;
+      reset();
+      if (dragPx >= ZONE_MIN_PX) {
+        console.log('[longpress] → zone modal, drag=', dragPx, 'px');
+        _fireQuickAlertPopup(sY, eY);
+      } else {
+        console.log('[longpress] → single-price modal, drag=', dragPx, 'px');
+        _fireQuickAlertPopup(sY);
+      }
     } else {
-      activeY = clientY; // update Y in case of micro-jitter inside tolerance
+      reset();
     }
   };
 
   // Touch (mobile)
   el.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) { cancel(); return; }
+    if (e.touches.length !== 1) { reset(); return; }
     const t = e.touches[0];
     startHold(t.clientX, t.clientY);
   }, { passive: true });
   el.addEventListener('touchmove', (e) => {
-    if (e.touches.length !== 1) { cancel(); return; }
+    if (e.touches.length !== 1) { reset(); return; }
     const t = e.touches[0];
     onMove(t.clientX, t.clientY);
   }, { passive: true });
-  el.addEventListener('touchend',   cancel, { passive: true });
-  el.addEventListener('touchcancel', cancel, { passive: true });
+  el.addEventListener('touchend',   onRelease, { passive: true });
+  el.addEventListener('touchcancel', reset,    { passive: true });
 
-  // Mouse (desktop) — useful in your Firefox dev browser
+  // Mouse (desktop)
   el.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return; // only left button
+    if (e.button !== 0) return;
     startHold(e.clientX, e.clientY);
   });
   el.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
-  el.addEventListener('mouseup',   cancel);
-  el.addEventListener('mouseleave', cancel);
+  el.addEventListener('mouseup',   onRelease);
+  el.addEventListener('mouseleave', reset);
 }
 
-// ── Show the quick-alert popup for the given client-Y pixel ────────────────
-function _fireQuickAlertPopup(clientY) {
-  // Convert clientY → series-local Y (subtract chart container top) →
-  // price (via LightweightCharts API). If anything fails, bail silently.
+// ── Zone-draw price lines on the chart ────────────────────────────────────
+// Two LightweightCharts price lines (createPriceLine) — one anchored to
+// the long-press start, one that tracks the finger during the drag.
+// Tracked separately from the quick-alert confirm line (which appears
+// after release inside the modal).
+let _zoneDrawLineStart = null;
+let _zoneDrawLineEnd   = null;
+
+function _enterZoneDrawMode(startClientY) {
+  _removeZoneDrawLines();
+  if (!lwChart || !lwSeries || !selectedAsset) return;
+  const container = document.getElementById('lw-chart');
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  let startPrice;
+  try { startPrice = lwSeries.coordinateToPrice(startClientY - rect.top); }
+  catch (_) { return; }
+  if (startPrice == null || !isFinite(startPrice)) return;
+  try {
+    _zoneDrawLineStart = lwSeries.createPriceLine({
+      price:            startPrice,
+      color:            '#f59e0b',
+      lineWidth:        2,
+      lineStyle:        2,                // dashed
+      axisLabelVisible: true,
+      title:            'Start',
+    });
+  } catch (e) { console.warn('[zone-draw] start line failed', e); }
+}
+
+function _updateZoneDrawSecondLine(currentClientY) {
+  if (!lwChart || !lwSeries) return;
+  const container = document.getElementById('lw-chart');
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  let p;
+  try { p = lwSeries.coordinateToPrice(currentClientY - rect.top); }
+  catch (_) { return; }
+  if (p == null || !isFinite(p)) return;
+
+  // Remove the previous end line (LightweightCharts has no "move" — we
+  // re-create on every tick). On modern phones this is ~60Hz which the
+  // library handles cheaply.
+  if (_zoneDrawLineEnd && typeof lwSeries.removePriceLine === 'function') {
+    try { lwSeries.removePriceLine(_zoneDrawLineEnd); } catch (_) {}
+  }
+  try {
+    _zoneDrawLineEnd = lwSeries.createPriceLine({
+      price:            p,
+      color:            '#f59e0b',
+      lineWidth:        2,
+      lineStyle:        2,
+      axisLabelVisible: true,
+      title:            'End',
+    });
+  } catch (e) { console.warn('[zone-draw] end line failed', e); }
+}
+
+function _removeZoneDrawLines() {
+  if (lwSeries && typeof lwSeries.removePriceLine === 'function') {
+    if (_zoneDrawLineStart) {
+      try { lwSeries.removePriceLine(_zoneDrawLineStart); } catch (_) {}
+    }
+    if (_zoneDrawLineEnd) {
+      try { lwSeries.removePriceLine(_zoneDrawLineEnd); } catch (_) {}
+    }
+  }
+  _zoneDrawLineStart = null;
+  _zoneDrawLineEnd   = null;
+}
+
+// ── Show the quick-alert popup ────────────────────────────────────────────
+// Single-price mode: pass one clientY → ABOVE / TAP / BELOW modal.
+// Zone mode:         pass startClientY AND endClientY → ZONE modal with
+//                    the two prices spanning low and high.
+function _fireQuickAlertPopup(startClientY, endClientY) {
   if (!lwChart || !lwSeries) return;
   if (!selectedAsset) { showToast('No Asset', 'Select an asset first.', 'error'); return; }
 
   const container = document.getElementById('lw-chart');
   if (!container) return;
   const rect = container.getBoundingClientRect();
-  const localY = clientY - rect.top;
-  let price;
-  try {
-    price = lwSeries.coordinateToPrice(localY);
-  } catch(e) {
-    console.warn('[quick-alert] coordinateToPrice failed', e);
-    return;
-  }
-  if (price == null || !isFinite(price)) return;
 
-  // Haptic feedback on supported devices.
+  // Convert each pixel to a price. On any failure, bail silently — the
+  // user can long-press again.
+  const pxToPrice = (clientY) => {
+    try {
+      const p = lwSeries.coordinateToPrice(clientY - rect.top);
+      return (p != null && isFinite(p)) ? p : null;
+    } catch (e) {
+      console.warn('[quick-alert] coordinateToPrice failed', e);
+      return null;
+    }
+  };
+
+  const priceA = pxToPrice(startClientY);
+  if (priceA == null) return;
+  const priceB = (endClientY != null) ? pxToPrice(endClientY) : null;
+
+  // Haptic (in zone mode we already buzzed on entering zone-draw — buzz
+  // again on confirm to indicate "choose an alert type").
   try {
     if (window.Telegram?.WebApp?.HapticFeedback?.impactOccurred) {
       window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
     } else if (navigator.vibrate) {
       navigator.vibrate(15);
     }
-  } catch(_) {}
+  } catch (_) {}
 
-  _showQuickAlertModal(price);
+  if (priceB != null) {
+    // Zone mode — pass low/high pair, modal swaps to a single ZONE button.
+    const lo = Math.min(priceA, priceB);
+    const hi = Math.max(priceA, priceB);
+    _showQuickAlertModal(lo, hi);
+  } else {
+    _showQuickAlertModal(priceA);
+  }
 }
 
 // ── Quick-alert modal ─────────────────────────────────────────────────────
@@ -2991,7 +3124,12 @@ function _removeQuickAlertPriceLine() {
   _quickAlertPriceLine = null;
 }
 
-function _showQuickAlertModal(price) {
+// `priceOrLow` is always set. `zoneHigh` is set only in zone mode (D3
+// drag-to-zone). In zone mode the modal shows the price range and offers
+// a single ZONE alert button instead of ABOVE/TAP/BELOW.
+function _showQuickAlertModal(priceOrLow, zoneHigh) {
+  const isZone = (zoneHigh != null);
+
   let modal = document.getElementById('quick-alert-modal');
   if (!modal) {
     modal = document.createElement('div');
@@ -2999,10 +3137,10 @@ function _showQuickAlertModal(price) {
     modal.className = 'quick-alert-modal-overlay';
     modal.innerHTML = `
       <div class="quick-alert-modal-card">
-        <div class="quick-alert-modal-title">Quick alert at</div>
+        <div class="quick-alert-modal-title" id="quick-alert-modal-title">Quick alert at</div>
         <div class="quick-alert-modal-price" id="quick-alert-modal-price">—</div>
         <div class="quick-alert-modal-symbol" id="quick-alert-modal-symbol">—</div>
-        <div class="quick-alert-modal-row">
+        <div class="quick-alert-modal-row" id="quick-alert-modal-row-single">
           <button class="quick-alert-modal-btn quick-alert-modal-btn-above" data-cond="above">
             <span class="quick-alert-modal-btn-glyph">▲</span> ABOVE
           </button>
@@ -3013,98 +3151,149 @@ function _showQuickAlertModal(price) {
             <span class="quick-alert-modal-btn-glyph">▼</span> BELOW
           </button>
         </div>
+        <div class="quick-alert-modal-row" id="quick-alert-modal-row-zone" style="display:none">
+          <button class="quick-alert-modal-btn quick-alert-modal-btn-zone" data-cond="zone">
+            <span class="quick-alert-modal-btn-glyph">▤</span> SET ZONE
+          </button>
+        </div>
         <button class="quick-alert-modal-cancel" id="quick-alert-modal-cancel">Cancel</button>
       </div>
     `;
     document.body.appendChild(modal);
-    // Wire close on backdrop click + cancel
     modal.addEventListener('click', (e) => { if (e.target === modal) _closeQuickAlertModal(); });
     modal.querySelector('#quick-alert-modal-cancel').addEventListener('click', _closeQuickAlertModal);
     modal.querySelectorAll('.quick-alert-modal-btn').forEach(b => {
-      b.addEventListener('click', (e) => {
-        const cond = b.dataset.cond;
-        _createQuickAlertFromModal(cond);
-      });
+      b.addEventListener('click', () => _createQuickAlertFromModal(b.dataset.cond));
     });
   }
 
-  const priceEl  = modal.querySelector('#quick-alert-modal-price');
-  const symEl    = modal.querySelector('#quick-alert-modal-symbol');
-  priceEl.textContent = formatPrice(price, selectedAsset.id);
-  symEl.textContent   = selectedAsset.symbol || selectedAsset.id;
-  modal.dataset.price = String(price);
+  const titleEl = modal.querySelector('#quick-alert-modal-title');
+  const priceEl = modal.querySelector('#quick-alert-modal-price');
+  const symEl   = modal.querySelector('#quick-alert-modal-symbol');
+  const rowSingle = modal.querySelector('#quick-alert-modal-row-single');
+  const rowZone   = modal.querySelector('#quick-alert-modal-row-zone');
+
+  if (isZone) {
+    titleEl.textContent  = 'Quick zone alert';
+    priceEl.textContent  = `${formatPrice(priceOrLow, selectedAsset.id)}  –  ${formatPrice(zoneHigh, selectedAsset.id)}`;
+    rowSingle.style.display = 'none';
+    rowZone.style.display   = '';
+    modal.dataset.zoneLow  = String(priceOrLow);
+    modal.dataset.zoneHigh = String(zoneHigh);
+    // For consistency clear the single-price stash so a stale value
+    // doesn't fall back through.
+    modal.dataset.price = '';
+  } else {
+    titleEl.textContent  = 'Quick alert at';
+    priceEl.textContent  = formatPrice(priceOrLow, selectedAsset.id);
+    rowSingle.style.display = '';
+    rowZone.style.display   = 'none';
+    modal.dataset.price    = String(priceOrLow);
+    modal.dataset.zoneLow  = '';
+    modal.dataset.zoneHigh = '';
+  }
+
+  symEl.textContent = selectedAsset.symbol || selectedAsset.id;
   modal.classList.add('show');
 
-  // Visual marker on the chart at the captured price — removed when the
-  // modal closes (cancel, confirm, backdrop).
-  _showQuickAlertPriceLine(price);
+  // Visual marker(s) on the chart. The zone-draw lines are still present
+  // from the drag — keep them visible until the modal closes for a clean
+  // "this is what you set" preview. For single-price mode, draw a single
+  // amber line at the price.
+  if (!isZone) {
+    _showQuickAlertPriceLine(priceOrLow);
+  }
 }
 
 function _closeQuickAlertModal() {
   const modal = document.getElementById('quick-alert-modal');
   if (modal) modal.classList.remove('show');
   _removeQuickAlertPriceLine();
+  // Clear any zone-draw preview lines too (they survive until the modal
+  // closes so the user can see what they drew).
+  _removeZoneDrawLines();
 }
 
 // ── Wire chosen condition into the regular createAlert pipeline ───────────
 function _createQuickAlertFromModal(condition) {
   const modal = document.getElementById('quick-alert-modal');
   if (!modal) return;
-  const price = parseFloat(modal.dataset.price || '0');
-  if (!isFinite(price) || price <= 0) { _closeQuickAlertModal(); return; }
   if (!selectedAsset) { _closeQuickAlertModal(); return; }
 
-  // Pre-fill the existing form fields then call the existing pipeline so
-  // we get all the same validation, persistence, and toast UX. We don't
-  // touch the form-visible state — we just stage values, fire, then
-  // reset.
+  const isZone = (condition === 'zone');
+
+  // Shared form elements.
   const condSel  = document.getElementById('alert-condition');
   const priceInp = document.getElementById('alert-price');
+  const zoneLoEl = document.getElementById('alert-zone-low');
+  const zoneHiEl = document.getElementById('alert-zone-high');
   const noteInp  = document.getElementById('alert-note');
-  if (!condSel || !priceInp) return;
+  const noteZone = document.getElementById('alert-note-zone');
+  if (!condSel) return;
 
-  // Save current values to restore (so we don't disturb whatever the
-  // user was typing in the panel)
-  const prevCond  = condSel.value;
-  const prevPrice = priceInp.value;
-  const prevNote  = noteInp ? noteInp.value : '';
+  // Stash previous state so we can restore the panel after firing — quick
+  // alerts must not disturb whatever the user was filling in.
+  const prevCond     = condSel.value;
+  const prevPrice    = priceInp ? priceInp.value : '';
+  const prevZoneLo   = zoneLoEl ? zoneLoEl.value : '';
+  const prevZoneHi   = zoneHiEl ? zoneHiEl.value : '';
+  const prevNote     = noteInp  ? noteInp.value  : '';
+  const prevNoteZone = noteZone ? noteZone.value : '';
   const prevEditingId = editingAlertId;
 
-  // Round to a sensible precision before stashing so the saved alert's
-  // targetPrice doesn't carry full-float noise (e.g. 62543.234567890123).
+  // Precision helper — same logic used for both single-price and zone
+  // ends. Keeps the saved alert's numbers tidy.
   const id = selectedAsset.id || '';
-  let decimals;
-  if (id.includes('/') && id.includes('JPY')) decimals = 3;
-  else if (id.includes('/') && !id.startsWith('XAU') && !id.startsWith('XAG')) decimals = 5;
-  else if (price < 1)    decimals = 5;
-  else if (price < 100)  decimals = 4;
-  else                   decimals = 2;
-  const roundedPrice = parseFloat(price.toFixed(decimals));
+  const roundForAsset = (v) => {
+    let decimals;
+    if (id.includes('/') && id.includes('JPY')) decimals = 3;
+    else if (id.includes('/') && !id.startsWith('XAU') && !id.startsWith('XAG')) decimals = 5;
+    else if (v < 1)    decimals = 5;
+    else if (v < 100)  decimals = 4;
+    else               decimals = 2;
+    return parseFloat(v.toFixed(decimals));
+  };
 
-  condSel.value  = condition;
-  priceInp.value = String(roundedPrice);
-  if (noteInp) noteInp.value = '';   // quick alerts: no note
-  // Make sure we go through the CREATE path, not edit/save.
+  if (isZone) {
+    const lo = parseFloat(modal.dataset.zoneLow  || '0');
+    const hi = parseFloat(modal.dataset.zoneHigh || '0');
+    if (!isFinite(lo) || !isFinite(hi) || lo <= 0 || hi <= 0 || lo === hi) {
+      _closeQuickAlertModal();
+      return;
+    }
+    const rLo = roundForAsset(Math.min(lo, hi));
+    const rHi = roundForAsset(Math.max(lo, hi));
+    condSel.value = 'zone';
+    if (zoneLoEl) zoneLoEl.value = String(rLo);
+    if (zoneHiEl) zoneHiEl.value = String(rHi);
+    if (noteZone) noteZone.value = '';
+  } else {
+    const price = parseFloat(modal.dataset.price || '0');
+    if (!isFinite(price) || price <= 0) { _closeQuickAlertModal(); return; }
+    const roundedPrice = roundForAsset(price);
+    condSel.value  = condition;
+    if (priceInp) priceInp.value = String(roundedPrice);
+    if (noteInp)  noteInp.value  = '';
+  }
+
   editingAlertId = null;
-
   _closeQuickAlertModal();
 
-  // Some condition-dependent fields are toggled by an onchange handler.
-  // Fire the change event so the form's internal state aligns with the
-  // new condition. (Without this, the condition switch may not propagate
-  // to validations that look at the active section.)
-  try { condSel.dispatchEvent(new Event('change', { bubbles: true })); } catch(_) {}
+  // Fire the form's change handler so condition-dependent sections show
+  // the right inputs for downstream validation.
+  try { condSel.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
 
-  // Call the existing creation pipeline. Restore the previous form
-  // values after — even on failure — so the user's panel isn't dirtied.
   Promise.resolve(createAlert()).finally(() => {
     try {
       condSel.value  = prevCond;
-      priceInp.value = prevPrice;
-      if (noteInp) noteInp.value = prevNote;
+      if (priceInp) priceInp.value = prevPrice;
+      if (zoneLoEl) zoneLoEl.value = prevZoneLo;
+      if (zoneHiEl) zoneHiEl.value = prevZoneHi;
+      if (noteInp)  noteInp.value  = prevNote;
+      if (noteZone) noteZone.value = prevNoteZone;
       editingAlertId = prevEditingId;
       condSel.dispatchEvent(new Event('change', { bubbles: true }));
-    } catch(_) {}
+    } catch (_) {}
   });
 }
 
@@ -3994,9 +4183,15 @@ function renderAlerts() {
     const livePriceLine = livePrice
       ? `<span class="text-sm-muted">Current price: <b class="opacity-90">${formatPrice(livePrice, alert.assetId)}</b></span><br>`
       : '';
+    // Short ID tag (first 4 hex chars of alert UUID) so the user can
+    // tell apart two alerts on the same symbol at a glance. Matches the
+    // suffix shown in the Telegram messages.
+    const _idShort = (alert.id && typeof alert.id === 'string')
+      ? alert.id.split('-')[0].slice(0, 4) : '';
+    const _idTag = _idShort ? `<span class="alert-id">#${_idShort}</span>` : '';
     div.innerHTML = `
       <div class="alert-header-row">
-        <div class="alert-symbol">${alert.symbol}</div>
+        <div class="alert-symbol">${alert.symbol}${_idTag}</div>
         <div class="alert-badge ${badgeClass}">${badgeLabel}</div>
       </div>
       <div class="alert-detail">
@@ -5385,6 +5580,19 @@ async function _createSetupAlertInner() {
     a.assetId   === selectedAsset.id &&
     !isTerminalTradeStatus(a)
   );
+  // Diagnostic — visible in debug overlay. Tells us why the dialog did
+  // or didn't fire on this attempt.
+  console.log('[setup-create] sibling check', {
+    editingAlertId,
+    assetId:        selectedAsset.id,
+    symbol:         selectedAsset.symbol,
+    totalAlerts:    alerts.length,
+    setupCount:     alerts.filter(a => a.condition === 'setup').length,
+    sameAssetSetups: alerts.filter(a => a.condition === 'setup' && a.assetId === selectedAsset.id)
+                            .map(a => ({ id: a.id, status: a.status,
+                                          tradeStatus: (() => { try { return JSON.parse(a.note || '{}').tradeStatus; } catch (_) { return undefined; } })() })),
+    siblingsFound:  symbolSiblings.length,
+  });
   if (symbolSiblings.length > 0) {
     const proceed = confirm(
       `You already have ${symbolSiblings.length} active ${selectedAsset.symbol} setup${symbolSiblings.length === 1 ? '' : 's'}.` +
@@ -10651,7 +10859,7 @@ function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timefra
   } else {
     const emoji   = isAbove ? '🟢' : '🔴';
     const dirWord = isAbove ? 'rises above' : 'falls below';
-    header   = `${emoji} <b>Alert Set — ${symbol}</b>`;
+    header   = `${emoji} <b>Alert Set — ${symbol}</b>${_alertIdSuffix(alertId)}`;
     subtitle = `You'll be notified when <b>${symbol}</b> ${dirWord}`;
     rows.push(tgRow('Target',    `<b>${formatPrice(targetPrice, assetId)}</b>`));
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
