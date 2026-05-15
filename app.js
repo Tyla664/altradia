@@ -2956,6 +2956,41 @@ function _fireQuickAlertPopup(clientY) {
 // Lives at the bottom of <body> as #quick-alert-modal. Lazily injected
 // the first time we need it so we don't bloat initial DOM. Shows the
 // captured price + three big buttons: ABOVE, BELOW, TAP. Plus Cancel.
+// LightweightCharts price-line drawn at the long-press location while
+// the quick-alert modal is open. Lets the user see *exactly* where the
+// alert would sit before they confirm — matches TradingView's behavior.
+// Kept on a module-level variable so we can detach it cleanly when the
+// modal closes (cancel, confirm, or backdrop dismissal).
+let _quickAlertPriceLine = null;
+
+function _showQuickAlertPriceLine(price) {
+  // Defensive: only draw if the chart and series exist. lwSeries is the
+  // current candle series; createPriceLine attaches a horizontal line at
+  // the given price with a labeled axis tag.
+  _removeQuickAlertPriceLine();
+  if (!lwSeries || typeof lwSeries.createPriceLine !== 'function') return;
+  try {
+    _quickAlertPriceLine = lwSeries.createPriceLine({
+      price,
+      color:             '#f59e0b',         // amber — matches "about to alert"
+      lineWidth:         2,
+      lineStyle:         2,                  // 2 = dashed in LightweightCharts
+      axisLabelVisible:  true,
+      title:             'Quick alert',
+    });
+  } catch (e) {
+    console.warn('[quick-alert] createPriceLine failed', e);
+    _quickAlertPriceLine = null;
+  }
+}
+
+function _removeQuickAlertPriceLine() {
+  if (_quickAlertPriceLine && lwSeries && typeof lwSeries.removePriceLine === 'function') {
+    try { lwSeries.removePriceLine(_quickAlertPriceLine); } catch (_) {}
+  }
+  _quickAlertPriceLine = null;
+}
+
 function _showQuickAlertModal(price) {
   let modal = document.getElementById('quick-alert-modal');
   if (!modal) {
@@ -2999,11 +3034,16 @@ function _showQuickAlertModal(price) {
   symEl.textContent   = selectedAsset.symbol || selectedAsset.id;
   modal.dataset.price = String(price);
   modal.classList.add('show');
+
+  // Visual marker on the chart at the captured price — removed when the
+  // modal closes (cancel, confirm, backdrop).
+  _showQuickAlertPriceLine(price);
 }
 
 function _closeQuickAlertModal() {
   const modal = document.getElementById('quick-alert-modal');
   if (modal) modal.classList.remove('show');
+  _removeQuickAlertPriceLine();
 }
 
 // ── Wire chosen condition into the regular createAlert pipeline ───────────
@@ -3510,10 +3550,9 @@ async function _createAlertInner() {
     note        = document.getElementById('alert-note').value.trim();
     if (isNaN(targetPrice) || targetPrice <= 0)
       return showToast('Invalid Price', 'Enter a valid target price.', 'error');
-    const tolSel = document.getElementById('alert-tap-tolerance').value;
-    tapTolerance = tolSel === 'custom'
-      ? parseFloat(document.getElementById('alert-tap-custom').value) || 0.2
-      : parseFloat(tolSel);
+    // Tap alerts no longer use a tolerance band — they fire on prev→current
+    // crossing of the target line. The tapTolerance field is left nulled
+    // for back-compat with existing alert rows.
   } else {
     targetPrice = parseFloat(document.getElementById('alert-price').value);
     note        = document.getElementById('alert-note').value.trim();
@@ -3575,8 +3614,11 @@ async function _createAlertInner() {
   // at 116.822 (0.076% away) fires the same minute it's created — exactly
   // what was reported in image 2.
   if (isTap && currentPrice > 0) {
-    const tolFrac = (tapTolerance || 0.2) / 100;
-    const insideAtCreation = Math.abs(currentPrice - targetPrice) / targetPrice <= tolFrac;
+    // Tap alerts use prev→current crossing detection (no tolerance band).
+    // "Already inside at creation" reduces to "price exactly at target" —
+    // an effectively impossible condition for live data, so we just skip
+    // the latch.
+    const insideAtCreation = false;
     if (insideAtCreation) newAlert.tapTriggeredOnce = true;
   }
 
@@ -3604,7 +3646,7 @@ async function _createAlertInner() {
 
   document.getElementById('alert-timeframe').value        = '';
   document.getElementById('alert-repeat').value           = '0';
-  document.getElementById('alert-tap-tolerance').value    = '0.2';
+  // tap-tolerance UI was removed; nothing to reset.
 
 
   delete document.getElementById('alert-price').dataset.userEdited;
@@ -3621,7 +3663,7 @@ async function _createAlertInner() {
   }
 
   if (telegramEnabled && tgNotifPrefs.confirmation) {
-    sendTelegram(tgCreatedMessage(assetInfo.symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance));
+    sendTelegram(tgCreatedMessage(assetInfo.symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, null, newAlert.id));
   }
 
   renderAlerts();
@@ -4317,7 +4359,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       noteDirty = true;
       const distPct = (distToLevel / entry * 100).toFixed(2);
       if (tgActive && tgNotifPrefs.proximity) sendTelegram([
-        `👀 <b>ENTRY APPROACHING — ${alert.symbol}</b>`,
+        `👀 <b>ENTRY APPROACHING — ${alert.symbol}</b>${_alertIdSuffix(alert.id)}`,
         ``,
         `Price is within ${distPct}% of your entry level.`,
         ``,
@@ -4345,7 +4387,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       noteDirty = true;
       const distPct = (distToLevel / sl * 100).toFixed(2);
       if (tgActive && tgNotifPrefs.proximity) sendTelegram([
-        `⚠️ <b>STOP LOSS APPROACHING — ${alert.symbol}</b>`,
+        `⚠️ <b>STOP LOSS APPROACHING — ${alert.symbol}</b>${_alertIdSuffix(alert.id)}`,
         ``,
         `Price is within ${distPct}% of your stop loss.`,
         ``,
@@ -4371,7 +4413,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       noteDirty = true;
       const distPct = (distToLevel / tp1 * 100).toFixed(2);
       if (tgActive && tgNotifPrefs.proximity) sendTelegram([
-        `👀 <b>TP1 APPROACHING — ${alert.symbol}</b>`,
+        `👀 <b>TP1 APPROACHING — ${alert.symbol}</b>${_alertIdSuffix(alert.id)}`,
         ``,
         `Price is within ${distPct}% of your first take profit.`,
         ``,
@@ -4396,7 +4438,7 @@ function checkSetupProximity(alert, j, currentPrice, prev) {
       noteDirty = true;
       const distPct = (distToLevel / tp2 * 100).toFixed(2);
       if (tgActive && tgNotifPrefs.proximity) sendTelegram([
-        `👀 <b>TP2 APPROACHING — ${alert.symbol}</b>`,
+        `👀 <b>TP2 APPROACHING — ${alert.symbol}</b>${_alertIdSuffix(alert.id)}`,
         ``,
         `Price is within ${distPct}% of your second take profit.`,
         ``,
@@ -4549,7 +4591,7 @@ async function _fireSetupTransitionAtomic(alert, j, nextStatus, currentPrice) {
     // setup-level transition twice (e.g. entry_hit → entry_hit) in the
     // window where the DB update is in flight.
     if (!_recordTgFire(alert.id, 'setup:' + nextStatus)) {
-      sendTelegram(tgSetupLevelMessage(alert.symbol, nextStatus, currentPrice, alert.assetId, j));
+      sendTelegram(tgSetupLevelMessage(alert.symbol, nextStatus, currentPrice, alert.assetId, j, alert.id));
     }
   }
 }
@@ -4892,7 +4934,7 @@ async function checkSingleAlert(alert, currentPrice, now, nowDate) {
       sendTelegram(tgAlertMessage('trigger', alert.symbol, alert.condition,
         alert.targetPrice, currentPrice, alert.assetId,
         alert.note, alert.timeframe, alert.zoneLow, alert.zoneHigh,
-        alert.repeatInterval, alert.tapTolerance));
+        alert.repeatInterval, null, alert.id));
     }
   }
   renderAlerts();
@@ -5229,7 +5271,7 @@ async function _createSetupAlertInner() {
         const uj = JSON.parse(existing.note);
         sendTelegram(tgSetupUpdatedMessage(
           existing.symbol, uj.direction, existing.targetPrice,
-          uj.sl, uj.tp1, uj.tp2, uj.tp3, existing.timeframe, uj
+          uj.sl, uj.tp1, uj.tp2, uj.tp3, existing.timeframe, uj, existing.id
         ));
       }
       if (isMobileLayout()) { switchAlertTab('trades'); mobileTab('alerts'); }
@@ -5331,6 +5373,25 @@ async function _createSetupAlertInner() {
       `You already have an active ${selectedAsset.symbol} setup at ${formatPrice(entry, selectedAsset.id)} with the same SL and TP1.`,
       'error',
     );
+  }
+
+  // Soft warning — same symbol, different parameters. The user might have
+  // good reasons (different timeframe / scenario), so we ask rather than
+  // block. Skipped silently if there's no active sibling. Note: we run
+  // this AFTER the exact-match block above so a duplicate is still hard-
+  // blocked rather than confirmed-through.
+  const symbolSiblings = alerts.filter(a =>
+    a.condition === 'setup' &&
+    a.assetId   === selectedAsset.id &&
+    !isTerminalTradeStatus(a)
+  );
+  if (symbolSiblings.length > 0) {
+    const proceed = confirm(
+      `You already have ${symbolSiblings.length} active ${selectedAsset.symbol} setup${symbolSiblings.length === 1 ? '' : 's'}.` +
+      `\n\nMultiple active setups on the same symbol can lead to overlapping or conflicting trades.` +
+      `\n\nCreate another one anyway?`
+    );
+    if (!proceed) return;
   }
 
   const newAlert = {
@@ -5438,7 +5499,7 @@ async function _createSetupAlertInner() {
   })();
 
   if (telegramEnabled && telegramChatId && tgNotifPrefs.confirmation) {
-    sendTelegram(tgSetupCreatedMessage(selectedAsset.symbol, setupDirection, entry, sl, tp1, tp2, tp3, timeframe, journal));
+    sendTelegram(tgSetupCreatedMessage(selectedAsset.symbol, setupDirection, entry, sl, tp1, tp2, tp3, timeframe, journal, newAlert.id));
   }
 }
 
@@ -6009,7 +6070,7 @@ async function confirmManualClose(alertId) {
 }
 
 // ── Telegram messages for setup alerts ────────────────────────────────────
-function tgSetupCreatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, timeframe, journal) {
+function tgSetupCreatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, timeframe, journal, alertId) {
   const dir   = direction === 'long' ? 'LONG' : 'SHORT';
   const rrRaw = tp1 && sl ? Math.abs(tp1 - entry) / Math.abs(entry - sl) : null;
   const rows = [
@@ -6026,7 +6087,7 @@ function tgSetupCreatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, time
     journal.htfContext   ? tgRow('HTF',       `<i>${journal.htfContext}</i>`) : null,
   ].filter(Boolean);
   return [
-    `📋 <b>TRADE SETUP ACTIVE — ${symbol}</b>`,
+    `📋 <b>TRADE SETUP ACTIVE — ${symbol}</b>${_alertIdSuffix(alertId)}`,
     ``,
     `Your trade is queued. Alerts will fire at each level.`,
     ``,
@@ -6038,7 +6099,7 @@ function tgSetupCreatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, time
   ].join('\n');
 }
 
-function tgSetupUpdatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, timeframe, journal) {
+function tgSetupUpdatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, timeframe, journal, alertId) {
   const dir   = direction === 'long' ? 'LONG' : 'SHORT';
   const rrRaw = tp1 && sl ? Math.abs(tp1 - entry) / Math.abs(entry - sl) : null;
   const rows = [
@@ -6055,7 +6116,7 @@ function tgSetupUpdatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, time
     journal.htfContext  ? tgRow('HTF',    `<i>${journal.htfContext}</i>`) : null,
   ].filter(Boolean);
   return [
-    `✏️ <b>SETUP UPDATED — ${symbol}</b>`,
+    `✏️ <b>SETUP UPDATED — ${symbol}</b>${_alertIdSuffix(alertId)}`,
     ``,
     `Your trade setup has been updated.`,
     ``,
@@ -6065,40 +6126,41 @@ function tgSetupUpdatedMessage(symbol, direction, entry, sl, tp1, tp2, tp3, time
   ].join('\n');
 }
 
-function tgSetupLevelMessage(symbol, level, price, assetId, journal) {
+function tgSetupLevelMessage(symbol, level, price, assetId, journal, alertId) {
+  const idTail = _alertIdSuffix(alertId);
   const templates = {
     entry_hit: {
-      header: `🚀 <b>ENTRY TRIGGERED — ${symbol}</b>`,
+      header: `🚀 <b>ENTRY TRIGGERED — ${symbol}</b>${idTail}`,
       body:   `Price has hit your entry level. <b>Your trade may now be active.</b>`,
       action: `Open your trading platform and confirm your position is filled. Manage your SL and monitor TP levels.`,
     },
     sl_hit: {
-      header: `🛑 <b>STOP LOSS HIT — ${symbol}</b>`,
+      header: `🛑 <b>STOP LOSS HIT — ${symbol}</b>${idTail}`,
       body:   `Price reached your stop loss level. Trade is likely closed.`,
       action: `Review your trading platform. Log your emotion and lessons in altradia.`,
     },
     tp1_approaching: {
-      header: `👀 <b>TP1 APPROACHING — ${symbol}</b>`,
+      header: `👀 <b>TP1 APPROACHING — ${symbol}</b>${idTail}`,
       body:   `Price is getting close to your first take profit.`,
       action: `Consider securing partial profits at TP1. Move SL to breakeven if your plan allows.`,
     },
     tp1_hit: {
-      header: `✅ <b>TP1 HIT — ${symbol}</b>`,
+      header: `✅ <b>TP1 HIT — ${symbol}</b>${idTail}`,
       body:   `Price reached your first take profit target.`,
       action: `Consider banking partial profits. Manage your SL to protect remaining position.`,
     },
     tp2_approaching: {
-      header: `👀 <b>TP2 APPROACHING — ${symbol}</b>`,
+      header: `👀 <b>TP2 APPROACHING — ${symbol}</b>${idTail}`,
       body:   `Price is approaching your second take profit.`,
       action: `Decide whether to secure profits at TP2 or let it run to TP3.`,
     },
     tp2_hit: {
-      header: `✅ <b>TP2 HIT — ${symbol}</b>`,
+      header: `✅ <b>TP2 HIT — ${symbol}</b>${idTail}`,
       body:   `Price reached your second take profit.`,
       action: `Excellent! Consider protecting remaining position or letting it run to TP3.`,
     },
     full_tp: {
-      header: `🏆 <b>FULL TP HIT — ${symbol}</b>`,
+      header: `🏆 <b>FULL TP HIT — ${symbol}</b>${idTail}`,
       body:   `Price reached your final take profit. Trade fully complete.`,
       action: `Amazing execution! Close your position and log this trade in your journal.`,
     },
@@ -10523,30 +10585,40 @@ function tgRow(label, value) {
   return `<code>${label.padEnd(16)}</code>${value}`;
 }
 
-function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance) {
+// Short ID suffix for Telegram message headers. Lets the user
+// disambiguate two alerts on the same symbol at a glance. First 4 chars
+// of the alert UUID, formatted as a monospace #abcd tag.
+function _alertIdSuffix(id) {
+  if (!id || typeof id !== 'string') return '';
+  const head = id.split('-')[0];
+  if (!head) return '';
+  return ` <code>#${head.slice(0, 4)}</code>`;
+}
+
+function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, _tapTolerance, alertId) {
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
   const isTap   = condition === 'tap';
   let header, subtitle, rows = [];
 
   if (isZone) {
-    header   = `📍 <b>ZONE ALERT — ${symbol}</b>`;
+    header   = `📍 <b>ZONE ALERT — ${symbol}</b>${_alertIdSuffix(alertId)}`;
     subtitle = `Price has entered your zone`;
     rows.push(tgRow('Zone',          `<b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`));
     rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
     if (timeframe)                            rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
     if (repeatInterval && repeatInterval > 0) rows.push(tgRow('Repeat',   `<b>Every ${repeatInterval} min</b>`));
   } else if (isTap) {
-    header   = `🎯 <b>TAP ALERT — ${symbol}</b>`;
+    header   = `🎯 <b>TAP ALERT — ${symbol}</b>${_alertIdSuffix(alertId)}`;
     subtitle = `Price touched your level`;
     rows.push(tgRow('Level',         `<b>${formatPrice(targetPrice, assetId)}</b>`));
     rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
-    rows.push(tgRow('Tolerance',     `<b>±${tapTolerance}%</b>`));
+    // tolerance row removed (tap alerts no longer use a tolerance band)
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
   } else {
     const emoji   = isAbove ? '🚀' : '📉';
     const dirWord = isAbove ? 'broke above' : 'dropped below';
-    header   = `${emoji} <b>ALERT TRIGGERED — ${symbol}</b>`;
+    header   = `${emoji} <b>ALERT TRIGGERED — ${symbol}</b>${_alertIdSuffix(alertId)}`;
     subtitle = `Price ${dirWord} your target`;
     rows.push(tgRow('Target',        `<b>${formatPrice(targetPrice, assetId)}</b>`));
     rows.push(tgRow('Current price', `<b>${formatPrice(currentPrice, assetId)}</b>`));
@@ -10557,7 +10629,7 @@ function tgAlertMessage(type, symbol, condition, targetPrice, currentPrice, asse
   return [header, ``, subtitle, ``, ...rows, ``, `<a href="https://t.me/tradewatchalert_bot/assistant">Dismiss in altradia →</a>`].join('\n');
 }
 
-function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance) {
+function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, _tapTolerance, alertId) {
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
   const isTap   = condition === 'tap';
@@ -10565,16 +10637,16 @@ function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timefra
   let header, subtitle, rows = [];
 
   if (isZone) {
-    header   = `📍 <b>Zone Alert Set — ${symbol}</b>`;
+    header   = `📍 <b>Zone Alert Set — ${symbol}</b>${_alertIdSuffix(alertId)}`;
     subtitle = `You'll be notified when <b>${symbol}</b> enters the zone`;
     rows.push(tgRow('Zone',      `<b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`));
     if (timeframe)                            rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
     if (repeatInterval && repeatInterval > 0) rows.push(tgRow('Repeat',   `<b>Every ${repeatInterval} min</b>`));
   } else if (isTap) {
-    header   = `🎯 <b>Tap Alert Set — ${symbol}</b>`;
+    header   = `🎯 <b>Tap Alert Set — ${symbol}</b>${_alertIdSuffix(alertId)}`;
     subtitle = `You'll be notified when <b>${symbol}</b> touches your level`;
     rows.push(tgRow('Level',     `<b>${formatPrice(targetPrice, assetId)}</b>`));
-    rows.push(tgRow('Tolerance', `<b>±${tapTolerance}%</b>`));
+    // tolerance row removed
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
   } else {
     const emoji   = isAbove ? '🟢' : '🔴';
@@ -10590,29 +10662,30 @@ function tgCreatedMessage(symbol, condition, targetPrice, assetId, note, timefra
 }
 
 // ── Telegram message for edited alerts ────────────────────────────────────
-function tgEditedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance) {
+function tgEditedMessage(symbol, condition, targetPrice, assetId, note, timeframe, zoneLow, zoneHigh, repeatInterval, _tapTolerance, alertId) {
   const isZone  = condition === 'zone';
   const isAbove = condition === 'above';
   const isTap   = condition === 'tap';
 
   let header, subtitle, rows = [];
+  const idTail = _alertIdSuffix(alertId);
 
   if (isZone) {
-    header   = `✏️ <b>Alert Updated — ${symbol}</b>`;
+    header   = `✏️ <b>Alert Updated — ${symbol}</b>${idTail}`;
     subtitle = `Your zone alert has been updated`;
     rows.push(tgRow('Zone',      `<b>${formatPrice(zoneLow, assetId)} – ${formatPrice(zoneHigh, assetId)}</b>`));
     if (timeframe)                            rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
     if (repeatInterval && repeatInterval > 0) rows.push(tgRow('Repeat',   `<b>Every ${repeatInterval} min</b>`));
   } else if (isTap) {
-    header   = `✏️ <b>Alert Updated — ${symbol}</b>`;
+    header   = `✏️ <b>Alert Updated — ${symbol}</b>${idTail}`;
     subtitle = `Your tap alert has been updated`;
     rows.push(tgRow('Level',     `<b>${formatPrice(targetPrice, assetId)}</b>`));
-    rows.push(tgRow('Tolerance', `<b>±${tapTolerance}%</b>`));
+    // tolerance row removed
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
   } else {
     const emoji   = isAbove ? '🟢' : '🔴';
     const dirWord = isAbove ? 'rises above' : 'falls below';
-    header   = `✏️ <b>Alert Updated — ${symbol}</b>`;
+    header   = `✏️ <b>Alert Updated — ${symbol}</b>${idTail}`;
     subtitle = `Now watching for <b>${symbol}</b> to ${dirWord}`;
     rows.push(tgRow('New target', `<b>${formatPrice(targetPrice, assetId)}</b>`));
     if (timeframe) rows.push(tgRow('Timeframe', `<b>${timeframe}</b>`));
@@ -13050,7 +13123,7 @@ async function init() {
   // ── Alert form focus tracking ─────────────────────────────────────────────
   const alertFormInputs = [
     'alert-price', 'alert-zone-low', 'alert-zone-high',
-    'alert-note', 'alert-note-zone', 'alert-tap-custom',
+    'alert-note', 'alert-note-zone',
     'setup-entry', 'setup-sl', 'setup-tp1', 'setup-tp2', 'setup-tp3',
     'setup-entry-reason', 'setup-htf-context',
   ];
@@ -13062,7 +13135,7 @@ async function init() {
       setTimeout(() => { userTypingInForm = false; }, 300);
     });
   });
-  ['alert-condition','alert-timeframe','alert-repeat','alert-tap-tolerance',
+  ['alert-condition','alert-timeframe','alert-repeat',
    'setup-type','setup-timeframe','setup-emotion-before'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -13504,10 +13577,7 @@ function editAlert(id) {
     const noteEl  = document.getElementById('alert-note');
     if (priceEl) { priceEl.value = alert.targetPrice; priceEl.dataset.userEdited = '1'; }
     if (noteEl)  noteEl.value = alert.note || '';
-    if (alert.condition === 'tap') {
-      const tolEl = document.getElementById('alert-tap-tolerance');
-      if (tolEl) tolEl.value = alert.tapTolerance || 0.2;
-    }
+    // tap-tolerance UI removed; no prefill needed for tap alerts.
   }
 
   // Change the SET ALERT button label to UPDATE ALERT
@@ -13556,10 +13626,7 @@ async function saveEditedAlert() {
     note         = document.getElementById('alert-note').value.trim();
     if (isNaN(targetPrice) || targetPrice <= 0)
       return showToast('Invalid Price', 'Enter a valid target price.', 'error');
-    const tolSel = document.getElementById('alert-tap-tolerance').value;
-    tapTolerance = tolSel === 'custom'
-      ? parseFloat(document.getElementById('alert-tap-custom').value) || 0.2
-      : parseFloat(tolSel);
+    // tap-tolerance removed — see _createAlertInner.
   } else {
     targetPrice = parseFloat(document.getElementById('alert-price').value);
     note        = document.getElementById('alert-note').value.trim();
@@ -13649,7 +13716,7 @@ async function saveEditedAlert() {
   if (telegramEnabled && telegramChatId && tgNotifPrefs.confirmation) {
     sendTelegram(tgEditedMessage(
       alert.symbol, condition, targetPrice, alert.assetId,
-      note, timeframe, zoneLow, zoneHigh, repeatInterval, tapTolerance
+      note, timeframe, zoneLow, zoneHigh, repeatInterval, null, editingAlertId
     ));
   }
 
