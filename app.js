@@ -2661,7 +2661,8 @@ window.addEventListener('popstate', (e) => {
       // the user lands back at the menu, not at root.
       if (pageId === 'menu-page-profile' ||
           pageId === 'menu-page-analytics' ||
-          pageId === 'menu-page-subscription') {
+          pageId === 'menu-page-subscription' ||
+          pageId === 'menu-page-reviews') {
         if (typeof openMenuPanel === 'function') openMenuPanel();
       }
     }, 280);
@@ -9593,6 +9594,25 @@ async function _deleteMyReview() {
   }
 }
 
+async function _reportReview(reviewId) {
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/functions/v1/reviews?action=report`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ review_id: reviewId, on: true }),
+      }
+    );
+    const data = await res.json().catch(() => ({ ok:false }));
+    if (!res.ok || !data.ok) return { ok:false, error: data?.error || `HTTP ${res.status}` };
+    return { ok:true };
+  } catch(e) {
+    console.warn('[reviews] report exception', e?.message || e);
+    return { ok:false, error: String(e?.message || e) };
+  }
+}
+
 async function _toggleHelpful(reviewId, on) {
   try {
     const res = await _authedFetch(
@@ -9773,7 +9793,16 @@ function _renderReviewItem(r, userVoted) {
     <div class="reviews-item" data-id="${_escapeHtml(r.id)}">
       <div class="reviews-item-header">
         <div class="reviews-item-name">${_escapeHtml(r.display_name || 'Trader')}</div>
-        <div class="reviews-item-when">${_escapeHtml(when)} ${edited}</div>
+        <div class="reviews-item-when-wrap">
+          <span class="reviews-item-when">${_escapeHtml(when)} ${edited}</span>
+          <button class="reviews-item-report" onclick="_onReportTap(this, '${_escapeHtml(r.id)}')" aria-label="Report review" title="Report">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+              <circle cx="3" cy="7" r="0.9" fill="currentColor"/>
+              <circle cx="7" cy="7" r="0.9" fill="currentColor"/>
+              <circle cx="11" cy="7" r="0.9" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="reviews-item-stars">${_starsHtml(r.rating, 'reviews-item-star')}</div>
       ${r.body ? `<div class="reviews-item-body">${_escapeHtml(r.body)}</div>` : ''}
@@ -9787,6 +9816,36 @@ function _renderReviewItem(r, userVoted) {
         <span class="reviews-item-helpful-count">(${r.helpful_count || 0})</span>
       </button>
     </div>`;
+}
+
+// Report flow: confirm, POST, remove from view. Keeps the user's intent
+// visible immediately rather than waiting for a fresh list fetch.
+async function _onReportTap(btn, reviewId) {
+  if (!confirm('Report this review as inappropriate?\n\nReported reviews are hidden from your view and reviewed by the altradia team.')) {
+    return;
+  }
+  try { window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light'); } catch(_) {}
+  const resp = await _reportReview(reviewId);
+  if (!resp.ok) {
+    alert('Could not report review: ' + (resp.error || 'unknown error'));
+    return;
+  }
+  // Hide the item locally — no full re-fetch needed. Also remove from
+  // the accumulator so paginating doesn't re-surface it.
+  _reviewsAccum = _reviewsAccum.filter(r => r.id !== reviewId);
+  const node = document.querySelector(`.reviews-item[data-id="${reviewId.replace(/"/g,'')}"]`);
+  if (node) {
+    node.style.transition = 'opacity 0.18s ease, max-height 0.22s ease, margin 0.22s ease';
+    node.style.maxHeight  = node.offsetHeight + 'px';
+    requestAnimationFrame(() => {
+      node.style.opacity   = '0';
+      node.style.maxHeight = '0';
+      node.style.margin    = '0';
+      node.style.padding   = '0';
+      node.style.border    = '0';
+    });
+    setTimeout(() => node.remove(), 230);
+  }
 }
 
 // ── Star rendering ───────────────────────────────────────────────────────
@@ -9981,6 +10040,70 @@ function _refreshEditorSaveState() {
   }
   btn.disabled = !(ratingOk && changed);
   btn.textContent = _editorOriginal ? 'Save changes' : 'Submit';
+}
+
+// ── Review prompt (home banner) ──────────────────────────────────────────
+// Shows after 7 days of cumulative use, if no review and not recently
+// dismissed. Cheap localStorage check — runs on every home render.
+const REVIEW_PROMPT_MIN_DAYS = 7;
+const REVIEW_PROMPT_DISMISS_DAYS = 30;
+
+function _ensureFirstOpenTimestamp() {
+  // Stamp on first call; never overwrite.
+  if (!localStorage.getItem('altradia_first_open_ts')) {
+    localStorage.setItem('altradia_first_open_ts', String(Date.now()));
+  }
+}
+
+async function _maybeShowReviewPrompt() {
+  const el = document.getElementById('home-review-prompt');
+  if (!el) return;
+  el.style.display = 'none';
+
+  _ensureFirstOpenTimestamp();
+  const firstOpenTs = parseInt(localStorage.getItem('altradia_first_open_ts') || '0', 10);
+  const daysSinceFirst = (Date.now() - firstOpenTs) / (24 * 60 * 60 * 1000);
+  if (daysSinceFirst < REVIEW_PROMPT_MIN_DAYS) return;
+
+  // Respect a recent dismissal.
+  const dismissedTs = parseInt(localStorage.getItem('altradia_review_prompt_dismissed_ts') || '0', 10);
+  if (dismissedTs > 0) {
+    const daysSinceDismiss = (Date.now() - dismissedTs) / (24 * 60 * 60 * 1000);
+    if (daysSinceDismiss < REVIEW_PROMPT_DISMISS_DAYS) return;
+  }
+
+  // Hard skip if the user has already written a review. Use cached
+  // value when available to avoid hitting the server on every home
+  // render; otherwise do a single quick fetch.
+  if (_myReview !== null && _myReview !== undefined) {
+    if (_myReview) return; // they have one — never prompt
+  } else {
+    // Lazy first-time fetch; tolerate failures silently.
+    try {
+      _myReview = await _fetchMyReview();
+      if (_myReview) return;
+    } catch (_) { /* show the prompt anyway — better than failing silently */ }
+  }
+
+  el.style.display = 'flex';
+}
+
+function _onReviewPromptRate() {
+  // Hide locally; opening Reviews implicitly suppresses the prompt anyway
+  // since the user will likely write a review there.
+  const el = document.getElementById('home-review-prompt');
+  if (el) el.style.display = 'none';
+  openReviewsPage();
+}
+
+function _onReviewPromptDismiss() {
+  localStorage.setItem('altradia_review_prompt_dismissed_ts', String(Date.now()));
+  const el = document.getElementById('home-review-prompt');
+  if (el) {
+    el.style.transition = 'opacity 0.18s ease';
+    el.style.opacity    = '0';
+    setTimeout(() => { el.style.display = 'none'; el.style.opacity = ''; }, 200);
+  }
 }
 
 async function _submitReviewEditor() {
@@ -10188,7 +10311,8 @@ async function _waitTwa(maxMs = 3000) {
             // Pages that live inside the menu panel — reopen it on back
             if (pageId === 'menu-page-profile' ||
                 pageId === 'menu-page-analytics' ||
-                pageId === 'menu-page-subscription') {
+                pageId === 'menu-page-subscription' ||
+                pageId === 'menu-page-reviews') {
               openMenuPanel();
             }
           }, 280);
@@ -10816,6 +10940,10 @@ const HOME_WATCHLIST_CAP = 5;
 const HOME_STRENGTH_CAP  = 3;
 
 function _initWatchlistSubTabs() {
+  // Stamp the first-open timestamp so the review prompt timer starts
+  // counting from the user's first visit, not the day they happen to
+  // pass the 7-day mark for the first time.
+  try { _ensureFirstOpenTimestamp(); } catch(_) {}
   // Function name preserved for backward compat with the existing call
   // site in setupAllSidePanels(). Internally it now builds the home shell.
   const watchlistPanel = document.getElementById('panel-my-watchlist');
@@ -10834,6 +10962,33 @@ function _initWatchlistSubTabs() {
       <div class="home-greeting">
         <div class="home-greeting-line" id="home-greeting-line">Welcome back 👋</div>
         <div class="home-greeting-sub">Here's your market overview</div>
+      </div>
+
+      <!-- Review prompt — only shown when:
+             (a) user has used altradia for >= 7 days
+             (b) user has not written a review yet
+             (c) prompt hasn't been dismissed in the last 30 days
+           Hidden until _maybeShowReviewPrompt() flips display:block. -->
+      <div id="home-review-prompt" class="home-review-prompt" style="display:none">
+        <div class="home-review-prompt-icon">
+          <svg width="22" height="22" viewBox="0 0 18 18" fill="none">
+            <path d="M9 2L10.8 7H16L11.5 10.3L13.3 15.3L9 12L4.7 15.3L6.5 10.3L2 7H7.2Z"
+                  stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="home-review-prompt-text">
+          <div class="home-review-prompt-title">Enjoying altradia?</div>
+          <div class="home-review-prompt-sub">Take a moment to share your experience with other traders</div>
+        </div>
+        <div class="home-review-prompt-actions">
+          <button class="home-review-prompt-rate" onclick="_onReviewPromptRate()">Rate</button>
+          <button class="home-review-prompt-skip" onclick="_onReviewPromptDismiss()" aria-label="Dismiss">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Watchlist section. One-row header: title (left) + actions (right). -->
@@ -10956,6 +11111,8 @@ function _applyHomeViewMode(mode) {
     // Hide the full-list body in case we're returning to home from
     // briefing-full mode.
     if (typeof _hideBriefingFullBody === 'function') _hideBriefingFullBody();
+    // Review prompt — non-blocking, fires its own DOM update when ready.
+    if (typeof _maybeShowReviewPrompt === 'function') _maybeShowReviewPrompt();
   } else if (mode === 'watchlist-full') {
     // Trigger a full re-render into wl-sub-assets via the existing function.
     if (typeof renderWatchlist === 'function') renderWatchlist();
@@ -13671,7 +13828,8 @@ function showTgConnectPrompt() {
           const pageId = page.id;
           if (pageId === 'menu-page-profile' ||
               pageId === 'menu-page-analytics' ||
-              pageId === 'menu-page-subscription') {
+              pageId === 'menu-page-subscription' ||
+              pageId === 'menu-page-reviews') {
             openMenuPanel();
           }
         });
