@@ -9469,6 +9469,543 @@ function closeMenuPage(name) {
   setTimeout(() => { page.style.display = 'none'; }, 280);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Reviews & Rating
+// ═══════════════════════════════════════════════════════════════════════
+// Single file scope, lives near the menu nav helpers. Public entry points
+// are openReviewsPage() (called from the menu item), and the on* handlers
+// referenced from inline HTML. Everything else is _-prefixed and private
+// in intent.
+
+// ── State ────────────────────────────────────────────────────────────────
+let _reviewsData       = null;   // last list response (reviews + aggregates)
+let _myReview          = null;   // current user's review, or null
+let _reviewsSort       = 'helpful';
+let _reviewsPage       = 0;
+let _reviewsAccum      = [];     // accumulated rows across paginated fetches
+let _reviewsLoading    = false;
+
+// Editor state
+let _editorRating      = 0;
+let _editorOriginal    = null;   // { rating, body } when editing, else null
+
+// ── Public entry: open the page and load data ────────────────────────────
+function openReviewsPage() {
+  // Don't close the menu panel — sub-pages sit above it; same convention
+  // used by About / Help / Affiliate. Closing the panel here would make
+  // the user see the home page flash before the sub-page slides in.
+  openMenuPage('reviews');
+  // Reset paging/sort each open so the user comes back to a clean slate.
+  _reviewsSort  = 'helpful';
+  _reviewsPage  = 0;
+  _reviewsAccum = [];
+  _renderReviewsPage(true);
+}
+
+// Display name from Telegram WebApp, with the same fallback chain
+// used elsewhere in the app (affiliate dashboard etc).
+function _getReviewDisplayName() {
+  try {
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (tgUser) {
+      const composed = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim();
+      if (composed) return composed;
+      if (tgUser.username) return tgUser.username;
+    }
+  } catch(_) {}
+  return (typeof telegramUserName !== 'undefined' && telegramUserName) || 'Trader';
+}
+
+// ── Fetch helpers ────────────────────────────────────────────────────────
+async function _fetchReviewsList(force = false) {
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/functions/v1/reviews?action=list&sort=${encodeURIComponent(_reviewsSort)}&page=${_reviewsPage}`,
+      { method: 'GET' }
+    );
+    const data = await res.json().catch(() => ({ ok:false, error:`HTTP ${res.status}` }));
+    if (!res.ok || !data.ok) {
+      console.warn('[reviews] list failed', res.status, data);
+      return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    }
+    return data;
+  } catch(e) {
+    console.warn('[reviews] list exception', e?.message || e);
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+async function _fetchMyReview() {
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/functions/v1/reviews?action=mine`,
+      { method: 'GET' }
+    );
+    const data = await res.json().catch(() => ({ ok:false }));
+    if (!res.ok || !data.ok) {
+      console.warn('[reviews] mine failed', res.status, data);
+      return null;
+    }
+    return data.review || null;
+  } catch(e) {
+    console.warn('[reviews] mine exception', e?.message || e);
+    return null;
+  }
+}
+
+async function _saveMyReview(rating, body) {
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/functions/v1/reviews?action=save`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating,
+          body: body || '',
+          display_name: _getReviewDisplayName(),
+        }),
+      }
+    );
+    const data = await res.json().catch(() => ({ ok:false }));
+    if (!res.ok || !data.ok) {
+      console.warn('[reviews] save failed', res.status, data);
+      return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    }
+    return data;
+  } catch(e) {
+    console.warn('[reviews] save exception', e?.message || e);
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+async function _deleteMyReview() {
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/functions/v1/reviews?action=delete`,
+      { method: 'POST', headers: { 'Content-Type':'application/json' } }
+    );
+    const data = await res.json().catch(() => ({ ok:false }));
+    return !!data.ok;
+  } catch(e) {
+    console.warn('[reviews] delete exception', e?.message || e);
+    return false;
+  }
+}
+
+async function _toggleHelpful(reviewId, on) {
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/functions/v1/reviews?action=helpful`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ review_id: reviewId, on: !!on }),
+      }
+    );
+    const data = await res.json().catch(() => ({ ok:false }));
+    if (!res.ok || !data.ok) return null;
+    return data; // { ok, helpful_count }
+  } catch(e) {
+    console.warn('[reviews] helpful exception', e?.message || e);
+    return null;
+  }
+}
+
+// ── Render: orchestrator ─────────────────────────────────────────────────
+// `freshFetch` controls whether we re-fetch the "mine" record. For page
+// transitions and saves we want fresh data; for sort changes only the
+// list needs to refresh.
+async function _renderReviewsPage(freshFetch = true) {
+  const body = document.getElementById('reviews-page-body');
+  if (!body) return;
+  if (_reviewsLoading) return; // re-entry guard
+  _reviewsLoading = true;
+
+  if (freshFetch && _reviewsPage === 0) {
+    // Show loading state only on the initial render to avoid flashing
+    // when paginating or sorting.
+    body.innerHTML = `<div class="reviews-loading">Loading…</div>`;
+  }
+
+  // Parallel fetch of "mine" + list. On non-fresh calls we already
+  // have _myReview cached.
+  const [listData, mine] = await Promise.all([
+    _fetchReviewsList(),
+    (freshFetch || _myReview === undefined) ? _fetchMyReview() : Promise.resolve(_myReview),
+  ]);
+
+  _reviewsLoading = false;
+
+  if (!listData.ok) {
+    body.innerHTML = `
+      <div class="reviews-error">
+        <div class="reviews-error-text">Couldn't load reviews</div>
+        <button class="reviews-error-btn" onclick="_renderReviewsPage(true)">Retry</button>
+      </div>`;
+    return;
+  }
+
+  _myReview = mine;
+
+  // Accumulate paginated rows. When the page is 0 we reset; for >0 we
+  // append. This lets the "Load more" button keep adding without a full
+  // re-render of earlier rows.
+  if (_reviewsPage === 0) _reviewsAccum = listData.reviews.slice();
+  else                    _reviewsAccum = _reviewsAccum.concat(listData.reviews);
+
+  _reviewsData = listData;
+  _paintReviewsPage();
+}
+
+// ── Render: paint the whole page from _reviewsData + _myReview + _reviewsAccum
+function _paintReviewsPage() {
+  const body = document.getElementById('reviews-page-body');
+  if (!body) return;
+  const d = _reviewsData;
+  if (!d) return;
+
+  const hero = _renderReviewsHero(d);
+  const my   = _renderMyReviewCard(_myReview);
+  const sort = _renderSortBar(_reviewsSort);
+  // Filter out the user's own review from the list (shown above instead).
+  const list = _reviewsAccum.filter(r => r.user_id !== currentUserId);
+  const items = list.map(r => _renderReviewItem(r, (d.user_voted || []).includes(r.id))).join('');
+  const more = d.has_more ? `
+    <div class="reviews-loadmore-wrap">
+      <button class="reviews-loadmore" onclick="_loadMoreReviews()">Load more</button>
+    </div>` : '';
+
+  body.innerHTML = `
+    ${hero}
+    ${my}
+    ${sort}
+    <div class="reviews-list">
+      ${items || (list.length === 0 && d.total > 0
+        ? `<div class="reviews-empty-text">Only your review so far — change the sort or write something to see more.</div>`
+        : (d.total === 0
+          ? `<div class="reviews-empty-text">Be the first to review altradia.</div>`
+          : ''))}
+    </div>
+    ${more}
+  `;
+}
+
+// ── Render: hero (average + distribution) ────────────────────────────────
+function _renderReviewsHero(d) {
+  const avg     = (d.average || 0);
+  const total   = d.total || 0;
+  const dist    = d.distribution || { 1:0, 2:0, 3:0, 4:0, 5:0 };
+  const max     = total || 1; // avoid div-by-zero
+
+  const bars = [5,4,3,2,1].map(n => {
+    const pct = total ? Math.round((dist[n] / max) * 100) : 0;
+    return `
+      <div class="reviews-dist-row">
+        <span class="reviews-dist-label">${n}★</span>
+        <span class="reviews-dist-bar"><span class="reviews-dist-fill" style="width:${pct}%"></span></span>
+        <span class="reviews-dist-count">${dist[n] || 0}</span>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="reviews-hero">
+      <div class="reviews-hero-left">
+        <div class="reviews-hero-avg">${avg ? avg.toFixed(1) : '—'}</div>
+        <div class="reviews-hero-stars">${_starsHtml(Math.round(avg), 'reviews-hero-star')}</div>
+        <div class="reviews-hero-total">${total} review${total === 1 ? '' : 's'}</div>
+      </div>
+      <div class="reviews-hero-right">
+        ${bars}
+      </div>
+    </div>`;
+}
+
+// ── Render: the user's own review card ───────────────────────────────────
+function _renderMyReviewCard(mine) {
+  if (!mine) {
+    return `
+      <div class="reviews-mine reviews-mine-empty" onclick="_openReviewEditor()">
+        <div class="reviews-mine-title">Rate altradia</div>
+        <div class="reviews-mine-stars">${_starsHtml(0, 'reviews-mine-star reviews-mine-star-empty')}</div>
+        <div class="reviews-mine-cta">Tap to write your review</div>
+      </div>`;
+  }
+  const when = _relativeTime(mine.created_at);
+  return `
+    <div class="reviews-mine">
+      <div class="reviews-mine-header">
+        <div class="reviews-mine-title">Your review</div>
+        <div class="reviews-mine-when">${_escapeHtml(when)}</div>
+      </div>
+      <div class="reviews-mine-stars">${_starsHtml(mine.rating, 'reviews-mine-star')}</div>
+      ${mine.body ? `<div class="reviews-mine-body">${_escapeHtml(mine.body)}</div>` : ''}
+      <div class="reviews-mine-actions">
+        <button class="reviews-mine-edit"   onclick="_openReviewEditor()">Edit</button>
+        <button class="reviews-mine-delete" onclick="_confirmDeleteReview()">Delete</button>
+      </div>
+    </div>`;
+}
+
+// ── Render: sort segmented control ───────────────────────────────────────
+function _renderSortBar(sort) {
+  const opts = [
+    { id: 'helpful', label: 'Most helpful' },
+    { id: 'recent',  label: 'Most recent'  },
+    { id: 'highest', label: 'Highest'      },
+    { id: 'lowest',  label: 'Lowest'       },
+  ];
+  return `
+    <div class="reviews-sort">
+      ${opts.map(o => `
+        <button class="reviews-sort-opt ${o.id === sort ? 'active' : ''}"
+                onclick="_setReviewsSort('${o.id}')">${o.label}</button>
+      `).join('')}
+    </div>`;
+}
+
+// ── Render: single review row ────────────────────────────────────────────
+function _renderReviewItem(r, userVoted) {
+  const when = _relativeTime(r.created_at);
+  const edited = r.updated_at && r.updated_at !== r.created_at
+    ? `<span class="reviews-item-edited">· edited</span>` : '';
+  return `
+    <div class="reviews-item" data-id="${_escapeHtml(r.id)}">
+      <div class="reviews-item-header">
+        <div class="reviews-item-name">${_escapeHtml(r.display_name || 'Trader')}</div>
+        <div class="reviews-item-when">${_escapeHtml(when)} ${edited}</div>
+      </div>
+      <div class="reviews-item-stars">${_starsHtml(r.rating, 'reviews-item-star')}</div>
+      ${r.body ? `<div class="reviews-item-body">${_escapeHtml(r.body)}</div>` : ''}
+      <button class="reviews-item-helpful ${userVoted ? 'voted' : ''}"
+              onclick="_onHelpfulTap(this, '${_escapeHtml(r.id)}')">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M5 6V12H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h2zm0 0L8 2c1 0 1.5.5 1.5 1.5V6h2.5a1 1 0 0 1 1 1.2l-1 4a1 1 0 0 1-1 .8H5"
+                stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <span class="reviews-item-helpful-label">${userVoted ? 'Helpful' : 'Helpful'}</span>
+        <span class="reviews-item-helpful-count">(${r.helpful_count || 0})</span>
+      </button>
+    </div>`;
+}
+
+// ── Star rendering ───────────────────────────────────────────────────────
+function _starsHtml(rating, cls) {
+  let html = '';
+  for (let i = 1; i <= 5; i++) {
+    const filled = i <= rating;
+    html += `
+      <svg class="${cls} ${filled ? 'filled' : ''}" width="16" height="16" viewBox="0 0 18 18" fill="none">
+        <path d="M9 2L10.8 7H16L11.5 10.3L13.3 15.3L9 12L4.7 15.3L6.5 10.3L2 7H7.2Z"
+              stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"
+              fill="${filled ? 'currentColor' : 'none'}"/>
+      </svg>`;
+  }
+  return html;
+}
+
+// ── Time-ago formatting ──────────────────────────────────────────────────
+function _relativeTime(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (isNaN(ms) || ms < 0) return '';
+  const s = Math.floor(ms / 1000);
+  if (s < 60)         return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60)         return `${m} min${m === 1 ? '' : 's'} ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24)         return `${h} hour${h === 1 ? '' : 's'} ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7)          return `${d} day${d === 1 ? '' : 's'} ago`;
+  const w = Math.floor(d / 7);
+  if (w < 5)          return `${w} week${w === 1 ? '' : 's'} ago`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12)        return `${mo} month${mo === 1 ? '' : 's'} ago`;
+  const y = Math.floor(d / 365);
+  return `${y} year${y === 1 ? '' : 's'} ago`;
+}
+
+// ── User actions ─────────────────────────────────────────────────────────
+function _setReviewsSort(sort) {
+  if (sort === _reviewsSort) return;
+  _reviewsSort = sort;
+  _reviewsPage = 0;
+  _reviewsAccum = [];
+  _renderReviewsPage(false); // we already have _myReview cached
+}
+
+async function _loadMoreReviews() {
+  if (_reviewsLoading) return;
+  _reviewsPage += 1;
+  await _renderReviewsPage(false);
+}
+
+// Optimistic toggle of helpful: flip class + counter immediately, fire
+// the request, on failure revert. Avoids the perceptual delay.
+async function _onHelpfulTap(btn, reviewId) {
+  if (!btn) return;
+  const wasVoted = btn.classList.contains('voted');
+  const countEl  = btn.querySelector('.reviews-item-helpful-count');
+  const oldCount = parseInt((countEl?.textContent || '(0)').replace(/[()]/g,''), 10) || 0;
+  const newOn    = !wasVoted;
+  // Optimistic flip
+  btn.classList.toggle('voted', newOn);
+  if (countEl) countEl.textContent = `(${Math.max(0, oldCount + (newOn ? 1 : -1))})`;
+  try { window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light'); } catch(_) {}
+
+  const resp = await _toggleHelpful(reviewId, newOn);
+  if (!resp) {
+    // Revert.
+    btn.classList.toggle('voted', wasVoted);
+    if (countEl) countEl.textContent = `(${oldCount})`;
+    return;
+  }
+  // Server-authoritative count.
+  if (countEl) countEl.textContent = `(${resp.helpful_count || 0})`;
+}
+
+// Delete confirmation. Uses a plain confirm() since the app already uses
+// confirm() for similar destructive actions elsewhere.
+async function _confirmDeleteReview() {
+  if (!confirm('Delete your review? You can write a new one later.')) return;
+  const ok = await _deleteMyReview();
+  if (!ok) {
+    alert('Could not delete review. Try again.');
+    return;
+  }
+  _myReview = null;
+  _reviewsPage = 0;
+  _reviewsAccum = [];
+  await _renderReviewsPage(false);
+}
+
+// ── Editor modal ─────────────────────────────────────────────────────────
+function _openReviewEditor() {
+  const modal = document.getElementById('review-editor-modal');
+  if (!modal) return;
+  // Snapshot for cancel/dirty checking.
+  _editorOriginal = _myReview
+    ? { rating: _myReview.rating, body: _myReview.body || '' }
+    : null;
+  _editorRating = _myReview?.rating || 0;
+
+  // Title varies based on edit vs new.
+  const title = document.getElementById('review-editor-title');
+  if (title) title.textContent = _myReview ? 'Edit your review' : 'Rate altradia';
+
+  // Body prefill.
+  const bodyEl = document.getElementById('review-editor-body');
+  if (bodyEl) bodyEl.value = _myReview?.body || '';
+
+  _renderEditorStars();
+  _updateEditorCounter();
+  _refreshEditorSaveState();
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => modal.classList.add('open'));
+
+  // Wire textarea counter listener once per open (idempotent).
+  if (bodyEl && !bodyEl.dataset.wired) {
+    bodyEl.addEventListener('input', () => {
+      _updateEditorCounter();
+      _refreshEditorSaveState();
+    });
+    bodyEl.dataset.wired = '1';
+  }
+}
+
+function _closeReviewEditor() {
+  const modal = document.getElementById('review-editor-modal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+}
+
+// Dismiss only when the user taps the backdrop itself, not the sheet.
+function _onReviewEditorBackdropClick(ev) {
+  if (ev.target.id === 'review-editor-modal') _closeReviewEditor();
+}
+
+function _renderEditorStars() {
+  const wrap = document.getElementById('review-editor-stars');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    const filled = i <= _editorRating;
+    const btn = document.createElement('button');
+    btn.className = 'review-editor-star ' + (filled ? 'filled' : '');
+    btn.setAttribute('aria-label', `${i} star${i === 1 ? '' : 's'}`);
+    btn.innerHTML = `
+      <svg width="32" height="32" viewBox="0 0 18 18" fill="none">
+        <path d="M9 2L10.8 7H16L11.5 10.3L13.3 15.3L9 12L4.7 15.3L6.5 10.3L2 7H7.2Z"
+              stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"
+              fill="${filled ? 'currentColor' : 'none'}"/>
+      </svg>`;
+    btn.onclick = () => _setEditorRating(i);
+    wrap.appendChild(btn);
+  }
+  // Rating-label text reflects the selected count.
+  const lbl = document.getElementById('review-editor-rating-label');
+  if (lbl) {
+    const labels = { 0: 'Tap a star to rate',
+                     1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very good', 5: 'Excellent' };
+    lbl.textContent = labels[_editorRating] || '';
+  }
+}
+
+function _setEditorRating(n) {
+  _editorRating = n;
+  try { window.Telegram?.WebApp?.HapticFeedback?.selectionChanged?.(); } catch(_) {}
+  _renderEditorStars();
+  _refreshEditorSaveState();
+}
+
+function _updateEditorCounter() {
+  const bodyEl = document.getElementById('review-editor-body');
+  const nowEl  = document.getElementById('review-editor-counter-now');
+  if (bodyEl && nowEl) nowEl.textContent = bodyEl.value.length;
+}
+
+// Enable Save only when there's a rating (required) AND something has
+// changed since the original (so re-tapping Save when nothing's new is
+// a no-op).
+function _refreshEditorSaveState() {
+  const btn = document.getElementById('review-editor-save-btn');
+  if (!btn) return;
+  const bodyEl = document.getElementById('review-editor-body');
+  const curBody = (bodyEl?.value || '').trim();
+  const ratingOk = _editorRating >= 1 && _editorRating <= 5;
+  let changed = true;
+  if (_editorOriginal) {
+    changed = (_editorOriginal.rating !== _editorRating) ||
+              ((_editorOriginal.body || '').trim() !== curBody);
+  }
+  btn.disabled = !(ratingOk && changed);
+  btn.textContent = _editorOriginal ? 'Save changes' : 'Submit';
+}
+
+async function _submitReviewEditor() {
+  const bodyEl = document.getElementById('review-editor-body');
+  const body   = (bodyEl?.value || '').trim();
+  if (!(_editorRating >= 1 && _editorRating <= 5)) return;
+  const saveBtn = document.getElementById('review-editor-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+  const resp = await _saveMyReview(_editorRating, body);
+  if (!resp.ok) {
+    alert('Could not save review: ' + (resp.error || 'unknown error'));
+    if (saveBtn) { saveBtn.disabled = false; _refreshEditorSaveState(); }
+    return;
+  }
+  _myReview = resp.review;
+  _closeReviewEditor();
+  // Re-fetch so the public list reflects the new/updated review and any
+  // aggregate (average, distribution) movement.
+  _reviewsPage = 0;
+  _reviewsAccum = [];
+  await _renderReviewsPage(false);
+}
+
+
 function toggleSound() {
   soundEnabled = !soundEnabled;
   // sound-btn/waves/mute are gone from header — state synced via updateMenuToggles()
