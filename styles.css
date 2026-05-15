@@ -6177,3 +6177,32 @@ header {
   transition: color 0.15s ease;
 }
 .home-review-prompt-skip:active { color: var(--text); background: rgba(148, 163, 184, 0.1); }
+
+.quick-alert-modal-btn-zone {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.35);
+  flex: 1;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.quick-alert-modal-btn-zone:active {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+/* Alert card ID tag — small monospace #abc1 suffix next to the symbol.
+   Mirrors the Telegram suffix so users can match a card to a Telegram
+   notification at a glance. */
+.alert-id {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 4px;
+  vertical-align: middle;
+  text-transform: lowercase;
+}
