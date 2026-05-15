@@ -6087,3 +6087,93 @@ header {
   color: rgba(255, 255, 255, 0.6);
   cursor: not-allowed;
 }
+
+/* ── Report button on review items ──────────────────────────────────── */
+.reviews-item-when-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.reviews-item-report {
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.reviews-item-report:hover { opacity: 1; }
+.reviews-item-report:active { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+/* ── Home review prompt banner ──────────────────────────────────────── */
+.home-review-prompt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 0 0 14px 0;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(2, 90, 145, 0.06));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.home-review-prompt-icon {
+  flex-shrink: 0;
+  color: #f59e0b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+.home-review-prompt-text {
+  flex: 1;
+  min-width: 0;
+}
+.home-review-prompt-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.home-review-prompt-sub {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.home-review-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.home-review-prompt-rate {
+  padding: 7px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.home-review-prompt-rate:active { opacity: 0.85; }
+.home-review-prompt-skip {
+  background: transparent;
+  border: none;
+  padding: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+.home-review-prompt-skip:active { color: var(--text); background: rgba(148, 163, 184, 0.1); }
