@@ -2640,7 +2640,6 @@ window.addEventListener('popstate', (e) => {
     'journal-asset-picker',
     'export-modal-overlay',
     'payment-modal-overlay',
-    'feedback-overlay',
     'journal-filters-overlay',
   ];
   // Static overlays defined in index.html must be HIDDEN, not removed —
@@ -10576,7 +10575,6 @@ async function _waitTwa(maxMs = 3000) {
           'journal-asset-picker',
           'export-modal-overlay',
           'payment-modal-overlay',
-          'feedback-overlay',
           'journal-filters-overlay',
         ];
         const STATIC_OVERLAYS_BB = new Set(['journal-filters-overlay']);
@@ -12936,128 +12934,6 @@ async function _pollTierUpdate(expectedTier, maxAttempts = 10) {
   setTimeout(poll, 2000); // first check after 2s
 }
 
-
-// ═══════════════════════════════════════════════
-// FEEDBACK FORM
-// ═══════════════════════════════════════════════
-function openFeedbackForm() {
-  const existing = document.getElementById('feedback-overlay');
-  if (existing) existing.remove();
-
-  const ov = document.createElement('div');
-  ov.id = 'feedback-overlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99995;display:flex;align-items:flex-end;justify-content:center';
-
-  ov.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;box-sizing:border-box">
-      <div class="flex-sb-mb">
-        <div style="font-family:var(--mono);font-size:0.68rem;font-weight:700;letter-spacing:0.12em;color:var(--text);text-transform:uppercase">Send Feedback</div>
-        <button onclick="document.getElementById('feedback-overlay').remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        </button>
-      </div>
-
-      <div style="font-family:var(--mono);font-size:0.56rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:8px">Category</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px" id="fb-category-btns">
-        ${['Bug Report','Feature Request','UI/UX Feedback','Performance','Other'].map((c,i) =>
-          `<button onclick="setFbCategory(this,'${c}')" class="export-opt-btn${i===0?' active':''}" style="flex:none;padding:6px 12px;font-size:0.6rem">${c}</button>`
-        ).join('')}
-      </div>
-
-      <div style="font-family:var(--mono);font-size:0.56rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:8px">Rating</div>
-      <div style="display:flex;gap:8px;margin-bottom:18px" id="fb-rating-row">
-        ${[1,2,3,4,5].map(n =>
-          `<button onclick="setFbRating(${n})" id="fb-star-${n}"
-            style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--muted);font-size:1rem;cursor:pointer;transition:all 0.15s">
-            ${n <= 3 ? '😐' : n === 4 ? '🙂' : '😍'}
-          </button>`
-        ).join('')}
-      </div>
-
-      <div style="font-family:var(--mono);font-size:0.56rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:8px">Your feedback</div>
-      <textarea id="fb-text" placeholder="Tell us what you think, what's broken, or what you'd love to see…"
-        style="width:100%;min-height:100px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:0.78rem;padding:12px 14px;border-radius:9px;box-sizing:border-box;resize:vertical;margin-bottom:16px;line-height:1.5"></textarea>
-
-      <button id="fb-submit-btn" onclick="submitFeedback()"
-        style="width:100%;padding:14px;background:var(--accent);color:#000;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.1em;border:none;border-radius:10px;cursor:pointer;text-transform:uppercase">
-        Send Feedback
-      </button>
-    </div>`;
-
-  document.body.appendChild(ov);
-  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
-
-  // Init state
-  ov._category = 'Bug Report';
-  ov._rating   = 0;
-}
-
-function setFbCategory(btn, cat) {
-  const ov = document.getElementById('feedback-overlay');
-  if (ov) ov._category = cat;
-  document.querySelectorAll('#fb-category-btns button').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
-function setFbRating(n) {
-  const ov = document.getElementById('feedback-overlay');
-  if (ov) ov._rating = n;
-  for (let i = 1; i <= 5; i++) {
-    const btn = document.getElementById(`fb-star-${i}`);
-    if (btn) {
-      btn.style.borderColor = i <= n ? 'var(--accent)' : 'var(--border)';
-      btn.style.background  = i <= n ? 'rgba(var(--accent-rgb),0.08)' : 'var(--bg)';
-    }
-  }
-}
-
-async function submitFeedback() {
-  const ov       = document.getElementById('feedback-overlay');
-  const text     = document.getElementById('fb-text')?.value?.trim();
-  const category = ov?._category || 'General';
-  const rating   = ov?._rating   || 0;
-
-  if (!text) {
-    showToast('Add feedback', 'Please write something before sending.', 'error');
-    return;
-  }
-
-  const btn = document.getElementById('fb-submit-btn');
-  if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
-
-  try {
-    // Store feedback in Supabase feedback table (create table if needed)
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/feedback`, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        apikey:           SUPABASE_ANON_KEY,
-        Authorization:   `Bearer ${SUPABASE_ANON_KEY}`,
-        Prefer:          'return=minimal',
-      },
-      body: JSON.stringify({
-        user_id:      currentUserId   || null,
-        telegram_id:  telegramChatId  || null,
-        username:     telegramUserName || null,
-        tier:         getUserTier(),
-        category,
-        rating,
-        message:      text,
-        app_version:  '1.0',
-        created_at:   new Date().toISOString(),
-      }),
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    ov?.remove();
-    showToast('Thank you!', 'Your feedback has been received. We read every message.', 'success');
-  } catch (err) {
-    console.error('Feedback error:', err);
-    if (btn) { btn.textContent = 'Send Feedback'; btn.disabled = false; }
-    showToast('Failed to send', 'Could not submit feedback. Please try again.', 'error');
-  }
-}
 
 // ═══════════════════════════════════════════════
 // DELETE ACCOUNT
