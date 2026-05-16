@@ -6206,3 +6206,36 @@ header {
   vertical-align: middle;
   text-transform: lowercase;
 }
+
+/* ── Leaderboard: highlight the viewing user's own row ────────────────
+   Keeps the rest of the leaderboard visually consistent but draws the
+   eye to "this is you" with a soft accent border and slightly bolder
+   text. Matches the screenshot-bragging-rights use case. */
+.lb-row-me {
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--accent-rgb), 0.10) 0%,
+    rgba(var(--accent-rgb), 0.03) 60%,
+    transparent 100%
+  );
+  border-left: 3px solid var(--accent);
+  padding-left: calc(var(--lb-row-pad, 12px) - 3px);
+}
+.lb-username-me {
+  color: var(--accent) !important;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.lb-username-me::after {
+  content: '· you';
+  display: inline-block;
+  margin-left: 6px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  vertical-align: middle;
+}
