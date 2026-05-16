@@ -532,6 +532,10 @@ async function saveAlert(alert) {
   if (!currentUserId) return alert;
   try {
     const insertPayload = {
+      // Use the client-generated UUID so Telegram confirmation, DOM card,
+      // and DB row share one ID. Supabase will accept it (the column
+      // default just generates a new one if id is null).
+      id:              alert.id,
       user_id:         currentUserId,
       asset_id:        alert.assetId,
       symbol:          alert.symbol,
