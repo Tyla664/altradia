@@ -7129,6 +7129,9 @@ async function saveJournalEntry() {
     if (idx !== -1) journalEntries[idx] = saved;
     else journalEntries.unshift(saved);
     renderJournal();
+    // Update leaderboard score in the background — new journal entry means
+    // a new consistency value.
+    _persistConsistencyScore();
     // Screenshots uploaded silently
   } else {
     // Remove temp entry and warn
@@ -8816,7 +8819,10 @@ function renderProfilePage(tier) {
   const total        = entries.length;
   const wins         = entries.filter(e => _classifyOutcome(e) === 'win').length;
   const winRate      = total > 0 ? Math.round((wins/total)*100) : 0;
-  const consistency  = total > 0 ? Math.min(98, Math.round(60 + (wins/total)*38)) : 0;
+  const consistency  = _computeConsistencyScore(entries);
+  // Opportunistically persist so the leaderboard stays current even for
+  // users who haven't journaled recently but visit their profile.
+  if (typeof _persistConsistencyScore === 'function') _persistConsistencyScore();
   const pnlEntries   = entries.map(e => ({ ...e, _pnl: resolveEntryPnl(e) })).filter(e => e._pnl != null);
   const avgPnl       = pnlEntries.length > 0
     ? (pnlEntries.reduce((s,e)=>s+e._pnl,0)/pnlEntries.length).toFixed(1) : null;
@@ -8990,23 +8996,23 @@ function renderProfilePage(tier) {
       isElite ? `
         <div class="profile-rank-card elite-rank">
           <div class="profile-rank-label">YOUR GLOBAL RANK</div>
-          <div class="profile-rank-value">#3</div>
-          <div class="profile-rank-sub">Featured in Trader Spotlight · Top 10 this week</div>
+          <div class="profile-rank-value" id="profile-rank-value">—</div>
+          <div class="profile-rank-sub" id="profile-rank-sub">Calculating your rank…</div>
         </div>
         <div class="profile-bench-row">
           <div><span class="profile-bench-label">YOUR CONSISTENCY</span><span class="profile-bench-value">${total>0?consistency+'%':'—'}</span></div>
           <div class="profile-bench-sep"></div>
-          <div><span class="profile-bench-label">COMMUNITY AVG</span><span class="profile-bench-value accent">72%</span></div>
+          <div><span class="profile-bench-label">COMMUNITY AVG</span><span class="profile-bench-value accent" id="profile-community-avg">—</span></div>
         </div>` : `
         <div class="profile-rank-card pro-rank">
           <div class="profile-rank-label">YOUR GLOBAL RANK</div>
-          <div class="profile-rank-value">#23</div>
-          <div class="profile-rank-sub">You're ranked #23 globally this week</div>
+          <div class="profile-rank-value" id="profile-rank-value">—</div>
+          <div class="profile-rank-sub" id="profile-rank-sub">Calculating your rank…</div>
         </div>
         <div class="profile-bench-row">
           <div><span class="profile-bench-label">YOUR CONSISTENCY</span><span class="profile-bench-value">${total>0?consistency+'%':'—'}</span></div>
           <div class="profile-bench-sep"></div>
-          <div><span class="profile-bench-label">VS LAST MONTH</span><span class="profile-bench-value positive">+5%</span></div>
+          <div><span class="profile-bench-label">COMMUNITY AVG</span><span class="profile-bench-value accent" id="profile-community-avg">—</span></div>
         </div>`}
     </div>
 
@@ -9037,6 +9043,75 @@ function renderProfilePage(tier) {
     </div>` : ''}
 
     <div style="height:40px"></div>`;
+
+  // Hydrate the rank + community average asynchronously. The DOM now
+  // has placeholder spans; the function below fills them.
+  _hydrateProfileCommunityCard();
+}
+
+
+// ═══════════════════════════════════════════════
+// PROFILE COMMUNITY-CARD HYDRATION
+// ═══════════════════════════════════════════════
+// Queries Supabase for the user's rank (count of users with higher score
+// + 1) and the community average score, then writes the results into the
+// placeholder spans rendered by renderProfilePage. If the user has no
+// score yet, shows a friendly "Keep journaling" message instead of an
+// arbitrary rank. Tolerant of failures — placeholders just stay as "—".
+async function _hydrateProfileCommunityCard() {
+  const rankEl    = document.getElementById('profile-rank-value');
+  const subEl     = document.getElementById('profile-rank-sub');
+  const avgEl     = document.getElementById('profile-community-avg');
+  if (!rankEl && !subEl && !avgEl) return;
+  if (!currentUserId) return;
+
+  try {
+    // 1) My own score (server-side truth; may differ from local if persist
+    // failed earlier).
+    const myRes = await _authedFetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUserId}&select=consistency_score`,
+    );
+    const myRows  = await myRes.json().catch(() => []);
+    const myScore = Array.isArray(myRows) && myRows[0]?.consistency_score;
+
+    if (!myScore) {
+      if (rankEl) rankEl.textContent = '—';
+      if (subEl)  subEl.textContent  = 'Keep journaling to earn your rank';
+    } else {
+      // 2) Count of users strictly ahead of me — Postgres-via-PostgREST
+      // returns a Content-Range header with the total count when we ask
+      // for an exact count, but a row fetch with select=id is simpler
+      // and works at small scales.
+      const aboveRes  = await _authedFetch(
+        `${SUPABASE_URL}/rest/v1/users?consistency_score=gt.${myScore}&select=id`,
+      );
+      const aboveRows = await aboveRes.json().catch(() => []);
+      const rank      = (Array.isArray(aboveRows) ? aboveRows.length : 0) + 1;
+      if (rankEl) rankEl.textContent = `#${rank}`;
+      if (subEl) {
+        subEl.textContent = rank <= 10
+          ? `Featured in Trader Spotlight · Top 10 this week`
+          : `You're ranked #${rank} globally this week`;
+      }
+    }
+
+    // 3) Community average — average of all non-null scores. Cheap query
+    // for the size we'll see for a while.
+    const avgRes  = await _authedFetch(
+      `${SUPABASE_URL}/rest/v1/users?select=consistency_score&consistency_score=not.is.null`,
+    );
+    const avgRows = await avgRes.json().catch(() => []);
+    if (Array.isArray(avgRows) && avgRows.length > 0) {
+      const sum = avgRows.reduce((s, r) => s + (r.consistency_score || 0), 0);
+      const avg = Math.round(sum / avgRows.length);
+      if (avgEl) avgEl.textContent = `${avg}%`;
+    } else {
+      if (avgEl) avgEl.textContent = '—';
+    }
+  } catch (e) {
+    console.warn('[profile] community hydrate failed:', e?.message || e);
+    // Leave the "—" placeholders in place.
+  }
 }
 
 
@@ -9610,6 +9685,48 @@ const LB_MEDALS = {
   2:`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(176,184,200,0.15)" stroke="#b0b8c8" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#b0b8c8" font-family="monospace">2</text></svg>`,
   3:`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(205,127,50,0.15)" stroke="#cd7f32" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#cd7f32" font-family="monospace">3</text></svg>`,
 };
+// ─────────────────────────────────────────────────────────────────────────
+// Consistency score — computed locally from journal entries, persisted to
+// users.consistency_score so it shows on the leaderboard. The formula
+// matches what Profile already displayed: a win-rate-weighted base, with
+// a small journaling-completeness bonus on top. Returns 0 when there are
+// no taken trades yet.
+function _computeConsistencyScore(entries) {
+  const taken = (entries || []).filter(e => (e.trade_status || 'taken') === 'taken');
+  if (!taken.length) return 0;
+  const wins = taken.filter(e => _classifyOutcome(e) === 'win').length;
+  const winRate = wins / taken.length;
+  // Base: 60–98 from win rate alone (legacy formula).
+  const base = 60 + winRate * 38;
+  // Tiny journaling-completeness kicker — up to +5 if you fill setup_type
+  // and entry_reason on every entry. Doesn't break the 98 cap.
+  const fullyJournaled = taken.filter(e => e.setup_type && e.entry_reason).length;
+  const journalingFrac = fullyJournaled / taken.length;
+  const bonus = journalingFrac * 5;
+  return Math.min(98, Math.round(base + bonus));
+}
+
+// Persist the user's current score to users.consistency_score so it
+// appears on the leaderboard. Fire-and-forget — failures are logged but
+// don't surface in the UI; the score read on next session will retry.
+async function _persistConsistencyScore() {
+  if (!currentUserId || !Array.isArray(journalEntries)) return;
+  const score = _computeConsistencyScore(journalEntries);
+  if (score <= 0) return;  // skip until the user has any taken trades
+  try {
+    await _authedFetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUserId}`,
+      {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body:    JSON.stringify({ consistency_score: score }),
+      },
+    );
+  } catch (e) {
+    console.warn('[consistency] persist failed:', e?.message || e);
+  }
+}
+
 // MOCK_LEADERBOARD removed — was showing fake usernames that looked real
 // to anyone first opening the Community tab. The leaderboard now starts
 // empty and fills only once users have non-null consistency_score values.
