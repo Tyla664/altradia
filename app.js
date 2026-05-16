@@ -13430,6 +13430,11 @@ async function init() {
     } catch (e) {
       console.warn('[boot] journal prefetch failed:', e?.message || e);
     }
+    // Persist the user's current consistency score so the leaderboard
+    // reflects their current standing — runs once per boot, even for
+    // users who never open Profile or save a fresh journal entry.
+    // Chained AFTER the prefetch so journalEntries is populated.
+    _persistConsistencyScore();
   })();
 
   // Sync the user's Telegram name into users.display_name once per
