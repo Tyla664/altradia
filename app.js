@@ -9610,18 +9610,13 @@ const LB_MEDALS = {
   2:`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(176,184,200,0.15)" stroke="#b0b8c8" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#b0b8c8" font-family="monospace">2</text></svg>`,
   3:`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(205,127,50,0.15)" stroke="#cd7f32" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="8" font-weight="700" fill="#cd7f32" font-family="monospace">3</text></svg>`,
 };
-const MOCK_LEADERBOARD = [
-  {rank:1,  username:'TraderAlpha', score:95, badges:['consistency','elite'], elite:true},
-  {rank:2,  username:'FXWizard',    score:92, badges:['target','discipline'], elite:false},
-  {rank:3,  username:'CryptoQueen', score:90, badges:['discipline','setup'],  elite:false},
-  {rank:4,  username:'PipMaster',   score:88, badges:['consistency'],         elite:false},
-  {rank:5,  username:'SwingKing',   score:85, badges:['target'],              elite:false},
-  {rank:6,  username:'AlphaEdge',   score:83, badges:['setup','consistency'], elite:false},
-  {rank:7,  username:'RiskManager', score:81, badges:['discipline'],          elite:false},
-  {rank:8,  username:'GoldPips',    score:79, badges:['target','setup'],      elite:false},
-  {rank:9,  username:'DayTrader9',  score:76, badges:['consistency'],         elite:false},
-  {rank:10, username:'MarketOwl',   score:74, badges:['discipline'],          elite:false},
-];
+// MOCK_LEADERBOARD removed — was showing fake usernames that looked real
+// to anyone first opening the Community tab. The leaderboard now starts
+// empty and fills only once users have non-null consistency_score values.
+// (Note: consistency_score isn't yet being WRITTEN anywhere in the
+// codebase — implementing the scoring algorithm is a follow-up. Until
+// then, the empty state is what every user will see.)
+const MOCK_LEADERBOARD = [];
 let _communityRendered = false;
 function renderCommunity() {
   _communityRendered = true;
@@ -9649,8 +9644,13 @@ function renderCommunity() {
     rankMsg.style.display = '';
   }
 
-  // Render leaderboard from mock first, then try Supabase
-  _renderLeaderboard(MOCK_LEADERBOARD);
+  // Show a brief loading state, then let the DB fetch take over. If
+  // the DB returns no users, _renderLeaderboard will paint the empty
+  // state from _loadLeaderboardFromDB's fallthrough.
+  const list = document.getElementById('leaderboard-list');
+  if (list) {
+    list.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:0.72rem;padding:32px 0;font-family:var(--mono)">Loading leaderboard…</div>`;
+  }
   _loadLeaderboardFromDB();
 }
 
@@ -9661,9 +9661,19 @@ async function _loadLeaderboardFromDB() {
       `${SUPABASE_URL}/rest/v1/users?select=telegram_id,display_name,tier,consistency_score,badges&order=consistency_score.desc&limit=10&consistency_score=not.is.null`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
-    if (!res.ok) return;
+    if (!res.ok) {
+      // Network/auth failure — fall back to the empty-state render so the
+      // loading indicator doesn't linger forever.
+      _renderLeaderboard([]);
+      return;
+    }
     const rows = await res.json();
-    if (!rows?.length) return;
+    if (!rows?.length) {
+      // No users yet have a non-null consistency_score → friendly empty
+      // state rather than the indefinite "Loading…" placeholder.
+      _renderLeaderboard([]);
+      return;
+    }
 
     const lbData = rows.map((r, i) => ({
       rank:     i + 1,
@@ -9715,7 +9725,28 @@ async function _loadUserRank(tier) {
 // ── Render leaderboard rows ────────────────────────────────────────────────
 function _renderLeaderboard(data) {
   const list = document.getElementById('leaderboard-list');
-  if (!list || !data?.length) return;
+  if (!list) return;
+
+  // Empty-state: no real users yet. Show a friendly placeholder rather
+  // than a blank list or fake names.
+  if (!data?.length) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:36px 18px;color:var(--muted)">
+        <div style="font-size:2rem;line-height:1;margin-bottom:10px;opacity:0.5">📊</div>
+        <div style="font-family:var(--mono);font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text);margin-bottom:6px">
+          Leaderboard is empty
+        </div>
+        <div style="font-size:0.74rem;line-height:1.5;max-width:280px;margin:0 auto">
+          The leaderboard fills as traders log their setups and trades.
+          Be one of the first — start journaling and you'll appear here.
+        </div>
+      </div>`;
+    const avgEl = document.getElementById('community-avg-score');
+    if (avgEl) avgEl.textContent = '—';
+    const totwSection = document.getElementById('totw-section');
+    if (totwSection) totwSection.style.display = 'none';
+    return;
+  }
 
   const avg = Math.round(data.reduce((s,r) => s + r.score, 0) / data.length);
   const avgEl = document.getElementById('community-avg-score');
@@ -13169,6 +13200,26 @@ async function init() {
   if (dbAlerts !== null) alerts = dbAlerts;
 
   await initAlertHistory();
+
+  // ── Prefetch journal entries in the background ──
+  // Without this, the Analytics + Profile pages show empty stats until
+  // the user visits Journal at least once. Loading journal eagerly costs
+  // one extra DB roundtrip on boot, which is acceptable for the UX win.
+  // Fire-and-forget — nothing here depends on it; analytics/profile re-
+  // render whenever the user navigates to them, so they'll pick up the
+  // entries as soon as this promise resolves.
+  (async () => {
+    try {
+      const entries = await loadJournalFromDB();
+      if (Array.isArray(entries)) {
+        journalEntries = entries;
+        console.log('[boot] journal prefetched:', journalEntries.length, 'entries');
+      }
+    } catch (e) {
+      console.warn('[boot] journal prefetch failed:', e?.message || e);
+      // Lazy-load path still works on Journal tab open.
+    }
+  })();
 
   // ── Load user's personal watchlist from DB ──────
   Object.keys(ASSETS).forEach(cat => { ASSETS[cat] = []; });
