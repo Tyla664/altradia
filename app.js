@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]', '[consistency]', '[leaderboard]', '[profile]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]', '[consistency]', '[leaderboard]', '[profile]', '[displayname]'];
     const buffer = [];
     let overlay = null, contents = null;
 
@@ -9706,6 +9706,60 @@ function _computeConsistencyScore(entries) {
   return Math.min(98, Math.round(base + bonus));
 }
 
+// Persist the user's Telegram name to users.display_name so it shows up
+// on the leaderboard instead of "Trader1234". Called once after auth.
+// Updates the stored name if the user's Telegram name has changed since
+// last login. Cheap: a single SELECT + at most one PATCH per session.
+async function _ensureDisplayName() {
+  if (!currentUserId) { console.log('[displayname] skip — no userId'); return; }
+  // Build the preferred name from Telegram data we already have on hand.
+  // Prefer "First Last" → "First" → @handle → nothing.
+  const tgUser = (typeof window !== 'undefined' && window.Telegram?.WebApp?.initDataUnsafe?.user) || null;
+  const composed = tgUser
+    ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim()
+    : '';
+  const preferred = composed
+    || (tgUser?.first_name && String(tgUser.first_name).trim())
+    || (tgUser?.username   && '@' + String(tgUser.username).trim())
+    || telegramUserName
+    || '';
+  if (!preferred) { console.log('[displayname] skip — no Telegram name available'); return; }
+
+  try {
+    // Read current stored value to avoid a needless PATCH when nothing
+    // changed.
+    const getRes = await _authedFetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUserId}&select=display_name`,
+    );
+    if (!getRes.ok) {
+      console.warn('[displayname] read failed', getRes.status, await getRes.text().catch(()=>'<no body>'));
+      return;
+    }
+    const rows = await getRes.json().catch(() => []);
+    const stored = Array.isArray(rows) && rows[0]?.display_name;
+    if (stored && stored === preferred) {
+      console.log('[displayname] already up-to-date:', stored);
+      return;
+    }
+    const patchRes = await _authedFetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUserId}`,
+      {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body:    JSON.stringify({ display_name: preferred }),
+      },
+    );
+    if (!patchRes.ok) {
+      const body = await patchRes.text().catch(() => '<no body>');
+      console.error('[displayname] PATCH failed', patchRes.status, body.slice(0, 400));
+      return;
+    }
+    console.log('[displayname] set', JSON.stringify(preferred), 'was', JSON.stringify(stored || null));
+  } catch (e) {
+    console.warn('[displayname] exception:', e?.message || e);
+  }
+}
+
 // Persist the user's current score to users.consistency_score so it
 // appears on the leaderboard. Fire-and-forget — failures are logged but
 // don't surface in the UI; the score read on next session will retry.
@@ -9796,8 +9850,11 @@ function renderCommunity() {
 // ── Load real leaderboard from Supabase ────────────────────────────────────
 async function _loadLeaderboardFromDB() {
   try {
+    // display_name comes from each user's Telegram first/last name,
+    // populated on first auth (see _ensureDisplayName). Badges aren't
+    // implemented yet — column omitted on purpose.
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?select=telegram_id,display_name,tier,consistency_score,badges&order=consistency_score.desc&limit=10&consistency_score=not.is.null`,
+      `${SUPABASE_URL}/rest/v1/users?select=telegram_id,display_name,tier,consistency_score&order=consistency_score.desc&limit=10&consistency_score=not.is.null`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     if (!res.ok) {
@@ -9815,10 +9872,16 @@ async function _loadLeaderboardFromDB() {
 
     const lbData = rows.map((r, i) => ({
       rank:     i + 1,
-      username: r.display_name || `Trader${String(r.telegram_id).slice(-4)}`,
+      // Prefer the stored display_name (= Telegram first/last). Fall
+      // back to a synthesized handle for any row that somehow lacks one.
+      username: (r.display_name && String(r.display_name).trim())
+                  || `Trader${String(r.telegram_id || '').slice(-4) || '????'}`,
       score:    r.consistency_score || 0,
-      badges:   r.badges ? JSON.parse(r.badges) : [],
+      badges:   [],
       elite:    r.tier === 'elite',
+      // Carry telegram_id so the renderer can identify the viewing user's
+      // own row and label it "Me" instead of their stored name.
+      telegramId: r.telegram_id != null ? String(r.telegram_id) : '',
     }));
 
     _renderLeaderboard(lbData);
@@ -9894,16 +9957,27 @@ function _renderLeaderboard(data) {
   const totwSection = document.getElementById('totw-section');
   const totwCard    = document.getElementById('totw-card');
   if (totwSection && totwCard && totw) {
-    totwCard.innerHTML = `<div class="totw-rank-badge">${LB_MEDALS[1]}</div><div class="totw-info"><div class="totw-username${totw.elite?' elite':''}">${totw.elite?LB_CROWN:''}${totw.username}</div><div class="totw-score">Consistency score: ${totw.score}%</div></div><div class="totw-badges">${totw.badges.map(b=>BADGE_SVGS[b]||'').join('')}</div>`;
+    const myTgIdTotw = telegramChatId ? String(telegramChatId) : '';
+    const totwIsMe   = !!(myTgIdTotw && totw.telegramId && totw.telegramId === myTgIdTotw);
+    const totwLabel  = totwIsMe ? 'Me' : totw.username;
+    totwCard.innerHTML = `<div class="totw-rank-badge">${LB_MEDALS[1]}</div><div class="totw-info"><div class="totw-username${totw.elite?' elite':''}${totwIsMe?' lb-username-me':''}">${totw.elite?LB_CROWN:''}${totwLabel}</div><div class="totw-score">Consistency score: ${totw.score}%</div></div><div class="totw-badges">${totw.badges.map(b=>BADGE_SVGS[b]||'').join('')}</div>`;
     totwSection.style.display = '';
   }
 
+  // Resolve "my row" once — the row whose telegram_id matches the
+  // current Telegram chat ID. If found, the renderer below will label
+  // it "Me" and give it an accent highlight so it pops in screenshots
+  // without disrupting the visual rhythm of the rest of the list.
+  const myTgId = telegramChatId ? String(telegramChatId) : '';
+
   list.innerHTML = data.map(row => {
+    const isMe       = !!(myTgId && row.telegramId && row.telegramId === myTgId);
+    const labelText  = isMe ? 'Me' : row.username;
     const rankHtml   = LB_MEDALS[row.rank] ? `<span class="lb-rank-medal">${LB_MEDALS[row.rank]}</span>` : `<span class="lb-rank">${row.rank}</span>`;
-    const nameHtml   = `<span class="lb-username${row.elite?' elite-user':''}">${row.elite?LB_CROWN:''}${row.username}</span>`;
+    const nameHtml   = `<span class="lb-username${row.elite?' elite-user':''}${isMe?' lb-username-me':''}">${row.elite?LB_CROWN:''}${labelText}</span>`;
     const scoreHtml  = `<span class="${row.score>=90?'lb-score score-high':'lb-score'}">${row.score}%</span>`;
     const badgesHtml = row.badges.map(b=>BADGE_SVGS[b]||'').join('');
-    const rowCls     = ['lb-row',row.rank<=3?'lb-top3':'',row.elite?'lb-elite':''].filter(Boolean).join(' ');
+    const rowCls     = ['lb-row',row.rank<=3?'lb-top3':'',row.elite?'lb-elite':'',isMe?'lb-row-me':''].filter(Boolean).join(' ');
     return `<div class="${rowCls}"><div class="lb-col-rank">${rankHtml}</div><div class="lb-col-user">${nameHtml}</div><div class="lb-col-score">${scoreHtml}</div><div class="lb-col-badges lb-badges">${badgesHtml}</div></div>`;
   }).join('');
 }
@@ -13355,9 +13429,13 @@ async function init() {
       }
     } catch (e) {
       console.warn('[boot] journal prefetch failed:', e?.message || e);
-      // Lazy-load path still works on Journal tab open.
     }
   })();
+
+  // Sync the user's Telegram name into users.display_name once per
+  // session so the leaderboard shows real names instead of Trader####.
+  // Fire-and-forget — failures are logged but never block boot.
+  _ensureDisplayName();
 
   // ── Load user's personal watchlist from DB ──────
   Object.keys(ASSETS).forEach(cat => { ASSETS[cat] = []; });
