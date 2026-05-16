@@ -2877,8 +2877,13 @@ function _wireChartLongPress() {
   // While 'drawing', movement is welcome; we track end-Y so release can
   // build a zone from (startY, endY). Below ZONE_MIN_PX of drag we treat
   // it as a single-price tap instead.
+  // MOVE_TOL bumped from 8 → 16: on high-DPI phones, even a still finger
+  // jitters a few px per frame; 8px aggressive enough to cancel ~80% of
+  // legitimate long-presses. 16px is still well under "intentional pan"
+  // distance (50+ px), so chart panning still wins when the user really
+  // means to pan.
   const HOLD_MS     = 500;
-  const MOVE_TOL    = 8;
+  const MOVE_TOL    = 16;
   const ZONE_MIN_PX = 8;
 
   let state = 'idle';
@@ -5251,7 +5256,8 @@ function onConditionChange() {
   const isSetup   = condition === 'setup';
   document.getElementById('alert-single-row').style.display = (isZone || isSetup) ? 'none' : '';
   document.getElementById('alert-zone-row').style.display   = isZone  ? '' : 'none';
-  document.getElementById('alert-tap-row').style.display    = isTap   ? '' : 'none';
+  // alert-tap-row was removed when tap-tolerance UI was retired; the
+  // alert-single-row above already serves tap (TAP needs only a price).
   document.getElementById('alert-setup-row').style.display  = isSetup ? '' : 'none';
   // Hide timeframe + sound rows when setup (has its own timeframe)
   const row3 = document.querySelector('.alert-form .form-row:has(#alert-timeframe)');
