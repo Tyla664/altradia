@@ -9078,12 +9078,11 @@ async function _hydrateProfileCommunityCard() {
       if (rankEl) rankEl.textContent = '—';
       if (subEl)  subEl.textContent  = 'Keep journaling to earn your rank';
     } else {
-      // 2) Count of users strictly ahead of me — Postgres-via-PostgREST
-      // returns a Content-Range header with the total count when we ask
-      // for an exact count, but a row fetch with select=id is simpler
-      // and works at small scales.
+      // 2) Count of users strictly ahead of me. Goes through the
+      // leaderboard view so RLS on `users` doesn't hide other users
+      // from our view.
       const aboveRes  = await _authedFetch(
-        `${SUPABASE_URL}/rest/v1/users?consistency_score=gt.${myScore}&select=id`,
+        `${SUPABASE_URL}/rest/v1/users_leaderboard?consistency_score=gt.${myScore}&select=id`,
       );
       const aboveRows = await aboveRes.json().catch(() => []);
       const rank      = (Array.isArray(aboveRows) ? aboveRows.length : 0) + 1;
@@ -9095,10 +9094,9 @@ async function _hydrateProfileCommunityCard() {
       }
     }
 
-    // 3) Community average — average of all non-null scores. Cheap query
-    // for the size we'll see for a while.
+    // 3) Community average — same RLS workaround via the view.
     const avgRes  = await _authedFetch(
-      `${SUPABASE_URL}/rest/v1/users?select=consistency_score&consistency_score=not.is.null`,
+      `${SUPABASE_URL}/rest/v1/users_leaderboard?select=consistency_score`,
     );
     const avgRows = await avgRes.json().catch(() => []);
     if (Array.isArray(avgRows) && avgRows.length > 0) {
@@ -9850,11 +9848,11 @@ function renderCommunity() {
 // ── Load real leaderboard from Supabase ────────────────────────────────────
 async function _loadLeaderboardFromDB() {
   try {
-    // display_name comes from each user's Telegram first/last name,
-    // populated on first auth (see _ensureDisplayName). Badges aren't
-    // implemented yet — column omitted on purpose.
+    // Use the users_leaderboard view (see leaderboard-view-migration.sql)
+    // — it exposes only the leaderboard columns and bypasses the RLS
+    // "see own row only" rule on the underlying users table.
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?select=telegram_id,display_name,tier,consistency_score&order=consistency_score.desc&limit=10&consistency_score=not.is.null`,
+      `${SUPABASE_URL}/rest/v1/users_leaderboard?select=telegram_id,display_name,tier,consistency_score&order=consistency_score.desc&limit=10`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     if (!res.ok) {
@@ -9900,10 +9898,10 @@ async function _loadUserRank(tier) {
   const pill = document.getElementById('user-rank-pill');
   if (!pill || !currentUserId) return;
   try {
-    // Get count of users with higher score
-    const myRes = await fetch(
+    // Get my own score — uses authenticated path since I'm allowed to
+    // read my own row regardless of leaderboard visibility.
+    const myRes = await _authedFetch(
       `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUserId}&select=consistency_score`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     const myData = await myRes.json();
     const myScore = myData?.[0]?.consistency_score;
@@ -9911,8 +9909,10 @@ async function _loadUserRank(tier) {
       pill.innerHTML = `${tier === 'elite' ? LB_CROWN + ' ' : ''}Keep journaling to earn your rank`;
       return;
     }
+    // Count of users strictly ahead of me — goes through the leaderboard
+    // view so we see everyone with a non-null score, not just ourselves.
     const rankRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?consistency_score=gt.${myScore}&select=id`,
+      `${SUPABASE_URL}/rest/v1/users_leaderboard?consistency_score=gt.${myScore}&select=id`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     const above = await rankRes.json();
