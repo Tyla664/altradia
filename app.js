@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]', '[consistency]', '[leaderboard]', '[profile]'];
     const buffer = [];
     let overlay = null, contents = null;
 
@@ -9710,11 +9710,27 @@ function _computeConsistencyScore(entries) {
 // appears on the leaderboard. Fire-and-forget — failures are logged but
 // don't surface in the UI; the score read on next session will retry.
 async function _persistConsistencyScore() {
-  if (!currentUserId || !Array.isArray(journalEntries)) return;
+  if (!currentUserId) {
+    console.log('[consistency] skip — no currentUserId');
+    return;
+  }
+  if (!Array.isArray(journalEntries)) {
+    console.log('[consistency] skip — journalEntries not array');
+    return;
+  }
+  const taken = journalEntries.filter(e => (e.trade_status || 'taken') === 'taken');
   const score = _computeConsistencyScore(journalEntries);
-  if (score <= 0) return;  // skip until the user has any taken trades
+  console.log('[consistency] computing', {
+    totalEntries: journalEntries.length,
+    takenCount:   taken.length,
+    score,
+  });
+  if (score <= 0) {
+    console.log('[consistency] skip — score is 0 (no taken trades yet)');
+    return;
+  }
   try {
-    await _authedFetch(
+    const res = await _authedFetch(
       `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUserId}`,
       {
         method:  'PATCH',
@@ -9722,8 +9738,14 @@ async function _persistConsistencyScore() {
         body:    JSON.stringify({ consistency_score: score }),
       },
     );
+    if (!res.ok) {
+      const body = await res.text().catch(() => '<no body>');
+      console.error('[consistency] PATCH failed', res.status, body.slice(0, 400));
+      return;
+    }
+    console.log('[consistency] persisted score', score, 'status', res.status);
   } catch (e) {
-    console.warn('[consistency] persist failed:', e?.message || e);
+    console.warn('[consistency] persist exception:', e?.message || e);
   }
 }
 
@@ -9779,15 +9801,14 @@ async function _loadLeaderboardFromDB() {
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     if (!res.ok) {
-      // Network/auth failure — fall back to the empty-state render so the
-      // loading indicator doesn't linger forever.
+      console.warn('[leaderboard] fetch failed', res.status, await res.text().catch(()=>'<no body>'));
       _renderLeaderboard([]);
       return;
     }
     const rows = await res.json();
+    console.log('[leaderboard] rows returned:', Array.isArray(rows) ? rows.length : 'not-array',
+                Array.isArray(rows) ? rows.map(r => ({id: r.telegram_id, score: r.consistency_score})) : rows);
     if (!rows?.length) {
-      // No users yet have a non-null consistency_score → friendly empty
-      // state rather than the indefinite "Loading…" placeholder.
       _renderLeaderboard([]);
       return;
     }
