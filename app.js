@@ -767,6 +767,26 @@ let historyCustomTo    = null;
 let historyExpandedAsset = null;
 let selectedAsset  = null;
 let alertIdCounter = 1;
+
+// Generate a real UUID for a new alert so the same ID flows through:
+// in-memory → Telegram confirmation → DB row → DOM card → server-side
+// trigger detection. Avoids the old `temp_N → real-UUID` swap which left
+// Telegram messages showing "#temp" if the user looked fast.
+function makeAlertId() {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch (_) { /* fall through */ }
+  // Fallback: RFC 4122 v4 from Math.random. Not crypto-grade but fine
+  // for client-only ID generation — the server still trusts whichever ID
+  // we send, and uniqueness is what matters.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 let currentTF      = '1H';
 let chartData      = [];
 let chartCtx       = null;
@@ -3774,7 +3794,7 @@ async function _createAlertInner() {
   const currentPrice = priceData[assetId]?.price || 0;
 
   const newAlert = {
-    id: 'temp_' + alertIdCounter++,
+    id: makeAlertId(),
     assetId,
     symbol:          assetInfo.symbol,
     name:            assetInfo.name,
@@ -5609,7 +5629,7 @@ async function _createSetupAlertInner() {
   }
 
   const newAlert = {
-    id:           'temp_' + alertIdCounter++,
+    id:           makeAlertId(),
     assetId:      selectedAsset.id,
     symbol:       selectedAsset.symbol,
     name:         selectedAsset.name,
