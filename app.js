@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]', '[consistency]', '[leaderboard]', '[profile]', '[displayname]', '[notif-prefs]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]', '[consistency]', '[leaderboard]', '[profile]', '[displayname]', '[notif-prefs]', '[watchlist]'];
     const buffer = [];
     let overlay = null, contents = null;
 
