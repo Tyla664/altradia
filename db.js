@@ -427,19 +427,51 @@ async function loadWatchlist() {
 }
 
 async function addToWatchlist(asset, category) {
+  console.log('[watchlist] add attempt', { assetId: asset.id, symbol: asset.symbol, category, currentUserId });
   if (!currentUserId) await ensureAuth();
-  if (!currentUserId) { console.warn('DB: addToWatchlist — no currentUserId'); return; }
+  if (!currentUserId) {
+    console.warn('[watchlist] add aborted — no currentUserId after ensureAuth');
+    return;
+  }
   try {
-    const result = await db.upsert('watchlist', {
-      user_id:  currentUserId,
-      asset_id: asset.id,
-      symbol:   asset.symbol,
-      name:     asset.name,
-      category,
-    }, 'user_id,asset_id');
-    console.log('DB: addToWatchlist success', asset.id, result);
+    // Direct fetch so we can inspect status + body, instead of relying on
+    // db.upsert which only throws on res.ok === false. Some RLS failures
+    // return 201 with empty body and we want to catch that case too.
+    const url = `${SUPABASE_URL}/rest/v1/watchlist?on_conflict=user_id,asset_id`;
+    const res = await _authedFetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=representation',
+      },
+      body: JSON.stringify({
+        user_id:  currentUserId,
+        asset_id: asset.id,
+        symbol:   asset.symbol,
+        name:     asset.name,
+        category,
+      }),
+    });
+    const status = res.status;
+    let bodyText = '';
+    try { bodyText = await res.text(); } catch (_) {}
+    console.log('[watchlist] add response', { status, ok: res.ok, body: bodyText.slice(0, 400) });
+    if (!res.ok) {
+      console.error('[watchlist] add FAILED — non-2xx', asset.id, status, bodyText.slice(0, 200));
+      return;
+    }
+    // Parse the body. If it's an empty array, the INSERT was silently
+    // filtered by RLS — PostgREST returns 201 with [] when no rows were
+    // affected. This is the smoking gun for missing INSERT policy.
+    let parsed = null;
+    try { parsed = JSON.parse(bodyText); } catch (_) {}
+    if (Array.isArray(parsed) && parsed.length === 0) {
+      console.error('[watchlist] add SILENTLY DROPPED — RLS likely missing INSERT policy on watchlist table');
+      return;
+    }
+    console.log('[watchlist] add OK', asset.id, parsed);
   } catch (e) {
-    console.error('DB: addToWatchlist FAILED', asset.id, e.message || e);
+    console.error('[watchlist] add EXCEPTION', asset.id, e?.message || e);
   }
 }
 
