@@ -20,7 +20,7 @@
              || window._ALTRADIA_DEBUG === true;
     } catch (_) {}
     if (!enabled) return;
-    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]', '[consistency]', '[leaderboard]', '[profile]', '[displayname]'];
+    const PREFIXES = ['[boot]', '[shot]', '[auth]', '[home]', '[chart]', '[alerts]', '[zone-eval]', '[tg-fire]', '[tg-dedup]', '[fire]', '[lock]', '[setup-fire]', '[setup-lock]', '[setup-regression]', '[briefing]', '[recap]', '[setup-create]', '[longpress]', '[consistency]', '[leaderboard]', '[profile]', '[displayname]', '[notif-prefs]'];
     const buffer = [];
     let overlay = null, contents = null;
 
@@ -8613,6 +8613,35 @@ function toggleTgNotifPref(key) {
   tgNotifPrefs[key] = !tgNotifPrefs[key];
   try { localStorage.setItem('tg_notif_prefs', JSON.stringify(tgNotifPrefs)); } catch(e) {}
   updateMenuToggles();
+  // Sync to DB so server-side gates (proximity, queued, repeatingZone) take
+  // effect for cron-driven Telegram sends. Fire-and-forget — UI doesn't
+  // wait, failures are logged.
+  _syncTgNotifPrefsToDb();
+}
+
+// Persists the current tgNotifPrefs to preferences.notif_prefs. Re-runs on
+// every toggle change. Cheap PATCH; server uses these gates on every cron
+// pass so they take effect within seconds of saving.
+async function _syncTgNotifPrefsToDb() {
+  if (!currentUserId) return;
+  try {
+    const res = await _authedFetch(
+      `${SUPABASE_URL}/rest/v1/preferences?user_id=eq.${currentUserId}`,
+      {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body:    JSON.stringify({ notif_prefs: tgNotifPrefs }),
+      },
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => '<no body>');
+      console.warn('[notif-prefs] sync failed', res.status, body.slice(0, 200));
+      return;
+    }
+    console.log('[notif-prefs] synced to DB:', tgNotifPrefs);
+  } catch (e) {
+    console.warn('[notif-prefs] sync exception:', e?.message || e);
+  }
 }
 
 function loadTgNotifPrefs() {
@@ -13470,6 +13499,11 @@ async function init() {
   // session so the leaderboard shows real names instead of Trader####.
   // Fire-and-forget — failures are logged but never block boot.
   _ensureDisplayName();
+
+  // Sync the local notif-prefs to the DB so server-side gates respect
+  // the toggle state. For users who'd been toggling before we added the
+  // server gates, this back-fills their preferences.
+  _syncTgNotifPrefsToDb();
 
   // ── Load user's personal watchlist from DB ──────
   Object.keys(ASSETS).forEach(cat => { ASSETS[cat] = []; });
