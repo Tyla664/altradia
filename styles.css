@@ -100,6 +100,10 @@ header {
   display: flex; align-items: center;
   height: 60px;
   gap: 0;
+  /* Allow the search-results dropdown to visually overflow the header
+     and remain tappable — without this, sticky context may clip touches
+     on the results list on Android/iOS. */
+  overflow: visible;
 }
 /* Status pill sits in the middle, taking flex space */
 .status-pill-wrapper {
@@ -2959,6 +2963,7 @@ header {
 .search-result-symbol { font-weight: 700; font-size: 0.88rem; color: var(--text); }
 .search-result-name { font-size: 0.7rem; color: var(--muted); font-family: var(--mono); }
 .search-add-btn {
+  touch-action: manipulation;  /* no tap delay, no scroll-intent wait */
   background: none; border: 1px solid var(--border);
   color: var(--accent); border-radius: 6px;
   width: 28px; height: 28px; cursor: pointer;
