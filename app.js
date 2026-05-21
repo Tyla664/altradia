@@ -2314,10 +2314,15 @@ function searchSelectAsset(assetId) {
 }
 
 function searchAddToWatchlist(e, assetId, cat) {
+  console.log('[watchlist] searchAddToWatchlist called', { assetId, cat });
   e.stopPropagation();
   const asset = ALL_ASSETS.find(a => a.id === assetId);
-  if (!asset) return;
+  if (!asset) {
+    console.warn('[watchlist] asset not found in ALL_ASSETS:', assetId);
+    return;
+  }
   const inWL = Object.values(ASSETS).flat().some(w => w.id === assetId);
+  console.log('[watchlist] inWL check:', inWL, 'currentUserId:', currentUserId);
   if (inWL) {
     showToast('Already Added', `${asset.symbol} is already in your watchlist.`, 'info');
     return;
@@ -2405,6 +2410,11 @@ function updateChartWatchlistBtn() {
 }
 
 function toggleChartAssetWatchlist() {
+  console.log('[watchlist] toggleChartAssetWatchlist called', {
+    selectedAsset: selectedAsset?.id,
+    inASSETS: selectedAsset ? Object.values(ASSETS).flat().some(a => a.id === selectedAsset.id) : 'n/a',
+    currentUserId,
+  });
   if (!selectedAsset) return;
   const asset = selectedAsset;
   const inWL  = Object.values(ASSETS).flat().some(a => a.id === asset.id);
