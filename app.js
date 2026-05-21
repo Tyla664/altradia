@@ -2367,25 +2367,27 @@ function toggleHeaderSearch() {
   }
 }
 
-// Collapse search bar when tapping anywhere outside the header
-document.addEventListener('touchstart', (e) => {
-  const bar = document.getElementById('global-search-bar');
+// Collapse search bar + results when tapping outside. Uses pointerdown
+// (fires before touchstart, before the 300ms click delay) so dismissal
+// is instant, but we carefully avoid swallowing taps on the results
+// themselves. Using pointerdown instead of touchstart avoids the race
+// where the dismiss fires before the button's click handler.
+document.addEventListener('pointerdown', (e) => {
+  const bar     = document.getElementById('global-search-bar');
+  const results = document.getElementById('global-search-results');
   if (!bar || bar.style.display === 'none') return;
-  const header = document.querySelector('header');
-  if (header && !header.contains(e.target)) {
-    bar.style.display = 'none';
-    document.getElementById('header-search-btn')?.classList.remove('active');
-    clearGlobalSearch();
-  }
-}, { passive: true });
 
-// Close search results when tapping outside
-document.addEventListener('touchstart', (e) => {
-  const bar = document.getElementById('global-search-bar');
-  if (bar && !bar.contains(e.target)) {
-    const results = document.getElementById('global-search-results');
-    if (results) results.style.display = 'none';
-  }
+  // If the tap is inside the results dropdown, let it through — the
+  // button's own onclick will handle it. Do NOT dismiss.
+  if (results && results.contains(e.target)) return;
+
+  // If inside the search bar (input / clear button) — also let through.
+  if (bar.contains(e.target)) return;
+
+  // Tap is genuinely outside — dismiss bar + results.
+  bar.style.display = 'none';
+  document.getElementById('header-search-btn')?.classList.remove('active');
+  clearGlobalSearch();
 }, { passive: true });
 
 
