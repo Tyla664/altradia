@@ -11415,10 +11415,14 @@ function addAssetToWatchlist(asset) {
   if (!ASSETS[asset.cat]) ASSETS[asset.cat] = [];
   if (ASSETS[asset.cat].find(a => a.id === asset.id)) return;
 
-  ASSETS[asset.cat].push(ASSET_BY_ID.get(asset.id) || asset);
+  const assetToAdd = ASSET_BY_ID.get(asset.id) || asset;
+  ASSETS[asset.cat].push(assetToAdd);
   // Start with no price — will be populated by next fetch cycle
   priceData[asset.id] = priceData[asset.id] || null;
   prices[asset.id]    = prices[asset.id]    || null;
+
+  // Persist to DB — this was missing, causing adds to disappear on reload.
+  addToWatchlist(assetToAdd, asset.cat);
 
   renderWatchlist();
   populateDropdown();
