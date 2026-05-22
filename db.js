@@ -477,14 +477,22 @@ async function addToWatchlist(asset, category) {
 
 async function removeFromWatchlist(assetId) {
   if (!currentUserId) await ensureAuth();
-  if (!currentUserId) return;
+  if (!currentUserId) {
+    console.warn('[watchlist] remove skip — no currentUserId', assetId);
+    return;
+  }
+  console.log('[watchlist] remove attempt', { assetId, currentUserId });
   try {
-    await db.delete('watchlist', {
-      'user_id':  `eq.${currentUserId}`,
-      'asset_id': `eq.${assetId}`,
-    });
+    const url = `${SUPABASE_URL}/rest/v1/watchlist?user_id=eq.${currentUserId}&asset_id=eq.${assetId}`;
+    const res = await _authedFetch(url, { method: 'DELETE' });
+    const status = res.status;
+    const body = await res.text().catch(() => '<no body>');
+    console.log('[watchlist] remove response', { status, ok: res.ok, body: body.slice(0, 200) });
+    if (!res.ok) {
+      console.error('[watchlist] remove FAILED', status, body.slice(0, 300));
+    }
   } catch (e) {
-    console.warn('DB: removeFromWatchlist failed', e);
+    console.warn('[watchlist] remove EXCEPTION', e?.message || e);
   }
 }
 
@@ -694,3 +702,4 @@ async function clearAlertHistoryFromDB() {
     console.warn('DB: clearAlertHistory failed', e);
   }
 }
+
