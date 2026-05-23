@@ -9344,16 +9344,40 @@ function renderAnalyticsMenuBody(tier) {
     return m;
   };
 
+  // Enrich ignored/missed/taken entries with text context so the AI
+  // can read the trader's actual reasons instead of assuming outcomes.
+  // Capped at 20 entries each to keep the payload size reasonable.
+  const _enrichEntry = (e) => ({
+    setup_type:     e.setup_type    || null,
+    trade_status:   e.trade_status  || 'taken',
+    outcome:        _classifyOutcome(e) || null,
+    entry_reason:   e.entry_reason  || null,
+    htf_context:    e.htf_context   || null,
+    lessons:        e.lessons       || null,
+    emotion_before: e.emotion_before || null,
+    emotion_after:  e.emotion_after  || null,
+    trade_date:     e.trade_date    || null,
+    symbol:         e.symbol        || null,
+  });
+
   const statsPayload = {
     total, wins, losses, winRate, consistency,
     avgRR, avgRRNum, avgPnl, avgSlSize, tradesPerDay, maxDrawdown, avgDuration,
     prematureExits, slMoved, overtrading,
     weekTrades: weekEntries.length, weekWins, sessions,
     topSetup: topSetup ? { type: topSetup[0], count: topSetup[1] } : null,
-    // Decision-making data — for AI coaching on what the user avoids
+    // Counts + setup-type breakdowns (backward-compat)
     missedCount, ignoredCount,
     missedSetups:  _setupBreakdown(missedEntries),
     ignoredSetups: _setupBreakdown(ignoredEntries),
+    // Full text context — AI reads these to understand WHY trades were
+    // ignored or missed before making any judgment about the decision.
+    // Ignored ≠ mistake. It may be deliberate discipline. The AI must
+    // check entry_reason and lessons before drawing conclusions.
+    ignoredEntries: ignoredEntries.slice(-20).map(_enrichEntry),
+    missedEntries:  missedEntries.slice(-20).map(_enrichEntry),
+    // Recent taken trades with full context for pattern recognition
+    takenEntries:   entries.slice(-30).map(_enrichEntry),
   };
 
   body.innerHTML = `
