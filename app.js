@@ -12042,12 +12042,12 @@ function _renderHomeWatchlistCompact() {
 
   // Toggle visibility / label based on overflow + view mode.
   // When home compact is rendered we're always in 'home' view, so the
-  // label is the collapse-target action — "More ↓" (expand down).
+  // label is the collapse-target action — "More" (expand down).
   const tg = document.getElementById('home-wl-toggle');
   if (tg) {
     if (overflow) {
       tg.hidden = false;
-      tg.textContent = 'More ↓';
+      tg.textContent = 'More';
     } else {
       tg.hidden = true;
     }
