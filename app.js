@@ -2246,13 +2246,13 @@ function renderWatchlist() {
   const empty = document.getElementById('wl-empty');
   if (empty) empty.style.display = totalCount === 0 ? '' : 'none';
 
-  // In watchlist-full view we want the toggle visible as "View less ↑"
+  // In watchlist-full view we want the toggle visible as "Less"
   // so the user can collapse back. (When in home view we never reach here
   // — the early return at top of this function covers that.)
   const toggle = document.getElementById('home-wl-toggle');
   if (toggle) {
     toggle.hidden = false;
-    toggle.textContent = 'View less ↑';
+    toggle.textContent = 'Less';
   }
 }
 
@@ -11648,7 +11648,7 @@ function _initWatchlistSubTabs() {
                 <line x1="2.5" y1="7" x2="11.5" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </button>
-            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>View all ↓</a>
+            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>More</a>
           </div>
         </div>
         <!-- Compact-row container, used in home view. -->
@@ -11665,7 +11665,7 @@ function _initWatchlistSubTabs() {
         <div class="home-section-header">
           <h2 class="home-section-title">Currency Strength</h2>
           <div class="home-section-actions">
-            <a class="home-view-all" id="home-strength-toggle" onclick="openStrengthFull()">View all →</a>
+            <a class="home-view-all" id="home-strength-toggle" onclick="openStrengthFull()">More</a>
             <button class="home-close-btn" id="home-strength-close" onclick="closeStrengthFull()" aria-label="Close" hidden>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -11693,7 +11693,7 @@ function _initWatchlistSubTabs() {
                 <path d="M11.5 2v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
               </svg>
             </button>
-            <a class="home-view-all" id="home-briefing-toggle" onclick="openBriefingFull()" hidden>View all →</a>
+            <a class="home-view-all" id="home-briefing-toggle" onclick="openBriefingFull()" hidden>More</a>
             <button class="home-close-btn" id="home-briefing-close" onclick="closeBriefingFull()" aria-label="Close" hidden>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -11974,7 +11974,7 @@ function _renderHomeStrengthCompact() {
 // Render the home overview's compact watchlist (up to HOME_WATCHLIST_CAP rows).
 // Always flat (no category groups), always compact (icon + symbol + price + %).
 // Independent of the user's watchlistGrouped preference, which only affects
-// the full "View all" expanded view.
+// the full "More" expanded view.
 function _renderHomeWatchlistCompact() {
   const el = document.getElementById('home-watchlist-rows');
   if (!el) return;
@@ -12042,12 +12042,12 @@ function _renderHomeWatchlistCompact() {
 
   // Toggle visibility / label based on overflow + view mode.
   // When home compact is rendered we're always in 'home' view, so the
-  // label is the collapse-target action — "View all ↓" (expand down).
+  // label is the collapse-target action — "More ↓" (expand down).
   const tg = document.getElementById('home-wl-toggle');
   if (tg) {
     if (overflow) {
       tg.hidden = false;
-      tg.textContent = 'View all ↓';
+      tg.textContent = 'More ↓';
     } else {
       tg.hidden = true;
     }
@@ -12074,7 +12074,7 @@ function toggleHomeWatchlist() {
     link.hidden = false;
     // Arrow direction: ↓ when collapsed (action: expand down),
     //                  ↑ when expanded (action: collapse up).
-    link.textContent = (_homeViewMode === 'watchlist-full') ? 'View less ↑' : 'View all ↓';
+    link.textContent = (_homeViewMode === 'watchlist-full') ? 'Less' : 'More';
   }
 }
 
