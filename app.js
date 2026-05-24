@@ -2269,7 +2269,7 @@ function renderWatchlist() {
   const toggle = document.getElementById('home-wl-toggle');
   if (toggle) {
     toggle.hidden = false;
-    toggle.textContent = 'View less ↑';
+    toggle.textContent = 'less';
   }
 }
 
@@ -11665,7 +11665,7 @@ function _initWatchlistSubTabs() {
                 <line x1="2.5" y1="7" x2="11.5" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </button>
-            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>View all ↓</a>
+            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>more</a>
           </div>
         </div>
         <!-- Compact-row container, used in home view. -->
@@ -11682,7 +11682,7 @@ function _initWatchlistSubTabs() {
         <div class="home-section-header">
           <h2 class="home-section-title">Currency Strength</h2>
           <div class="home-section-actions">
-            <a class="home-view-all" id="home-strength-toggle" onclick="openStrengthFull()">View all →</a>
+            <a class="home-view-all" id="home-strength-toggle" onclick="openStrengthFull()">more</a>
             <button class="home-close-btn" id="home-strength-close" onclick="closeStrengthFull()" aria-label="Close" hidden>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -11710,7 +11710,7 @@ function _initWatchlistSubTabs() {
                 <path d="M11.5 2v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
               </svg>
             </button>
-            <a class="home-view-all" id="home-briefing-toggle" onclick="openBriefingFull()" hidden>View all →</a>
+            <a class="home-view-all" id="home-briefing-toggle" onclick="openBriefingFull()" hidden>more</a>
             <button class="home-close-btn" id="home-briefing-close" onclick="closeBriefingFull()" aria-label="Close" hidden>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -12064,7 +12064,7 @@ function _renderHomeWatchlistCompact() {
   if (tg) {
     if (overflow) {
       tg.hidden = false;
-      tg.textContent = 'View all ↓';
+      tg.textContent = 'more';
     } else {
       tg.hidden = true;
     }
@@ -12091,7 +12091,7 @@ function toggleHomeWatchlist() {
     link.hidden = false;
     // Arrow direction: ↓ when collapsed (action: expand down),
     //                  ↑ when expanded (action: collapse up).
-    link.textContent = (_homeViewMode === 'watchlist-full') ? 'View less ↑' : 'View all ↓';
+    link.textContent = (_homeViewMode === 'watchlist-full') ? 'less' : 'more';
   }
 }
 
