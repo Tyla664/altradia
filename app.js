@@ -2147,13 +2147,30 @@ function renderWatchlist() {
         const card = document.createElement('div');
         card.className = `swipe-content asset-card${isSelected ? ' selected' : ''}${hasAlert ? ' has-alert' : ''}`;
         card.dataset.assetId = asset.id;
+        // Read live price from the same priceData object the home compact
+        // watchlist uses — keeps both views in sync with one source of truth.
+        const _pd = (typeof priceData !== 'undefined') ? priceData[asset.id] : null;
+        const _price  = _pd?.price;
+        const _change = parseFloat(_pd?.change || 0);
+        const _priceText  = (_price != null && isFinite(_price))
+          ? formatPrice(_price, asset.id) : '—';
+        const _changeText = (_price != null && _pd?.change != null && _pd.change !== '0.0000')
+          ? `${_change >= 0 ? '+' : ''}${_change.toFixed(2)}%` : '';
+        const _changeClass = _change > 0 ? 'pos' : _change < 0 ? 'neg' : '';
+
         card.innerHTML = `
           <button class="asset-remove" title="Remove from watchlist" onclick="removeAssetFromWatchlist('${asset.id}','${cat}',event)"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
           <div class="asset-left">
             <div class="asset-symbol">${asset.symbol}</div>
             <div class="asset-name">${asset.name}</div>
           </div>
-          ${hasAlert ? '<div class="asset-right"><div class="alert-dot" title="Alert active"></div></div>' : ''}`;
+          <div class="asset-right">
+            ${hasAlert ? '<div class="alert-dot" title="Alert active"></div>' : ''}
+            <div class="asset-price-wrap">
+              <div class="asset-price">${_priceText}</div>
+              ${_changeText ? `<div class="asset-change ${_changeClass}">${_changeText}</div>` : ''}
+            </div>
+          </div>`;
         card.onclick = (e) => {
           if (e.target.classList.contains('asset-remove') || e.target.closest('.asset-remove')) return;
           // If row is currently revealed, snap it back instead of navigating.
@@ -2246,13 +2263,13 @@ function renderWatchlist() {
   const empty = document.getElementById('wl-empty');
   if (empty) empty.style.display = totalCount === 0 ? '' : 'none';
 
-  // In watchlist-full view we want the toggle visible as "Less"
+  // In watchlist-full view we want the toggle visible as "View less ↑"
   // so the user can collapse back. (When in home view we never reach here
   // — the early return at top of this function covers that.)
   const toggle = document.getElementById('home-wl-toggle');
   if (toggle) {
     toggle.hidden = false;
-    toggle.textContent = 'Less';
+    toggle.textContent = 'View less ↑';
   }
 }
 
@@ -11648,7 +11665,7 @@ function _initWatchlistSubTabs() {
                 <line x1="2.5" y1="7" x2="11.5" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </button>
-            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>More</a>
+            <a class="home-view-all" id="home-wl-toggle" onclick="toggleHomeWatchlist()" hidden>View all ↓</a>
           </div>
         </div>
         <!-- Compact-row container, used in home view. -->
@@ -11665,7 +11682,7 @@ function _initWatchlistSubTabs() {
         <div class="home-section-header">
           <h2 class="home-section-title">Currency Strength</h2>
           <div class="home-section-actions">
-            <a class="home-view-all" id="home-strength-toggle" onclick="openStrengthFull()">More</a>
+            <a class="home-view-all" id="home-strength-toggle" onclick="openStrengthFull()">View all →</a>
             <button class="home-close-btn" id="home-strength-close" onclick="closeStrengthFull()" aria-label="Close" hidden>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -11693,7 +11710,7 @@ function _initWatchlistSubTabs() {
                 <path d="M11.5 2v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
               </svg>
             </button>
-            <a class="home-view-all" id="home-briefing-toggle" onclick="openBriefingFull()" hidden>More</a>
+            <a class="home-view-all" id="home-briefing-toggle" onclick="openBriefingFull()" hidden>View all →</a>
             <button class="home-close-btn" id="home-briefing-close" onclick="closeBriefingFull()" aria-label="Close" hidden>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -11974,7 +11991,7 @@ function _renderHomeStrengthCompact() {
 // Render the home overview's compact watchlist (up to HOME_WATCHLIST_CAP rows).
 // Always flat (no category groups), always compact (icon + symbol + price + %).
 // Independent of the user's watchlistGrouped preference, which only affects
-// the full "More" expanded view.
+// the full "View all" expanded view.
 function _renderHomeWatchlistCompact() {
   const el = document.getElementById('home-watchlist-rows');
   if (!el) return;
@@ -12042,12 +12059,12 @@ function _renderHomeWatchlistCompact() {
 
   // Toggle visibility / label based on overflow + view mode.
   // When home compact is rendered we're always in 'home' view, so the
-  // label is the collapse-target action — "More" (expand down).
+  // label is the collapse-target action — "View all ↓" (expand down).
   const tg = document.getElementById('home-wl-toggle');
   if (tg) {
     if (overflow) {
       tg.hidden = false;
-      tg.textContent = 'More';
+      tg.textContent = 'View all ↓';
     } else {
       tg.hidden = true;
     }
@@ -12074,7 +12091,7 @@ function toggleHomeWatchlist() {
     link.hidden = false;
     // Arrow direction: ↓ when collapsed (action: expand down),
     //                  ↑ when expanded (action: collapse up).
-    link.textContent = (_homeViewMode === 'watchlist-full') ? 'Less' : 'More';
+    link.textContent = (_homeViewMode === 'watchlist-full') ? 'View less ↑' : 'View all ↓';
   }
 }
 
