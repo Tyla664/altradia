@@ -930,6 +930,8 @@ async function fetchOandaSnapshot(assets) {
           vol:       '—', mcap: '—', live: true, src: 'oanda',
         };
         prices[asset.id] = price;
+        // Update watchlist price displays in-place for the full watchlist tab.
+        if (typeof _refreshWatchlistPrices === 'function') _refreshWatchlistPrices();
 
         // Update the selected-asset panel immediately when this asset's price arrives.
         // Without this, "Price loading…" would persist until the whole batch resolves.
@@ -979,9 +981,36 @@ async function fetchOandaSnapshot(assets) {
           // Refresh the strength tab if it depends on this currency pair
           if (asset.cat === 'forex') _refreshStrengthIfOpen();
         }
+        _refreshWatchlistPrices();
       });
     } catch(e) { console.warn('OANDA snapshot batch failed:', e); }
   }));
+}
+
+// ── Refresh price displays in the full watchlist page ─────────────────────
+// Updates only the price and change text nodes in-place — no card rebuild.
+// Called on every price tick when the full watchlist tab is visible so
+// prices stay live without the overhead of a full renderWatchlist() pass.
+function _refreshWatchlistPrices() {
+  if (typeof _homeViewMode === 'undefined' || _homeViewMode === 'home') return;
+  Object.values(ASSETS).flat().forEach(asset => {
+    const priceEl  = document.getElementById('wl-price-' + asset.id);
+    const changeEl = document.getElementById('wl-change-' + asset.id);
+    if (!priceEl && !changeEl) return;
+    const _pd = priceData[asset.id];
+    if (!_pd) return;
+    const _price  = _pd.price;
+    const _change = parseFloat(_pd.change || 0);
+    if (priceEl && _price != null && isFinite(_price)) {
+      priceEl.textContent = formatPrice(_price, asset.id);
+    }
+    if (changeEl) {
+      const _changeText = (_price != null && _pd.change != null && _pd.change !== '0.0000')
+        ? (_change >= 0 ? '+' : '') + _change.toFixed(2) + '%' : '';
+      changeEl.textContent = _changeText;
+      changeEl.className = 'asset-change ' + (_change > 0 ? 'pos' : _change < 0 ? 'neg' : '');
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════
@@ -1677,6 +1706,9 @@ async function fetchCryptoPrices(assets) {
       };
       prices[asset.id] = price;
     });
+    // Update price displays in the full watchlist tab in-place so
+    // crypto prices stay live without re-rendering the whole card list.
+    _refreshWatchlistPrices();
     return true;
   };
 
@@ -2167,8 +2199,8 @@ function renderWatchlist() {
           <div class="asset-right">
             ${hasAlert ? '<div class="alert-dot" title="Alert active"></div>' : ''}
             <div class="asset-price-wrap">
-              <div class="asset-price">${_priceText}</div>
-              ${_changeText ? `<div class="asset-change ${_changeClass}">${_changeText}</div>` : ''}
+              <div class="asset-price" id="wl-price-${asset.id}">${_priceText}</div>
+              <div class="asset-change ${_changeClass}" id="wl-change-${asset.id}">${_changeText}</div>
             </div>
           </div>`;
         card.onclick = (e) => {
